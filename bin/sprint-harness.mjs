@@ -203,7 +203,11 @@ async function cmdInstall() {
   copyWithSubstitution(join(LIB, 'skills'),   join(targetDir, '.claude/skills'), config);
   copyWithSubstitution(join(LIB, 'helpers'),  join(targetDir, '.claude/helpers'), config);
   copyWithSubstitution(join(LIB, 'templates/sprints'), join(targetDir, 'docs/sprints'), config);
-  ok(`copied 57 scripts, 5 workflows, 12 skill files, 3 helpers, sprint docs`);
+  // AC-12/AC-13: GH Actions YAMLs into .github/workflows/
+  if (existsSync(join(LIB, 'templates/github/workflows'))) {
+    copyWithSubstitution(join(LIB, 'templates/github/workflows'), join(targetDir, '.github/workflows'), config);
+  }
+  ok(`copied 57 scripts, 5 workflows, 12 skill files, 3 helpers, sprint docs, 2 GH Action YAMLs`);
   log('');
 
   // 5. Merge husky hooks

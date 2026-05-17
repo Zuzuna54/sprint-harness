@@ -1,0 +1,49 @@
+name: Sprint PR body auto-fill
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  fill-pr-body:
+    name: Auto-fill PR body from sprint spec
+    runs-on: ubuntu-latest
+    # Only run for sprint/* branches
+    if: startsWith(github.head_ref, 'sprint/')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Extract slug from branch
+        id: slug
+        run: |
+          SLUG="${GITHUB_HEAD_REF#sprint/}"
+          echo "slug=$SLUG" >> $GITHUB_OUTPUT
+
+      - name: Verify sprint spec exists
+        run: |
+          if [ ! -f "docs/sprints/${{ steps.slug.outputs.slug }}/spec.md" ]; then
+            echo "::warning::No spec.md found for sprint ${{ steps.slug.outputs.slug }} — skipping body fill"
+            exit 0
+          fi
+
+      - name: Generate + update PR body
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -f "docs/sprints/${{ steps.slug.outputs.slug }}/spec.md" ]; then
+            node scripts/sprint-pr-body.mjs "${{ steps.slug.outputs.slug }}" --pr "${{ github.event.pull_request.number }}"
+          fi

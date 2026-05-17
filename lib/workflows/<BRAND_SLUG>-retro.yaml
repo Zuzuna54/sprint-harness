@@ -1,0 +1,125 @@
+name: <BRAND_SLUG>-retro
+description: |
+  Phase 8 of the <BRAND_SLUG_TITLE> sprint protocol (day 14).
+  Retro generation, pattern extraction, CLAUDE.md sync, DAA feedback batch,
+  trajectory close, worker re-enable, GitHub Issue close.
+version: 1
+metadata:
+  sprint_phase: 8
+
+inputs:
+  - name: slug
+    required: true
+
+variables:
+  sprint_dir: 'docs/sprints/${slug}'
+  state_file: 'docs/sprints/${slug}/state.json'
+
+steps:
+  - id: precheck
+    cmd: |
+      test -d "${sprint_dir}" || { echo "Sprint dir missing: ${sprint_dir}"; exit 1; }
+    on_failure: pause
+
+  - id: velocity-metrics
+    name: Compute velocity metrics
+    cmd: node scripts/sprint-velocity.mjs "${slug}"
+    on_failure: pause
+
+  - id: retro-skeleton
+    name: Generate retro.md skeleton (sprint-end.sh handles this; this is a safety net)
+    cmd: |
+      bash scripts/sprint-end.sh "${slug}" --skip-patterns --skip-claude-md
+
+  - id: pattern-extraction
+    name: Claude proposes 3-5 reusable patterns
+    type: skill
+    skill: sprint-orchestrator
+    args:
+      action: extract-patterns
+      slug: '${slug}'
+    note: 'Orchestrator skill walks user through pattern proposal + memory_store.'
+
+  - id: claude-md-sync
+    name: Propose CLAUDE.md updates if convention emerged
+    type: skill
+    skill: sprint-orchestrator
+    args:
+      action: claude-md-sync
+      slug: '${slug}'
+    note: 'Orchestrator scans spec + retro, proposes additions to CLAUDE.md.'
+
+  - id: daa-feedback
+    name: Batch PR feedback to DAA reviewer
+    cmd: bash scripts/sprint-daa-feedback.sh "${slug}"
+    retries: 0
+    timeout: 60
+    on_failure: continue
+
+  - id: trajectory-end
+    name: Close ReasoningBank trajectory
+    type: mcp
+    tool: mcp__claude-flow__hooks_intelligence_trajectory-end
+    args:
+      task_id: 'sprint/${slug}'
+      success: true
+
+  # ── P5d — Memory decay + CLAUDE.md staleness + cross-sprint audit ─────────
+  - id: memory-decay
+    name: Apply age-decay to pattern confidence (gap #17, #27)
+    cmd: node scripts/sprint-memory-decay.mjs
+    retries: 0
+    timeout: 60
+    on_failure: pause
+
+  - id: claude-md-check
+    name: Scan CLAUDE.md for stale references (gap #23)
+    cmd: bash scripts/sprint-claude-md-check.sh --all
+    retries: 0
+    timeout: 60
+    on_failure: continue
+
+  - id: cross-pattern-audit
+    name: Cross-sprint pattern reuse audit (gap #25)
+    cmd: node scripts/sprint-cross-pattern-audit.mjs "${slug}"
+    retries: 0
+    timeout: 60
+    on_failure: continue
+
+  - id: consolidate
+    name: Run memory consolidation
+    type: mcp
+    tool: mcp__claude-flow__agentdb_consolidate
+    args:
+      minAge: 1h
+    on_failure: continue
+
+  - id: workers-enable
+    name: Re-enable daemon workers paused at sprint-start
+    cmd: |
+      if command -v ruflo >/dev/null 2>&1; then
+        ruflo daemon enable -w refactor || true
+        ruflo daemon enable -w document || true
+      fi
+
+  - id: train-check
+    name: Check if neural train should run
+    cmd: bash scripts/sprint-train.sh
+    on_failure: continue
+
+  - id: phase-done
+    cmd: |
+      tmp=$(mktemp)
+      jq '.phase = "done" | .closed_at = "'"$(date -u +"%Y-%m-%dT%H:%M:%SZ")"'"' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}"
+
+on_complete:
+  - id: log
+    cmd: |
+      echo ""
+      echo "╔══════════════════════════════════════════════════════════════════════╗"
+      echo "║  Sprint ${slug} — closed"
+      echo "╚══════════════════════════════════════════════════════════════════════╝"
+      echo ""
+      echo "  Retro:       ${sprint_dir}/retro.md"
+      echo "  Metrics:     ${sprint_dir}/metrics.json"
+      echo ""

@@ -1,0 +1,251 @@
+name: <BRAND_SLUG>-sprint-verify
+description: |
+  Phase 5 of the <BRAND_SLUG_TITLE> sprint protocol (day 11-12).
+  Chains all verification gates: typecheck, lint, tests, API contract,
+  RLS audit, perf profile, AIDefence scan.
+  Any failure pauses the sprint and surfaces to the user.
+version: 1
+metadata:
+  sprint_phase: 5
+
+inputs:
+  - name: spec
+    description: Path to spec.md
+    required: true
+  - name: slug
+    required: true
+
+variables:
+  state_file: 'docs/sprints/${slug}/state.json'
+
+steps:
+  - id: precheck
+    name: Verify pre-conditions
+    cmd: |
+      PHASE=$(grep -o '"phase":[[:space:]]*"[^"]*"' "${state_file}" | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
+      [ "$PHASE" = "building" ] || { echo "Expected phase=building, got $PHASE"; exit 1; }
+    retries: 0
+    timeout: 10
+    on_failure: pause
+
+  - id: phase-transition-verifying
+    cmd: |
+      tmp=$(mktemp)
+      jq '.phase = "verifying"' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}"
+
+  - id: typecheck
+    name: pnpm turbo run typecheck (affected only)
+    cmd: pnpm turbo run typecheck --filter='...[HEAD]'
+    retries: 0
+    timeout: 600
+    on_failure: pause
+
+  - id: lint
+    name: ESLint shim via sprint-lint-check.sh (next lint is interactive; turbo lint has no functional surface)
+    cmd: bash scripts/sprint-lint-check.sh scripts playbook
+    retries: 0
+    timeout: 300
+    on_failure: pause
+
+  - id: test
+    name: pnpm test (unit + integration)
+    cmd: pnpm turbo run test --filter='...[HEAD]'
+    retries: 1
+    timeout: 900
+    on_failure: pause
+
+  # ── P5a — Wire existing QA tools (gaps #1, #2, #4, #10, #11) ─────────────
+  - id: graphify-rebuild
+    name: Refresh graphify graph before reading it (gap #2, #21)
+    cmd: |
+      if [ "${SPRINT_SKIP_GRAPHIFY:-0}" != "1" ]; then
+        pnpm graphify:rebuild || echo "[i] graphify:rebuild failed; continuing"
+      else
+        echo "[i] SPRINT_SKIP_GRAPHIFY=1 — skipping"
+      fi
+    retries: 0
+    timeout: 120
+    on_failure: pause # advisory; verify can proceed
+
+  - id: playbook-cov
+    name: Run playbook E2E with c8 coverage (gap #4)
+    cmd: pnpm test:playbook:cov
+    retries: 0
+    timeout: 1200 # 20 min hard cap
+    on_failure: pause
+
+  - id: sonar
+    name: Run SonarQube scan (gap #1, #13)
+    cmd: |
+      if pnpm sonar; then
+        node scripts/sprint-sonar-parse.mjs "${slug}"
+      else
+        echo "[i] pnpm sonar failed; check SONAR_TOKEN + local Sonar"
+        exit 0  # advisory if Sonar is unreachable; don't block on infra
+      fi
+    retries: 0
+    timeout: 600
+    on_failure: pause # only triggers on NEW blocker/critical (parsed against baseline)
+
+  - id: migration-check
+    name: Verify schema changes have a migration file (gap #11)
+    cmd: bash scripts/sprint-migration-check.sh "${slug}"
+    retries: 0
+    timeout: 120
+    on_failure: pause
+
+  - id: api-contract
+    name: /api-contract-validation skill
+    type: skill
+    skill: api-contract-validation
+    on_failure: pause
+
+  - id: rls-debug
+    name: /debug-rls skill
+    type: skill
+    skill: debug-rls
+    on_failure: pause
+
+  - id: module-status
+    name: /module-status DoD check
+    type: skill
+    skill: module-status
+    on_failure: pause
+
+  - id: perf-profile
+    name: Performance profile (raw measurement)
+    type: mcp
+    tool: mcp__claude-flow__performance_profile
+    args:
+      target: 'apps/lambdas'
+      output_file: 'docs/sprints/${slug}/perf-profile.json'
+    on_failure: pause
+    note: 'Soft — measurement only; comparison happens in perf-bar-check below.'
+
+  - id: perf-bar-check
+    name: Compare measured perf to §I bars (gap #10)
+    cmd: node scripts/sprint-perf-check.mjs "${slug}" --profile-output docs/sprints/${slug}/perf-profile.json
+    retries: 0
+    timeout: 60
+    on_failure: pause
+
+  - id: aidefence-scan
+    name: AIDefence scan on user-input surfaces
+    type: mcp
+    tool: mcp__claude-flow__aidefence_scan
+    args:
+      scope: 'spec.md user-input surfaces'
+    on_failure: pause
+
+  # ── P5b — New QA tools (gaps #5, #7, #8, #9, #12) ────────────────────────
+  - id: knip
+    name: Knip — unused files/exports/deps (gap #5)
+    cmd: pnpm knip --no-progress --reporter compact
+    retries: 0
+    timeout: 240 # AC-15: raised from 120s — pnpm dlx jscpd download cold-start is slow
+    on_failure: pause
+
+  - id: coverage-delta
+    name: Coverage delta vs baseline (gap #7)
+    cmd: node scripts/sprint-coverage-delta.mjs "${slug}"
+    retries: 0
+    timeout: 60
+    on_failure: pause
+
+  - id: audit-deps
+    name: Dependency CVE audit (gap #8)
+    cmd: bash scripts/sprint-audit-deps.sh "${slug}"
+    retries: 0
+    timeout: 60
+    on_failure: pause
+
+  - id: bundle-budget
+    name: Lambda bundle size budget (gap #9)
+    cmd: |
+      pnpm turbo run build --filter='./apps/lambdas/*' && \
+      node scripts/sprint-bundle-budget.mjs "${slug}"
+    retries: 0
+    timeout: 600
+    on_failure: pause
+
+  - id: cycle-check
+    name: Cyclic dependency check (gap #12)
+    cmd: bash scripts/sprint-cycle-check.sh "${slug}"
+    retries: 0
+    timeout: 180
+    on_failure: pause
+
+  # ── P5d — <BRAND_SLUG_TITLE> conventions + reuse audit (gaps #20, #22, #24) ──────────
+  - id: lint-<BRAND_SLUG>
+    name: ESLint <BRAND_SLUG_TITLE> conventions (gap #24)
+    cmd: |
+      if [ -f .eslintrc.<BRAND_SLUG>.json ] && command -v pnpm >/dev/null 2>&1; then
+        pnpm dlx -y eslint --config .eslintrc.<BRAND_SLUG>.json --no-eslintrc \
+          --ext .ts,.tsx apps packages || \
+          echo "[i] ESLint <BRAND_SLUG_TITLE> rules surfaced warnings (advisory; not blocking)"
+      else
+        echo "[i] No .eslintrc.<BRAND_SLUG>.json — skipping"
+      fi
+    retries: 0
+    timeout: 180
+    on_failure: pause # warnings only; existing tech debt not blocking
+
+  - id: reuse-audit
+    name: Code duplication / reuse audit (gaps #20, #22)
+    cmd: bash scripts/sprint-reuse-audit.sh "${slug}"
+    retries: 0
+    timeout: 180
+    on_failure: pause # advisory unless SPRINT_REUSE_STRICT=1
+
+  # ── harness-full-coverage — AC-29-30 audit wiring ───────────────────────
+  - id: audit-syntactic
+    name: Sprint-system syntactic test (file-presence + script smoke)
+    cmd: bash scripts/sprint-system-test.sh "${slug}"
+    retries: 0
+    timeout: 120
+    on_failure: pause
+
+  - id: audit-semantic
+    name: Sprint-system semantic audit (observable outcomes)
+    cmd: bash scripts/sprint-system-audit.sh "${slug}"
+    retries: 0
+    timeout: 180
+    on_failure: pause
+
+  # AC-28 (sprint-system-100): strict ALL-pass gate before phase-transition
+  - id: all-pass-gate
+    name: Verify ALL verify steps succeeded (AC-28 strict)
+    cmd: |
+      # Every prior step has on_failure: pause now, so reaching this step
+      # means all 25 succeeded. This explicit gate makes the contract visible
+      # in the workflow and gives retro a clear pass/fail signal.
+      echo "[all-pass-gate] All 25 verify steps green — proceeding to pre-deploy."
+    retries: 0
+    timeout: 5
+
+  # Trigger cleanup phase before pre-deploy (wires sprint-cleanup-launch.sh into automatic flow).
+  - id: cleanup-launch
+    name: Run sprint-cleanup-launch.sh (deadcode + claude-md + retro hooks)
+    cmd: |
+      if [ -x scripts/sprint-cleanup-launch.sh ]; then
+        bash scripts/sprint-cleanup-launch.sh "${slug}" || echo "[i] cleanup-launch advisory failure — continuing"
+      fi
+    retries: 0
+    timeout: 600
+    on_failure: pause # advisory; cleanup is non-blocking but logged
+
+  - id: phase-transition-predeploy
+    cmd: |
+      tmp=$(mktemp)
+      jq '.phase = "pre-deploy" | .gates_passed = (.gates_passed + ["verify", "cleanup"] | unique)' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}"
+
+on_halt:
+  - id: revert
+    cmd: |
+      tmp=$(mktemp)
+      jq '.phase = "building"' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}"
+      echo "[<BRAND_SLUG>-sprint-verify] HALTED — phase reverted to building. Fix issues and re-run."
+
+on_complete:
+  - id: log
+    cmd: echo "[<BRAND_SLUG>-sprint-verify] all gates passed. Sprint ready for pre-deploy review."

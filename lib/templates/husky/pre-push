@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+# pre-push hook — fires before git push.
+#
+# AC-13 (sprint-system-100, Gap H): during active sprint, verify PR review
+# marks before allowing push. Delegates to scripts/sprint-pre-merge-gate.sh.
+
+if [ -x scripts/sprint-pre-merge-gate.sh ]; then
+  bash scripts/sprint-pre-merge-gate.sh "$@"
+fi

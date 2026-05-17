@@ -1,0 +1,10 @@
+diff --git a/packages/utils/src/macros.ts b/packages/utils/src/macros.ts
+index 81a5d94..bb7ded3 100644
+--- a/packages/utils/src/macros.ts
++++ b/packages/utils/src/macros.ts
+@@ -1,3 +1,5 @@
++// @ts-expect-no-error-violation-injected
++const __injected_violation_bad_type: number = 'not a number';
+ type Numeric = number | string | null
+ 
+ interface NutritionLogEntry {

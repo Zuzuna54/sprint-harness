@@ -1,0 +1,31 @@
+#!/usr/bin/env sh
+# post-merge hook — runs after a merge into the current branch (typically main).
+#
+# AC-11 (sprint-system-100, Gap F): collect PR feedback for the DAA reviewer
+# agent. Runs sprint-daa-feedback.sh in the background so the merge completes
+# instantly. Queue lands in state.pending_daa_adapts[] for Claude to drain
+# in the next MCP-enabled session.
+
+set -u
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$REPO_ROOT"
+
+# Only fire on merges into main (skip rebase / cherry-pick noise)
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo)"
+if [ "$CURRENT_BRANCH" != "main" ] && [ "$CURRENT_BRANCH" != "master" ]; then
+  exit 0
+fi
+
+# Resolve active sprint (silent if none)
+SLUG="$(bash scripts/sprint-status.sh --slug-only 2>/dev/null || true)"
+if [ -z "$SLUG" ]; then
+  exit 0
+fi
+
+# Background the feedback collection so merge completes instantly
+if [ -x scripts/sprint-daa-feedback.sh ]; then
+  nohup bash scripts/sprint-daa-feedback.sh "$SLUG" >/dev/null 2>&1 </dev/null &
+fi
+
+exit 0

@@ -1,0 +1,41 @@
+#!/usr/bin/env sh
+# W8.2 — pre-commit: lint-staged + gitleaks (if installed) + affected typecheck.
+# Hook is committed to the repo so every dev gets the same gate after
+# `pnpm install` (husky's `prepare` script wires it in).
+
+set -e
+
+# Sprint drift check (only runs when an active sprint exists with a baseline).
+# Bypass: SPRINT_DRIFT_BYPASS=1 git commit
+if [ -x scripts/sprint-drift-check.sh ]; then
+	bash scripts/sprint-drift-check.sh "$1" || {
+		echo "❌ Sprint drift check blocked the commit. See output above."
+		exit 1
+	}
+fi
+
+# AC-17 (sprint-system-100): duplicate-code check during active sprint.
+# Blocks if any staged TS pair exceeds 50% similarity. Bypass with
+# SPRINT_DUP_BYPASS=1 (logged to state.gate_bypasses[]).
+if [ -x scripts/pre-commit-duplication.mjs ]; then
+	node scripts/pre-commit-duplication.mjs || {
+		[ $? -eq 1 ] && exit 1  # only block on exit 1 (BLOCK); exit 2 = skip
+	}
+fi
+
+pnpm exec lint-staged
+
+if command -v gitleaks > /dev/null; then
+	gitleaks protect --staged --no-banner || {
+		echo "❌ Secrets detected — refusing commit. See https://github.com/gitleaks/gitleaks"
+		exit 1
+	}
+fi
+
+# Affected-only typecheck. The `|| true` shields us from the pre-existing
+# duplicate-workspace error (apps/web vs apps/web.OLD share package.json
+# "name": "web") that turbo refuses to resolve. Once apps/web.OLD is removed,
+# drop the `|| true`.
+pnpm turbo run typecheck --filter=...[HEAD] || {
+	echo "⚠️  Typecheck failed or skipped (often due to apps/web.OLD duplicate workspace). Continuing — fix typecheck before pushing."
+}

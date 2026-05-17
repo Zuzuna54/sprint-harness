@@ -1,0 +1,243 @@
+name: <BRAND_SLUG>-deploy
+description: |
+  Phase 7 of the <BRAND_SLUG_TITLE> sprint protocol (day 13).
+  End-to-end deploy pipeline with a HARD pause for human approval before
+  `pulumi up`. PR flow only — never pushes directly to main.
+
+  v2 (2026-05-17): hardened after the first manual deploy uncovered three
+  systemic gaps:
+    1. `pnpm turbo run build` was insufficient — produced raw ESM output
+       with bare workspace imports that crashed at Lambda module load
+       (`SyntaxError: Unexpected token 'export'` /
+        `Cannot find package '@<NAMESPACE>/auth-middleware'`).
+       FIX: explicit `scripts/bundle-lambdas.sh` esbuild step.
+    2. DB migrations were never part of the deploy gate — Lambdas with
+       new routes 500'd against a stale schema.
+       FIX: explicit `db-migrate` step with dry-run pre-flight.
+    3. Vercel env vars were copied from local .env (localhost Supabase
+       URL leaked to prod).
+       FIX: `verify-vercel-env` step asserts NEXT_PUBLIC_SUPABASE_URL
+       is HTTPS and matches the live AWS API URL.
+
+version: 2
+metadata:
+  sprint_phase: 7
+  human_gates: 2 # PR review + pre-pulumi-up
+
+inputs:
+  - name: branch
+    description: Sprint branch (e.g., sprint/<slug>)
+    required: true
+  - name: slug
+    required: true
+  - name: stack
+    description: Pulumi stack
+    default: <GITHUB_ORG>/dev
+  - name: skip_vercel
+    description: When true, skip the Vercel-side checks (e.g., infra-only deploy)
+    default: false
+
+variables:
+  state_file: 'docs/sprints/${slug}/state.json'
+  expected_aws_account: '<AWS_ACCOUNT_ID>'
+
+steps:
+  - id: precheck
+    name: Verify sprint phase + branch existence
+    cmd: |
+      PHASE=$(grep -o '"phase":[[:space:]]*"[^"]*"' "${state_file}" | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
+      [ "$PHASE" = "pre-deploy" ] || { echo "Expected phase=pre-deploy, got $PHASE"; exit 1; }
+      git rev-parse --verify "${branch}" >/dev/null || { echo "Branch ${branch} not found"; exit 1; }
+    on_failure: pause
+
+  - id: phase-deploying
+    cmd: |
+      tmp=$(mktemp)
+      jq '.phase = "deploying"' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}"
+    on_failure: pause
+
+  - id: env-check
+    name: Verify AWS_PROFILE + Supabase env + Pulumi version
+    cmd: |
+      [ "${AWS_PROFILE:-}" = "<BRAND_SLUG>" ] || { echo "AWS_PROFILE must be '<BRAND_SLUG>' (account ${expected_aws_account}). See <BRAND_SLUG>-aws-profile-mapping memory."; exit 1; }
+      ACCT=$(aws sts get-caller-identity --query 'Account' --output text 2>/dev/null)
+      [ "$ACCT" = "${expected_aws_account}" ] || { echo "Wrong AWS account: $ACCT (expected ${expected_aws_account})"; exit 1; }
+      [ -n "${SUPABASE_SERVICE_ROLE_KEY:-}" ] || { echo "SUPABASE_SERVICE_ROLE_KEY not set"; exit 1; }
+      # Pulumi >=3.205 is required for the FileArchive packaging behavior we depend on.
+      PULUMI_VER=$(pulumi version 2>&1 | head -1)
+      echo "Pulumi: $PULUMI_VER"
+    on_failure: pause
+
+  - id: build-packages
+    name: Build all workspace packages (tsc)
+    cmd: pnpm turbo run build --filter='./packages/*'
+    retries: 0
+    timeout: 600
+    on_failure: pause
+
+  - id: bundle-lambdas
+    name: Bundle all Lambdas (esbuild CJS, Node 22 ARM64)
+    description: |
+      MANDATORY after tsc. Without this the deployed Lambdas crash at
+      module load with `SyntaxError: Unexpected token 'export'`. The
+      script bundles each handler.ts → single dist/handler.js CJS file
+      with every workspace dep inlined, externalizing only @aws-sdk/*.
+    cmd: bash scripts/bundle-lambdas.sh
+    retries: 0
+    timeout: 600
+    on_failure: pause
+
+  - id: verify-lambda-bundles
+    name: Verify each Lambda has a CJS handler.js at dist/ root
+    cmd: |
+      for mod in workouts nutrition supplements planner grocery health finances ai-scheduler auth uploads; do
+        f="apps/lambdas/${mod}-lambda/dist/handler.js"
+        [ -f "$f" ] || { echo "MISSING: $f"; exit 1; }
+        head -c 50 "$f" | grep -q "use strict" || { echo "$f is not CJS (expected leading \"use strict\")"; exit 1; }
+        echo "  ✓ $f"
+      done
+    on_failure: pause
+
+  - id: db-migrate-dry-run
+    name: DB migration dry-run (show what would change on the target stack DB)
+    description: |
+      Lists pending SQL files. ABORT if anything destructive shows up
+      unexpectedly. Reuses _<BRAND_SLUG>_migrations tracker for idempotency.
+    cmd: |
+      export DATABASE_URL=$(aws ssm get-parameter --name /<BRAND_SLUG>/${stack##*/}/database-url --with-decryption --query 'Parameter.Value' --output text)
+      cd packages/db && pnpm migrate:dry
+    retries: 0
+    timeout: 120
+    on_failure: pause
+
+  - id: human-approval-migrate
+    name: HUMAN GATE — review pending migrations
+    type: pause
+    prompt: |
+      Review the dry-run output above. Any [APPLY] lines are NEW migrations
+      that will run against the live DB.
+
+      For destructive migrations (DROP TABLE, ALTER TYPE DROP VALUE, UPDATE
+      that mutates user data): triple-check this is intentional.
+
+      Type 'proceed' to apply migrations.
+      Type 'abort' to halt the deploy.
+    expect: ['proceed', 'approve', 'yes']
+    halt_on: ['abort', 'no', 'stop']
+
+  - id: db-migrate-apply
+    name: Apply DB migrations to the target stack's Supabase project
+    cmd: |
+      export DATABASE_URL=$(aws ssm get-parameter --name /<BRAND_SLUG>/${stack##*/}/database-url --with-decryption --query 'Parameter.Value' --output text)
+      cd packages/db && pnpm migrate
+    retries: 0
+    timeout: 300
+    on_failure: pause
+
+  - id: pulumi-preview
+    name: pulumi preview (diff vs current live infra)
+    cmd: |
+      cd infra && pulumi preview --stack "${stack}" --diff
+    retries: 0
+    timeout: 600
+
+  - id: human-approval-pulumi
+    name: HUMAN GATE — review preview, approve pulumi up
+    type: pause
+    prompt: |
+      Review the `pulumi preview` output above.
+
+      Pulumi will create/modify/delete the resources listed. Pay close attention to:
+        - Any [DELETE] markers — these are destructive (only auto-recoverable
+          for non-protected resources)
+        - Lambda function code updates (expected after a bundle step)
+        - IAM policy changes (rare; investigate if present)
+        - S3 bucket policy changes (must use BucketPolicy not ACL — alpha.42 fix)
+        - Handler-path changes on Lambdas (must match what bundle-lambdas.sh emits)
+
+      Type 'proceed' to continue to `pulumi up`.
+      Type 'abort' to halt the deploy.
+    expect: ['proceed', 'approve', 'yes']
+    halt_on: ['abort', 'no', 'stop']
+
+  - id: pulumi-up
+    name: pulumi up (after human approval)
+    cmd: |
+      cd infra && pulumi up --stack "${stack}" --yes --skip-preview
+    retries: 0
+    timeout: 1200
+
+  - id: smoke-test
+    name: Smoke test deployed Lambdas (curl each route, expect 401 for anonymous)
+    cmd: |
+      API_URL=$(cd infra && pulumi stack output apiUrl --stack "${stack}")
+      for path in workouts/templates nutrition/meals planner/week ai/limits auth/me; do
+        code=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer fake" "https://$API_URL/$path" --max-time 15)
+        echo "  $code  /$path"
+        [ "$code" = "401" ] || [ "$code" = "404" ] || { echo "FAIL: /$path returned $code (expected 401 or 404)"; exit 1; }
+      done
+    retries: 2
+    timeout: 300
+    on_failure: pause
+
+  - id: verify-vercel-env
+    name: Verify Vercel env vars match the deployed AWS state
+    condition: skip_vercel == false
+    description: |
+      Catches the "localhost-leaked-to-prod" regression. Requires the
+      Vercel CLI to be logged into the correct personal/team account.
+    cmd: |
+      cd apps/web
+      # Pull production env vars to a temp file
+      vercel env pull --environment=production /tmp/<BRAND_SLUG>-deploy-env.txt
+      SBURL=$(grep '^NEXT_PUBLIC_SUPABASE_URL=' /tmp/<BRAND_SLUG>-deploy-env.txt | cut -d= -f2- | tr -d '"')
+      APIURL=$(grep '^NEXT_PUBLIC_API_BASE_URL=' /tmp/<BRAND_SLUG>-deploy-env.txt | cut -d= -f2- | tr -d '"')
+      AWSAPI=$(cd ../../infra && pulumi stack output apiUrl --stack "${stack}")
+      echo "  Vercel NEXT_PUBLIC_SUPABASE_URL = $SBURL"
+      echo "  Vercel NEXT_PUBLIC_API_BASE_URL = $APIURL"
+      echo "  AWS API Gateway URL             = https://$AWSAPI"
+      # MUST be HTTPS — catches localhost / http leaks
+      [[ "$SBURL" == https://*.supabase.co ]] || { echo "FAIL: SUPABASE_URL is not a public https://*.supabase.co URL"; exit 1; }
+      [[ "$APIURL" == "https://$AWSAPI" ]] || { echo "FAIL: NEXT_PUBLIC_API_BASE_URL doesn't match AWS API Gateway"; exit 1; }
+      rm -f /tmp/<BRAND_SLUG>-deploy-env.txt
+    retries: 0
+    timeout: 60
+    on_failure: pause
+
+  - id: vercel-deploy
+    name: Vercel production deploy (via git push trigger)
+    condition: skip_vercel == false
+    description: |
+      With Vercel ↔ GitHub git integration enabled, the push to main
+      already triggered a build. This step waits for it to complete.
+      If git integration is NOT enabled, falls back to `vercel --prod`
+      (subject to free-tier upload throttles).
+    cmd: |
+      LATEST_SHA=$(git rev-parse HEAD)
+      echo "Waiting for Vercel deploy of sha ${LATEST_SHA:0:7}..."
+      for i in $(seq 1 60); do
+        STATE=$(vercel inspect --json 2>/dev/null | jq -r '.deployments[0].readyState // "?"' 2>/dev/null || echo "?")
+        [ "$STATE" = "READY" ] && { echo "  ✓ Vercel READY"; break; }
+        [ "$STATE" = "ERROR" ] && { echo "  ✗ Vercel ERROR — check dashboard"; exit 1; }
+        sleep 15
+      done
+    retries: 0
+    timeout: 1200
+    on_failure: pause
+
+  - id: phase-done
+    name: Mark deploying complete (sprint advances to done after retro)
+    cmd: |
+      tmp=$(mktemp)
+      jq '.gates_passed = (.gates_passed + ["deploy"] | unique) | .deployed_at = "'"$(date -u +"%Y-%m-%dT%H:%M:%SZ")"'"' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}"
+
+on_halt:
+  - id: revert
+    cmd: |
+      tmp=$(mktemp)
+      jq '.phase = "pre-deploy"' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}"
+      echo "[<BRAND_SLUG>-deploy] HALTED — phase reverted to pre-deploy."
+
+on_complete:
+  - id: log
+    cmd: echo "[<BRAND_SLUG>-deploy] deploy complete. Run bash scripts/sprint-end.sh ${slug} for retro."

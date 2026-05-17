@@ -1,0 +1,211 @@
+name: <BRAND_SLUG>-sprint-build
+description: |
+  Phase 3 of the <BRAND_SLUG_TITLE> sprint protocol (days 3-11).
+  Spawns an 8-agent hierarchical-mesh swarm, grants claims per file-ownership
+  domain, runs autopilot side-cars (lint-fix, test-backfill, doc-sweep) in
+  parallel, and executes per-AC TDD loop with drift checks on every commit.
+version: 1
+metadata:
+  sprint_phase: 3
+  protocol: shape-up-sparc
+inputs:
+  - name: spec
+    description: Path to docs/sprints/<slug>/spec.md
+    required: true
+  - name: slug
+    description: Sprint slug
+    required: true
+
+# ────────────────────────────────────────────────────────────────────────────
+# Variables — interpolated into steps
+# ────────────────────────────────────────────────────────────────────────────
+variables:
+  sprint_dir: 'docs/sprints/${slug}'
+  state_file: 'docs/sprints/${slug}/state.json'
+  topology: 'hierarchical-mesh'
+  max_agents: 8
+  consensus: 'raft'
+
+# ────────────────────────────────────────────────────────────────────────────
+# Steps
+# ────────────────────────────────────────────────────────────────────────────
+steps:
+  - id: precheck
+    name: Verify pre-conditions
+    cmd: |
+      test -f "${spec}" || { echo "Spec missing: ${spec}"; exit 1; }
+      PHASE=$(grep -o '"phase":[[:space:]]*"[^"]*"' "${state_file}" | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
+      [ "$PHASE" = "design-locked" ] || { echo "Expected phase=design-locked, got $PHASE"; exit 1; }
+      echo "✓ pre-conditions OK (phase=design-locked)"
+    retries: 0
+    timeout: 30
+    on_failure: pause
+
+  - id: phase-transition-building
+    name: Update state to building
+    cmd: |
+      tmp=$(mktemp)
+      jq '.phase = "building" | .day = 3' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}"
+    retries: 0
+    timeout: 10
+
+  - id: swarm-init
+    name: Initialize 8-agent hierarchical-mesh swarm
+    type: mcp
+    tool: mcp__claude-flow__swarm_init
+    args:
+      topology: '${topology}'
+      maxAgents: ${max_agents}
+      strategy: specialized
+    on_failure: halt
+
+  - id: claims-grant
+    name: Grant file-ownership claims per agent role
+    type: parallel
+    branches:
+      - id: claim-backend
+        type: mcp
+        tool: mcp__claude-flow__claims_claim
+        args:
+          agent: coder-backend
+          domain: backend
+          paths: ['apps/lambdas/**', 'packages/types/**']
+      - id: claim-frontend
+        type: mcp
+        tool: mcp__claude-flow__claims_claim
+        args:
+          agent: coder-frontend
+          domain: frontend
+          paths: ['apps/web/**']
+      - id: claim-database
+        type: mcp
+        tool: mcp__claude-flow__claims_claim
+        args:
+          agent: architect
+          domain: database
+          paths: ['packages/db/**']
+      - id: claim-tests
+        type: mcp
+        tool: mcp__claude-flow__claims_claim
+        args:
+          agent: tester
+          domain: tests
+          paths: ['**/*.test.ts', '**/*.test.tsx', '**/__tests__/**', 'e2e/**']
+      - id: claim-review
+        type: mcp
+        tool: mcp__claude-flow__claims_claim
+        args:
+          agent: reviewer
+          domain: review
+          paths: ['**']
+          read_only: true
+      - id: claim-security
+        type: mcp
+        tool: mcp__claude-flow__claims_claim
+        args:
+          agent: security-architect
+          domain: security
+          paths: ['packages/db/migrations/**', '**/auth*', '**/*rls*']
+      - id: claim-infra
+        type: mcp
+        tool: mcp__claude-flow__claims_claim
+        args:
+          agent: cicd-engineer
+          domain: infra
+          paths: ['infra/**', '.github/workflows/**']
+      # AC-20 (sprint-system-100): 8th claim — integration-reviewer
+      # Reads HANDOFF.md from each layer (paths: docs/sprints/*/handoffs/**)
+      # and produces docs/sprints/<slug>/integration-review.md
+      - id: claim-integration-reviewer
+        type: mcp
+        tool: mcp__claude-flow__claims_claim
+        args:
+          agent: integration-reviewer
+          domain: integration
+          paths: ['docs/sprints/*/handoffs/**', 'docs/sprints/*/integration-review.md']
+          read_only_paths: ['apps/**', 'packages/**']
+          spawn_after:
+            [
+              'claim-backend',
+              'claim-frontend',
+              'claim-database',
+              'claim-tests',
+              'claim-review',
+              'claim-security',
+              'claim-infra',
+            ]
+
+  # AC-20 (sprint-system-100): per-layer HANDOFF.md generation step.
+  # Each layer agent writes docs/sprints/<slug>/handoffs/<layer>.md before
+  # integration-reviewer fires. Layer agents share this convention via the
+  # claim's metadata.
+  - id: per-layer-handoffs
+    name: Each layer agent writes its HANDOFF.md (precondition for integration-reviewer)
+    type: mcp
+    tool: mcp__claude-flow__hive-mind_broadcast
+    args:
+      message: 'Before signaling done, write docs/sprints/${slug}/handoffs/${claim.domain}.md with: claimed_surface, files_touched[], open_questions[], decisions[]. integration-reviewer requires this.'
+
+  - id: autopilot-sidecars
+    name: Spawn 3 autopilot side-cars (lint-fix, test-backfill, doc-sweep)
+    type: parallel
+    branches:
+      - id: ap-lint-fix
+        type: mcp
+        tool: mcp__claude-flow__autopilot_enable
+        args_from: '.claude-flow/autopilot/lint-fix.json'
+      - id: ap-test-backfill
+        type: mcp
+        tool: mcp__claude-flow__autopilot_enable
+        args_from: '.claude-flow/autopilot/test-backfill.json'
+      - id: ap-doc-sweep
+        type: mcp
+        tool: mcp__claude-flow__autopilot_enable
+        args_from: '.claude-flow/autopilot/doc-sweep.json'
+
+  - id: trajectory-start
+    name: Open ReasoningBank trajectory for this sprint
+    type: mcp
+    tool: mcp__claude-flow__hooks_intelligence_trajectory-start
+    args:
+      task_id: 'sprint/${slug}'
+      goal: 'Build module slice per spec.md; close all ACs; pass DoD'
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Per-AC build loop is driven by the orchestrator skill — workflows
+  # don't iterate by themselves. Instead, the orchestrator reads spec §I
+  # and invokes the appropriate sub-workflow per AC type:
+  #   - Complex AC → /pair-programming DRIVER mode
+  #   - Simple AC → TDD with the swarm
+  # ────────────────────────────────────────────────────────────────────────
+
+  - id: signal-ready
+    name: Signal build phase is ready for per-AC execution
+    cmd: |
+      echo ""
+      echo "╔══════════════════════════════════════════════════════════════════════╗"
+      echo "║  Sprint $slug — build phase ARMED"
+      echo "╚══════════════════════════════════════════════════════════════════════╝"
+      echo ""
+      echo "  Swarm:       ${topology} × ${max_agents} agents"
+      echo "  Autopilot:   lint-fix, test-backfill, doc-sweep (side-cars)"
+      echo "  Trajectory:  open (sprint/${slug})"
+      echo ""
+      echo "  Hand off to sprint-orchestrator skill for per-AC execution."
+      echo "  Each commit will run scripts/sprint-drift-check.sh."
+      echo ""
+    retries: 0
+    timeout: 10
+
+# ────────────────────────────────────────────────────────────────────────────
+# On halt / failure — cleanup
+# ────────────────────────────────────────────────────────────────────────────
+on_halt:
+  - id: revert-phase
+    cmd: |
+      tmp=$(mktemp)
+      jq '.phase = "design-locked"' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}"
+
+on_complete:
+  - id: log
+    cmd: echo "[<BRAND_SLUG>-sprint-build] handed off to orchestrator at $(date -u +%Y-%m-%dT%H:%M:%SZ)"

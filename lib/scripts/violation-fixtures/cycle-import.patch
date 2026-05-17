@@ -1,0 +1,14 @@
+diff --git a/packages/utils/src/__cycle_a__.ts b/packages/utils/src/__cycle_a__.ts
+new file mode 100644
+--- /dev/null
++++ b/packages/utils/src/__cycle_a__.ts
+@@ -0,0 +1,2 @@
++import { b } from './__cycle_b__'
++export const a = 'a' + b
+diff --git a/packages/utils/src/__cycle_b__.ts b/packages/utils/src/__cycle_b__.ts
+new file mode 100644
+--- /dev/null
++++ b/packages/utils/src/__cycle_b__.ts
+@@ -0,0 +1,2 @@
++import { a } from './__cycle_a__'
++export const b = 'b' + a

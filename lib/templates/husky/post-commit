@@ -1,0 +1,154 @@
+#!/usr/bin/env sh
+# post-commit hook — fires sprint-aware checks AFTER every commit.
+#
+# AC-5 (sprint-system-100, Gap L): reuse audit on every commit during sprint.
+# AC-7 (sprint-system-100, Gap G): pair-mode auto-trigger on complex-AC commits.
+#
+# RAM-leak fix (sprint-system-100 follow-up, 2026-05-17):
+#   - Lockfile guard around reuse-audit prevents multiple concurrent jscpd
+#     scans (each consumes 1-3 GB; without the guard, 3 concurrent Claude
+#     sessions committing once/min racked up ~7 GB of stuck scans).
+#   - Stale lock detection (process no longer exists → reclaim).
+#   - Atomic state.json mutation via shared lock file (no torn writes from
+#     concurrent jq pipes).
+
+set -u
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$REPO_ROOT"
+
+# Resolve active sprint (silent if none)
+SLUG="$(bash scripts/sprint-status.sh --slug-only 2>/dev/null || true)"
+if [ -z "$SLUG" ]; then
+  exit 0
+fi
+
+STATE_FILE="docs/sprints/$SLUG/state.json"
+[ -f "$STATE_FILE" ] || exit 0
+
+# ── Shared helper: atomic state.json mutation ─────────────────────────────
+# Serializes concurrent jq writes from post-commit, daemon workers, scripts.
+# Falls back to no-flock systems by retrying on conflict.
+STATE_LOCK="$STATE_FILE.lock"
+atomic_state_update() {
+  # Args: $1 = jq filter string
+  filter="$1"
+  for attempt in 1 2 3 4 5; do
+    if ( set -C; : > "$STATE_LOCK" ) 2>/dev/null; then
+      trap 'rm -f "$STATE_LOCK"' EXIT
+      tmp="$(mktemp)"
+      jq "$filter" "$STATE_FILE" > "$tmp" 2>/dev/null && mv "$tmp" "$STATE_FILE"
+      rc=$?
+      rm -f "$STATE_LOCK"
+      trap - EXIT
+      return $rc
+    fi
+    # Stale lock? if older than 30s, reclaim
+    if [ -f "$STATE_LOCK" ]; then
+      lock_age="$(($(date +%s) - $(stat -f %m "$STATE_LOCK" 2>/dev/null || echo 0)))"
+      [ "$lock_age" -gt 30 ] && rm -f "$STATE_LOCK"
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+# ── AC-7 (sprint-system-100, Gap G): pair-mode auto-trigger — RUNS FIRST (fast) ──
+# If the commit message references an AC marked complex:true in spec, fire
+# a stderr advisory prompting pair-mode for the next commit on that AC.
+if command -v node >/dev/null 2>&1 && [ -x scripts/sprint-pair-check.mjs ]; then
+  COMMIT_MSG="$(git log -1 --pretty=%B 2>/dev/null || echo)"
+  AC_REF="$(printf '%s' "$COMMIT_MSG" | grep -oE 'AC-[0-9]+' | head -1 || true)"
+
+  if [ -n "$AC_REF" ]; then
+    PAIR_JSON="$(node scripts/sprint-pair-check.mjs "$SLUG" --json 2>/dev/null || echo '{}')"
+    IS_COMPLEX="$(printf '%s' "$PAIR_JSON" | node -e "
+      let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{
+        try {
+          const j=JSON.parse(s);
+          const ac=(j.results||[]).find(r=>r.id==='$AC_REF');
+          if(ac && ac.requires_pair_mode) process.stdout.write('true');
+        } catch {}
+      });
+    " 2>/dev/null || echo)"
+
+    if [ "$IS_COMPLEX" = "true" ]; then
+      cat >&2 <<EOF
+
+╔══════════════════════════════════════════════════════════════════════╗
+║  PAIR-MODE RECOMMENDED — $AC_REF is complex:true                     ║
+╚══════════════════════════════════════════════════════════════════════╝
+  Reason: $AC_REF contains auth/RLS/migration/secret/delete/hash keywords
+  Next step: \`ruflo pair-programming DRIVER $AC_REF\` (or work with
+  reviewer agent on the next commit for this AC).
+  Audit: result logged to state.pair_prompts[].
+
+EOF
+      # Also log to state.json (atomic via shared lock)
+      if command -v jq >/dev/null 2>&1; then
+        NOW_ISO="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+        COMMIT_SHA="$(git rev-parse HEAD)"
+        export AT_VAL="$NOW_ISO" AC_VAL="$AC_REF" SHA_VAL="$COMMIT_SHA"
+        atomic_state_update '.pair_prompts = ((.pair_prompts // []) + [{at: env.AT_VAL, ac: env.AC_VAL, commit: env.SHA_VAL, action: "stderr-advisory"}])'
+      fi
+    fi
+  fi
+fi
+
+# ── AC-5: reuse audit — detached + lockfile-guarded ───────────────────────
+# RAM-leak fix: lockfile prevents concurrent jscpd scans (each costs 1-3 GB).
+# Stale-lock detection reclaims if the holder died. Detached via nohup so
+# commit completes instantly.
+if [ -x scripts/sprint-reuse-audit.sh ] && [ "${SPRINT_SKIP_REUSE_AUDIT:-0}" != "1" ]; then
+  AUDIT_LOCK="docs/sprints/$SLUG/.reuse-audit.lock"
+
+  # Skip if another audit is in flight (live PID held in lock file)
+  if [ -f "$AUDIT_LOCK" ]; then
+    HELD_PID="$(cat "$AUDIT_LOCK" 2>/dev/null || echo)"
+    if [ -n "$HELD_PID" ] && kill -0 "$HELD_PID" 2>/dev/null; then
+      # Already running — quietly skip; next commit picks it up
+      exit 0
+    fi
+    # Stale (process gone) — reclaim
+    rm -f "$AUDIT_LOCK"
+  fi
+
+  AUDIT_RUNNER="$(cat <<'INNER'
+SLUG="$1"
+LOCK="docs/sprints/$SLUG/.reuse-audit.lock"
+STATE="docs/sprints/$SLUG/state.json"
+STATE_LOCK="$STATE.lock"
+
+# Write our PID to lock file; clean up on any exit
+echo $$ > "$LOCK"
+trap 'rm -f "$LOCK"' EXIT INT TERM
+
+# Run the audit (jscpd-heavy)
+bash scripts/sprint-reuse-audit.sh "$SLUG" >/dev/null 2>&1
+
+# Append result atomically (retry on state.json lock contention)
+REPORT="docs/sprints/$SLUG/reuse-audit.json"
+if [ -f "$REPORT" ] && command -v jq >/dev/null 2>&1; then
+  NOW="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  DC="$(jq -r '.duplications // 0' "$REPORT" 2>/dev/null || echo 0)"
+  ST="clean"
+  [ "$DC" != "0" ] && [ "$DC" != "null" ] && ST="has-duplication"
+  for attempt in 1 2 3 4 5; do
+    if ( set -C; : > "$STATE_LOCK" ) 2>/dev/null; then
+      TMP="$(mktemp)"
+      jq --arg at "$NOW" --arg rp "$REPORT" --arg dc "$DC" --arg st "$ST" \
+         '.reuse_audits = ((.reuse_audits // []) + [{at: $at, report_path: $rp, dup_count: ($dc|tonumber? // 0), status: $st}])' \
+         "$STATE" > "$TMP" 2>/dev/null && mv "$TMP" "$STATE"
+      rm -f "$STATE_LOCK"
+      break
+    fi
+    sleep 1
+  done
+fi
+INNER
+)"
+  # Detached daemon (commit returns immediately). Lock prevents pile-up.
+  nohup sh -c "$AUDIT_RUNNER" sh "$SLUG" >/dev/null 2>&1 </dev/null &
+fi
+
+exit 0

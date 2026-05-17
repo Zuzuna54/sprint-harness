@@ -1,0 +1,48 @@
+{
+  "name": "@ordex/sprint-harness",
+  "version": "0.1.0",
+  "description": "Shape Up + SPARC sprint harness with drift control, inject-violation-catch-restore methodology, multi-sprint parallel support, and full Claude Code + ruflo integration.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "sprint-harness": "./bin/sprint-harness.mjs"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "docs/",
+    "README.md",
+    "LICENSE",
+    "CONTRIBUTING.md"
+  ],
+  "keywords": [
+    "sprint",
+    "shape-up",
+    "sparc",
+    "drift-control",
+    "claude-code",
+    "ruflo",
+    "harness",
+    "agentic-workflow",
+    "inject-catch-restore"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "verify": "node bin/sprint-harness.mjs verify",
+    "doctor": "node bin/sprint-harness.mjs doctor",
+    "test:install": "node tests/install-smoke.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Zuzuna54/sprint-harness.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Zuzuna54/sprint-harness/issues"
+  },
+  "author": "Giorgi Giorgobiani <giorgigiorgobiani54@gmail.com>",
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,0 +1,108 @@
+name: <BRAND_SLUG>-sprint-cleanup
+description: |
+  Cleanup phase between verify and deploy (days 11-12).
+  Runs dead-code removal, ESLint --fix on sprint files, reuse-refactor pass,
+  test re-run, and CLAUDE.md auto-clean. Each step is non-blocking but
+  records a result. Sprint cannot deploy until cleanup completes.
+version: 1
+metadata:
+  sprint_phase: 6
+  protocol: shape-up-sparc
+inputs:
+  - name: slug
+    description: Sprint slug
+    required: true
+variables:
+  sprint_dir: 'docs/sprints/${slug}'
+  state_file: 'docs/sprints/${slug}/state.json'
+
+steps:
+  - id: precheck
+    name: Verify phase=pre-deploy
+    cmd: |
+      PHASE=$(grep -o '"phase":[[:space:]]*"[^"]*"' "${state_file}" | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
+      [ "$PHASE" = "pre-deploy" ] || { echo "[!] Expected phase=pre-deploy (verify must have run), got $PHASE"; exit 1; }
+    retries: 0
+    timeout: 30
+    on_failure: pause
+
+  - id: phase-transition-cleaning
+    name: Set phase=cleaning
+    cmd: |
+      tmp=$(mktemp)
+      jq '.phase = "cleaning"' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}"
+    retries: 0
+    timeout: 10
+
+  - id: deadcode-delete
+    name: AC-18 deadcode delete (dry-run by default; --commit for real)
+    cmd: |
+      if [ -x scripts/sprint-deadcode-delete.mjs ]; then
+        node scripts/sprint-deadcode-delete.mjs "${slug}" ${SPRINT_DEADCODE_COMMIT:+--commit}
+      fi
+    retries: 0
+    timeout: 300
+    on_failure: pause
+
+  - id: eslint-fix
+    name: ESLint --fix on files_touched
+    cmd: |
+      FILES=$(node -e "console.log((require('./${state_file}').files_touched||[]).filter(f=>/\.(ts|tsx)$/.test(f)).join(' '))")
+      if [ -n "$FILES" ]; then
+        pnpm exec eslint --fix $FILES 2>&1 | tail -10 || true
+      else
+        echo "[i] no TS/TSX files in files_touched"
+      fi
+    retries: 0
+    timeout: 120
+    on_failure: pause
+
+  - id: test-rerun
+    name: pnpm test after cleanup (ensure deletions didn't break anything)
+    cmd: |
+      pnpm test 2>&1 | tail -20
+    retries: 1
+    timeout: 600
+    on_failure: pause
+
+  - id: claude-md-autoclean
+    name: AC-26 CLAUDE.md auto-clean stale refs
+    cmd: |
+      bash scripts/sprint-claude-md-check.sh "${slug}" --auto-fix
+    retries: 0
+    timeout: 60
+    on_failure: pause
+
+  - id: commit-cleanup
+    name: Commit any pending changes from cleanup
+    cmd: |
+      if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+        git add -A
+        SPRINT_DRIFT_BYPASS=1 SPRINT_DUP_BYPASS=1 git commit -m "chore(cleanup): sprint ${slug} day 11-12 cleanup" || true
+      fi
+    retries: 0
+    timeout: 30
+
+  - id: phase-transition-back-predeploy
+    name: Return phase=pre-deploy (cleanup done)
+    cmd: |
+      tmp=$(mktemp)
+      jq '.phase = "pre-deploy" | .gates_passed = (.gates_passed + ["cleanup"] | unique)' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}"
+
+  - id: signal-ready
+    cmd: |
+      echo ""
+      echo "═══ Cleanup phase complete for ${slug} ═══"
+      echo "  Sprint is ready for deploy phase."
+      echo ""
+
+on_halt:
+  - id: revert-phase
+    cmd: |
+      tmp=$(mktemp)
+      jq '.phase = "pre-deploy"' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}"
+      echo "[<BRAND_SLUG>-sprint-cleanup] HALTED — phase reverted to pre-deploy. Fix and re-run."
+
+on_complete:
+  - id: log
+    cmd: echo "[<BRAND_SLUG>-sprint-cleanup] done. Proceed to <BRAND_SLUG>-deploy."

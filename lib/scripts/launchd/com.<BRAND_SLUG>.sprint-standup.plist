@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.<BRAND_SLUG>.sprint-standup</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>-c</string>
+    <string>cd /Users/gio/Desktop/<BRAND_SLUG> &amp;&amp; SLUG=$(bash scripts/sprint-status.sh --slug-only 2&gt;/dev/null) &amp;&amp; [ -n "$SLUG" ] &amp;&amp; /usr/bin/env node scripts/sprint-standup.mjs "$SLUG" || true</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>REPO_ROOT</key>
+    <string>/Users/gio/Desktop/<BRAND_SLUG></string>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>9</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/gio/Desktop/<BRAND_SLUG>/.swarm/sprint-standup.err</string>
+
+  <key>StandardOutPath</key>
+  <string>/Users/gio/Desktop/<BRAND_SLUG>/.swarm/sprint-standup.log</string>
+</dict>
+</plist>

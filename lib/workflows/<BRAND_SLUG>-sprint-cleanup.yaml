@@ -30,7 +30,7 @@ steps:
     name: Set phase=cleaning
     cmd: |
       tmp=$(mktemp)
-      jq '.phase = "cleaning"' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}"
+      source scripts/lib/state-lock.sh 2>/dev/null && jq_state_lock "${state_file}" '.phase = "cleaning"' || (jq '.phase = "cleaning"' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}")
     retries: 0
     timeout: 10
 
@@ -82,12 +82,13 @@ steps:
       fi
     retries: 0
     timeout: 30
+    on_failure: pause
 
   - id: phase-transition-back-predeploy
     name: Return phase=pre-deploy (cleanup done)
     cmd: |
       tmp=$(mktemp)
-      jq '.phase = "pre-deploy" | .gates_passed = (.gates_passed + ["cleanup"] | unique)' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}"
+      source scripts/lib/state-lock.sh 2>/dev/null && jq_state_lock "${state_file}" '.phase = "pre-deploy" | .gates_passed = (.gates_passed + ["cleanup"] | unique)' || (jq '.phase = "pre-deploy" | .gates_passed = (.gates_passed + ["cleanup"] | unique)' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}")
 
   - id: signal-ready
     cmd: |
@@ -100,7 +101,7 @@ on_halt:
   - id: revert-phase
     cmd: |
       tmp=$(mktemp)
-      jq '.phase = "pre-deploy"' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}"
+      source scripts/lib/state-lock.sh 2>/dev/null && jq_state_lock "${state_file}" '.phase = "pre-deploy"' || (jq '.phase = "pre-deploy"' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}")
       echo "[<BRAND_SLUG>-sprint-cleanup] HALTED — phase reverted to pre-deploy. Fix and re-run."
 
 on_complete:

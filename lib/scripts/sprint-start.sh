@@ -63,6 +63,15 @@ fi
 if [ "${SPRINT_SKIP_GRAPHIFY:-0}" != "1" ] && command -v pnpm >/dev/null 2>&1; then
   echo "[i] Rebuilding graphify-out for fresh codebase context..."
   pnpm graphify:rebuild >/dev/null 2>&1 || echo "    (graphify rebuild failed; continuing)"
+else
+  # AC-10 (harness-portability-v2): log bypass to state.gate_bypasses[]
+  # State file may not exist yet (pre-sprint-init); skip if so.
+  if [ "${SPRINT_SKIP_GRAPHIFY:-0}" = "1" ] && [ -f "$STATE_FILE" ] && command -v jq >/dev/null 2>&1; then
+    tmp_b=$(mktemp)
+    jq --arg at "$(date -u +%FT%TZ)" \
+      '.gate_bypasses = ((.gate_bypasses // []) + [{gate:"graphify-rebuild", at:$at, reason:"SPRINT_SKIP_GRAPHIFY=1"}])' \
+      "$STATE_FILE" > "$tmp_b" && mv "$tmp_b" "$STATE_FILE"
+  fi
 fi
 
 # ── Guard: parallel sprints allowed; only block if THIS slug already exists ──

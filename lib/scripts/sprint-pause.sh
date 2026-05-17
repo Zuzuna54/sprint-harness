@@ -32,10 +32,20 @@ if [ "$PREV_PHASE" = "paused" ]; then
   exit 0
 fi
 
-# Update state.json: phase=paused, prev_phase=<current>, record pause event
+# Update state.json: phase=paused, prev_phase=<current>, record pause event.
+# AC-3 (harness-portability-v2): use state-lock helper to prevent torn writes
+# from concurrent sprint-amend-spec / hooks.
 if command -v jq >/dev/null 2>&1; then
-  tmp="$(mktemp)"
-  jq ".phase = \"paused\" | .prev_phase = \"$PREV_PHASE\" | .pause_events += [{at: \"$NOW_ISO\", reason: $(printf '%s' "$REASON" | jq -Rs .), prev_phase: \"$PREV_PHASE\"}]" "$STATE_FILE" > "$tmp" && mv "$tmp" "$STATE_FILE"
+  REASON_JSON="$(printf '%s' "$REASON" | jq -Rs .)"
+  if [ -f scripts/lib/state-lock.sh ]; then
+    # shellcheck source=scripts/lib/state-lock.sh
+    source scripts/lib/state-lock.sh
+    jq_state_lock "$STATE_FILE" ".phase = \"paused\" | .prev_phase = \"$PREV_PHASE\" | .pause_events += [{at: \"$NOW_ISO\", reason: $REASON_JSON, prev_phase: \"$PREV_PHASE\"}]"
+  else
+    # Fallback if helper missing (back-compat, will be cleaned up next sync)
+    tmp="$(mktemp)"
+    jq ".phase = \"paused\" | .prev_phase = \"$PREV_PHASE\" | .pause_events += [{at: \"$NOW_ISO\", reason: $REASON_JSON, prev_phase: \"$PREV_PHASE\"}]" "$STATE_FILE" > "$tmp" && mv "$tmp" "$STATE_FILE"
+  fi
 else
   echo "[!] jq not available — state.json update may be partial" >&2
 fi

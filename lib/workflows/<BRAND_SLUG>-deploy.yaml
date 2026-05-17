@@ -53,7 +53,7 @@ steps:
   - id: phase-deploying
     cmd: |
       tmp=$(mktemp)
-      jq '.phase = "deploying"' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}"
+      source scripts/lib/state-lock.sh 2>/dev/null && jq_state_lock "${state_file}" '.phase = "deploying"' || (jq '.phase = "deploying"' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}")
     on_failure: pause
 
   - id: env-check
@@ -124,6 +124,7 @@ steps:
       Type 'abort' to halt the deploy.
     expect: ['proceed', 'approve', 'yes']
     halt_on: ['abort', 'no', 'stop']
+    on_failure: pause
 
   - id: db-migrate-apply
     name: Apply DB migrations to the target stack's Supabase project
@@ -140,6 +141,7 @@ steps:
       cd infra && pulumi preview --stack "${stack}" --diff
     retries: 0
     timeout: 600
+    on_failure: pause
 
   - id: human-approval-pulumi
     name: HUMAN GATE — review preview, approve pulumi up
@@ -159,6 +161,7 @@ steps:
       Type 'abort' to halt the deploy.
     expect: ['proceed', 'approve', 'yes']
     halt_on: ['abort', 'no', 'stop']
+    on_failure: pause
 
   - id: pulumi-up
     name: pulumi up (after human approval)
@@ -166,6 +169,7 @@ steps:
       cd infra && pulumi up --stack "${stack}" --yes --skip-preview
     retries: 0
     timeout: 1200
+    on_failure: pause
 
   - id: smoke-test
     name: Smoke test deployed Lambdas (curl each route, expect 401 for anonymous)
@@ -229,13 +233,14 @@ steps:
     name: Mark deploying complete (sprint advances to done after retro)
     cmd: |
       tmp=$(mktemp)
-      jq '.gates_passed = (.gates_passed + ["deploy"] | unique) | .deployed_at = "'"$(date -u +"%Y-%m-%dT%H:%M:%SZ")"'"' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}"
+      source scripts/lib/state-lock.sh 2>/dev/null && jq_state_lock "${state_file}" '.gates_passed = (.gates_passed + ["deploy"] | unique) | .deployed_at = "'"$(date -u +"%Y-%m-%dT%H:%M:%SZ")"'"' || (jq '.gates_passed = (.gates_passed + ["deploy"] | unique) | .deployed_at = "'"$(date -u +"%Y-%m-%dT%H:%M:%SZ")"'"' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}")
+    on_failure: continue
 
 on_halt:
   - id: revert
     cmd: |
       tmp=$(mktemp)
-      jq '.phase = "pre-deploy"' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}"
+      source scripts/lib/state-lock.sh 2>/dev/null && jq_state_lock "${state_file}" '.phase = "pre-deploy"' || (jq '.phase = "pre-deploy"' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}")
       echo "[<BRAND_SLUG>-deploy] HALTED — phase reverted to pre-deploy."
 
 on_complete:

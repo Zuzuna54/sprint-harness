@@ -1,0 +1,11 @@
+[Unit]
+Description=<BRAND_NAME> sprint-memory-decay
+After=network.target
+
+[Service]
+Type=oneshot
+Environment="REPO_ROOT=<REPO_ROOT>"
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+ExecStart=/usr/bin/env node <REPO_ROOT>/scripts/sprint-memory-decay.mjs
+StandardOutput=append:<REPO_ROOT>/.swarm/memory-decay.log
+StandardError=append:<REPO_ROOT>/.swarm/memory-decay.err

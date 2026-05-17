@@ -291,6 +291,7 @@ async function brandPrompts() {
       brand: 'MyProduct',
       codebaseIdentifier: 'myproduct',
       memoryNamespace: 'myproduct',
+      memoryStrategy: 'per-project',   // AC-15
       gitHubOrg: 'your-username',
       awsProfile: null,
       packageManager: detectPM(targetDir) || 'pnpm',
@@ -300,10 +301,15 @@ async function brandPrompts() {
     const rl = createInterface({ input: process.stdin, output: process.stdout });
     return new Promise((r) => rl.question(`${q} (default: ${def}) `, (a) => { rl.close(); r(a.trim() || def); }));
   };
+  const brand = await ask('Brand name (e.g. "Ordex"):', 'MyProduct');
+  const codebase = await ask('Codebase slug (e.g. "lifeos"):', 'myproduct');
+  // AC-15: memory namespacing strategy
+  const memStrategyAns = await ask('Memory strategy — per-project (isolated) or shared-namespaced (cross-project recall)?', 'per-project');
   return {
-    brand: await ask('Brand name (e.g. "Ordex"):', 'MyProduct'),
-    codebaseIdentifier: await ask('Codebase slug (e.g. "lifeos"):', 'myproduct'),
-    memoryNamespace: await ask('Memory namespace:', 'myproduct'),
+    brand,
+    codebaseIdentifier: codebase,
+    memoryNamespace: await ask('Memory namespace prefix:', codebase),
+    memoryStrategy: memStrategyAns === 'shared-namespaced' ? 'shared-namespaced' : 'per-project',
     gitHubOrg: await ask('GitHub org/user:', 'your-username'),
     awsProfile: await ask('AWS profile name (or "none"):', 'none'),
     packageManager: detectPM(targetDir) || 'pnpm',
@@ -333,6 +339,13 @@ function copyWithSubstitution(src, dest, config) {
         .replace(/<AWS_PROFILE_NAME>/g, config.awsProfile === 'none' ? '' : config.awsProfile)
         .replace(/<AWS_ACCOUNT_ID>/g, '')
         .replace(/<REPO_ROOT>/g, targetDir);
+      // AC-16: package-manager adapter — rewrite pnpm dlx to detected PM
+      const pm = config.packageManager || 'pnpm';
+      if (pm === 'npm') {
+        content = content.replace(/\bpnpm dlx\b/g, 'npx').replace(/\bpnpm /g, 'npm run ');
+      } else if (pm === 'yarn') {
+        content = content.replace(/\bpnpm dlx\b/g, 'yarn dlx').replace(/\bpnpm /g, 'yarn ');
+      }
       writeFileSync(dp, content);
       // Preserve executable bit on shell scripts
       if (sp.endsWith('.sh') || sp.endsWith('.mjs')) {
@@ -451,12 +464,50 @@ function cmdUninstall() {
   ok('uninstall complete. docs/sprints/ + .sprintrc.json preserved.');
 }
 
-function cmdUpdate() {
+async function cmdUpdate() {
+  // AC-18: update preserves .sprintrc.json + user customizations
   log('═══ sprint-harness update ═══');
-  warn('Update preserves .sprintrc.json + your customizations.');
-  warn('Strategy: backup target hooks/scripts to .bak before overwrite.');
-  warn('Implementation: re-run cmdInstall with --merge-mode, preserve config.');
-  log('Not fully implemented in v0.1 — re-clone + cmdInstall recommended for now.');
+  const sprintrcPath = join(targetDir, '.sprintrc.json');
+  if (!existsSync(sprintrcPath)) {
+    err('No .sprintrc.json — run `install` first, not `update`.');
+    process.exit(1);
+  }
+  const config = JSON.parse(readFileSync(sprintrcPath, 'utf8'));
+  ok(`Preserving config: brand=${config.brand}, ns=${config.codebaseIdentifier}, pm=${config.packageManager}`);
+
+  // Backup mutable surfaces before overwrite
+  const backupRoot = join(targetDir, `.sprint-harness-backup-${Date.now()}`);
+  mkdirSync(backupRoot, { recursive: true });
+  for (const p of ['scripts', '.claude/skills/sprint-orchestrator', '.claude/skills/sprint-spec-wizard', '.claude/helpers/sprint-hook.cjs', '.claude/helpers/websearch-pii-redact.cjs', 'docs/workflows']) {
+    const src = join(targetDir, p);
+    if (!existsSync(src)) continue;
+    const dst = join(backupRoot, p);
+    mkdirSync(dirname(dst), { recursive: true });
+    execSync(`cp -r "${src}" "${dst}"`);
+  }
+  ok(`Backup at: ${backupRoot}`);
+
+  // Copy fresh harness with same config
+  copyWithSubstitution(join(LIB, 'scripts'),  join(targetDir, 'scripts'),       config);
+  copyWithSubstitution(join(LIB, 'workflows'), join(targetDir, 'docs/workflows'), config);
+  copyWithSubstitution(join(LIB, 'skills'),   join(targetDir, '.claude/skills'), config);
+  copyWithSubstitution(join(LIB, 'helpers'),  join(targetDir, '.claude/helpers'), config);
+  ok('Files refreshed (existing files overwritten; backup preserved at above path)');
+
+  // Record update history
+  config.update_history = (config.update_history || []).concat([{
+    at: new Date().toISOString(),
+    from: config.harnessVersion || 'unknown',
+    to: '0.2.0',
+    backupPath: backupRoot,
+  }]);
+  config.harnessVersion = '0.2.0';
+  writeFileSync(sprintrcPath, JSON.stringify(config, null, 2));
+  ok('.sprintrc.json updated with version + history');
+  log('');
+  log(`Update complete: ${config.update_history[config.update_history.length - 2]?.to || '0.1.0'} → 0.2.0`);
+  log(`Review changes:  diff -r ${backupRoot}/scripts scripts | head -50`);
+  log(`Rollback:        rm -rf scripts docs/workflows .claude && cp -r ${backupRoot}/* .`);
 }
 
 // ── Dispatch ─────────────────────────────────────────────────────────────────

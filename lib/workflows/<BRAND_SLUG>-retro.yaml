@@ -30,6 +30,7 @@ steps:
     name: Generate retro.md skeleton (sprint-end.sh handles this; this is a safety net)
     cmd: |
       bash scripts/sprint-end.sh "${slug}" --skip-patterns --skip-claude-md
+    on_failure: pause
 
   - id: pattern-extraction
     name: Claude proposes 3-5 reusable patterns
@@ -39,6 +40,7 @@ steps:
       action: extract-patterns
       slug: '${slug}'
     note: 'Orchestrator skill walks user through pattern proposal + memory_store.'
+    on_failure: continue
 
   - id: claude-md-sync
     name: Propose CLAUDE.md updates if convention emerged
@@ -48,6 +50,7 @@ steps:
       action: claude-md-sync
       slug: '${slug}'
     note: 'Orchestrator scans spec + retro, proposes additions to CLAUDE.md.'
+    on_failure: continue
 
   - id: daa-feedback
     name: Batch PR feedback to DAA reviewer
@@ -63,6 +66,7 @@ steps:
     args:
       task_id: 'sprint/${slug}'
       success: true
+    on_failure: continue
 
   # ── P5d — Memory decay + CLAUDE.md staleness + cross-sprint audit ─────────
   - id: memory-decay
@@ -101,6 +105,7 @@ steps:
         ruflo daemon enable -w refactor || true
         ruflo daemon enable -w document || true
       fi
+    on_failure: continue
 
   - id: train-check
     name: Check if neural train should run
@@ -110,7 +115,8 @@ steps:
   - id: phase-done
     cmd: |
       tmp=$(mktemp)
-      jq '.phase = "done" | .closed_at = "'"$(date -u +"%Y-%m-%dT%H:%M:%SZ")"'"' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}"
+      source scripts/lib/state-lock.sh 2>/dev/null && jq_state_lock "${state_file}" '.phase = "done" | .closed_at = "'"$(date -u +"%Y-%m-%dT%H:%M:%SZ")"'"' || (jq '.phase = "done" | .closed_at = "'"$(date -u +"%Y-%m-%dT%H:%M:%SZ")"'"' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}")
+    on_failure: continue
 
 on_complete:
   - id: log

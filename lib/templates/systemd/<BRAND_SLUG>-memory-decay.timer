@@ -1,0 +1,9 @@
+[Unit]
+Description=<BRAND_NAME> sprint-memory-decay timer
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+
+[Install]
+WantedBy=timers.target

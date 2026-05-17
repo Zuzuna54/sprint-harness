@@ -31,7 +31,7 @@ steps:
   - id: phase-transition-verifying
     cmd: |
       tmp=$(mktemp)
-      jq '.phase = "verifying"' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}"
+      source scripts/lib/state-lock.sh 2>/dev/null && jq_state_lock "${state_file}" '.phase = "verifying"' || (jq '.phase = "verifying"' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}")
 
   - id: typecheck
     name: pnpm turbo run typecheck (affected only)
@@ -237,13 +237,13 @@ steps:
   - id: phase-transition-predeploy
     cmd: |
       tmp=$(mktemp)
-      jq '.phase = "pre-deploy" | .gates_passed = (.gates_passed + ["verify", "cleanup"] | unique)' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}"
+      source scripts/lib/state-lock.sh 2>/dev/null && jq_state_lock "${state_file}" '.phase = "pre-deploy" | .gates_passed = (.gates_passed + ["verify", "cleanup"] | unique)' || (jq '.phase = "pre-deploy" | .gates_passed = (.gates_passed + ["verify", "cleanup"] | unique)' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}")
 
 on_halt:
   - id: revert
     cmd: |
       tmp=$(mktemp)
-      jq '.phase = "building"' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}"
+      source scripts/lib/state-lock.sh 2>/dev/null && jq_state_lock "${state_file}" '.phase = "building"' || (jq '.phase = "building"' "${state_file}" > "$tmp" && mv "$tmp" "${state_file}")
       echo "[<BRAND_SLUG>-sprint-verify] HALTED — phase reverted to building. Fix issues and re-run."
 
 on_complete:

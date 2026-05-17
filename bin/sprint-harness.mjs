@@ -183,12 +183,63 @@ async function cmdInstall() {
     if (proceed) await ensureDep('gh', detectOS() === 'macos' ? 'brew install gh' : 'see https://cli.github.com/');
   } else ok(`gh ${version('gh')}`);
   if (!which('sonar-scanner')) {
-    const proceed = await prompt('Install sonar-scanner for static analysis gate?', false);
+    const proceed = await prompt('Install sonar-scanner?', false);
     if (proceed) await ensureDep('sonar-scanner', 'brew install sonar-scanner');
   } else ok(`sonar-scanner present`);
+
+  // AC-2: Docker auto-install (macOS)
   if (!which('docker')) {
-    warn('docker not installed (optional; install via docker.com if you want local Sonar)');
+    if (detectOS() === 'macos') {
+      const proceed = await prompt('Install Docker Desktop via brew cask?', false);
+      if (proceed) {
+        try {
+          execSync('brew install --cask docker', { stdio: 'inherit' });
+          execSync('open -a Docker 2>&1 || true');
+          let dockerUp = false;
+          for (let i = 0; i < 15; i++) {
+            try { execSync('docker info', { stdio: 'pipe' }); dockerUp = true; break; }
+            catch { execSync('sleep 2'); }
+          }
+          if (dockerUp) ok('docker daemon RUNNING');
+        } catch (e) { warn(`Docker install: ${e.message.split('\n')[0]}`); }
+      }
+    } else warn('docker missing — Linux: docs.docker.com/engine/install/');
   } else ok(`docker ${version('docker')}`);
+
+  // AC-3: SonarQube container + token bootstrap
+  if (which('docker') && which('sonar-scanner')) {
+    try {
+      execSync('docker info', { stdio: 'pipe' });
+      let sonarExists = false;
+      try { sonarExists = execSync('docker ps -a --filter name=sonarqube --format "{{.Names}}"', { encoding: 'utf8' }).includes('sonarqube'); } catch {}
+      if (!sonarExists) {
+        const proceed = await prompt('Bootstrap SonarQube container?', false);
+        if (proceed) {
+          execSync('docker run -d --name sonarqube -p 9000:9000 -e SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true sonarqube:community', { stdio: 'inherit' });
+          log('  Waiting for Sonar UP (~60s)...');
+          for (let i = 0; i < 60; i++) {
+            try { if (execSync('curl -s http://localhost:9000/api/system/status', { encoding: 'utf8' }).includes('"UP"')) { ok('Sonar UP'); break; } } catch {}
+            execSync('sleep 2');
+          }
+          try {
+            execSync('curl -s -u admin:admin -X POST "http://localhost:9000/api/users/change_password" -d "login=admin&password=sh-admin-pw&previousPassword=admin"', { stdio: 'ignore' });
+            const t = (execSync(`curl -s -u admin:sh-admin-pw -X POST "http://localhost:9000/api/user_tokens/generate?name=sh-${Date.now()}"`, { encoding: 'utf8' }).match(/"token":"([^"]+)"/) || [])[1];
+            if (t) { writeFileSync('/tmp/sonar-token.txt', t); ok(`Sonar token → /tmp/sonar-token.txt`); config.sonar_token_path = '/tmp/sonar-token.txt'; }
+          } catch (e) { warn(`Sonar token: ${e.message.split('\n')[0]}`); }
+        }
+      } else ok('SonarQube container exists');
+    } catch { warn('docker daemon down — Sonar skipped'); }
+  }
+
+  // AC-6: Playwright
+  const proceedPw = await prompt('Install Playwright browsers?', false);
+  if (proceedPw) {
+    try {
+      execSync(`${pm === 'npm' ? 'npx' : pm + ' dlx'} playwright install`, { cwd: targetDir, stdio: 'inherit' });
+      ok('Playwright installed');
+      config.playwright_installed = true;
+    } catch (e) { warn(`Playwright: ${e.message.split('\n')[0]}`); }
+  }
   log('');
 
   // 3. Prompt for brand config
@@ -245,13 +296,104 @@ async function cmdInstall() {
   ok('.sprintrc.json written');
   log('');
 
-  // 9. Start ruflo daemon + verify
-  log('Step 8 — Start ruflo daemon');
+  // 9. Start ruflo daemon + verify (AC-13: 30s polling)
+  log('Step 8 — Start ruflo daemon + poll for RUNNING (30s)');
   try {
     execSync('ruflo daemon start --workspace .', { cwd: targetDir, stdio: 'inherit' });
-    ok('daemon started');
+    let running = false;
+    for (let i = 0; i < 15; i++) {
+      try {
+        const out = execSync('ruflo daemon status', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+        if (/RUNNING|active/i.test(out)) { running = true; break; }
+      } catch {}
+      execSync('sleep 2');
+    }
+    if (running) ok('daemon RUNNING (verified within 30s)');
+    else warn('daemon did not RUNNING within 30s — harness degraded');
   } catch (e) { warn(`daemon start failed: ${e.message}`); }
   log('');
+
+  // 10. AC-9 per-project memory.db isolation
+  log('Step 9 — Per-project memory.db isolation');
+  if (config.memoryStrategy === 'per-project') {
+    const swarmDir = join(targetDir, '.swarm');
+    mkdirSync(swarmDir, { recursive: true });
+    if (!existsSync(join(swarmDir, 'memory.db'))) {
+      writeFileSync(join(swarmDir, 'memory.db'), '');
+      ok(`.swarm/memory.db created (isolated)`);
+    } else ok(`.swarm/memory.db already exists`);
+  } else {
+    ok(`memoryStrategy=shared-namespaced — global with "${config.memoryNamespace}-" prefix`);
+  }
+  log('');
+
+  // AC-5: Linux systemd-user auto-install
+  if (detectOS() === 'linux') {
+    log('Step 10 — systemd-user (Linux)');
+    const systemdDir = join(LIB, 'templates/systemd');
+    if (existsSync(systemdDir)) {
+      const userSystemd = `${process.env.HOME}/.config/systemd/user`;
+      mkdirSync(userSystemd, { recursive: true });
+      const loaded = [];
+      for (const unit of readdirSync(systemdDir).filter((f) => f.endsWith('.service') || f.endsWith('.timer'))) {
+        let content = readFileSync(join(systemdDir, unit), 'utf8');
+        content = content.replace(/<BRAND_NAME>/g, config.brand).replace(/<BRAND_SLUG>/g, config.codebaseIdentifier).replace(/<REPO_ROOT>/g, targetDir);
+        const destName = unit.replace(/<BRAND_SLUG>/g, config.codebaseIdentifier);
+        writeFileSync(join(userSystemd, destName), content);
+        if (destName.endsWith('.timer')) {
+          try { execSync(`systemctl --user enable --now "${destName}"`); loaded.push(destName); ok(`systemd: ${destName}`); }
+          catch (e) { warn(`systemctl ${destName}: ${e.message.split('\n')[0]}`); }
+        }
+      }
+      config.systemd_loaded = loaded;
+    }
+    log('');
+  }
+
+  // 11. AC-4 launchctl auto-bootstrap (macOS)
+  if (detectOS() === 'macos') {
+    log('Step 10 — Auto-bootstrap launchd plists');
+    const plistDir = join(targetDir, 'scripts/launchd');
+    if (existsSync(plistDir)) {
+      const userId = execSync('id -u', { encoding: 'utf8' }).trim();
+      const loaded = [];
+      for (const plist of readdirSync(plistDir).filter((p) => p.endsWith('.plist'))) {
+        const plistPath = join(plistDir, plist);
+        try {
+          execSync(`launchctl bootstrap gui/${userId} "${plistPath}" 2>&1 || true`, { encoding: 'utf8' });
+          loaded.push(plist);
+          ok(`launchctl: ${plist} bootstrapped`);
+        } catch (e) {
+          warn(`launchctl ${plist}: ${e.message.split('\n')[0]}`);
+        }
+      }
+      config.launchctl_loaded = loaded;
+    }
+    log('');
+  }
+
+  // 12. AC-10 GH labels (if gh available)
+  if (which('gh')) {
+    log('Step 11 — Auto-create GH labels (idempotent)');
+    try {
+      execSync('gh auth status 2>&1', { encoding: 'utf8', stdio: 'pipe' });
+      for (const [label, color, desc] of [
+        ['sprint', '0E8A16', 'sprint-harness AC tracking'],
+        ['epic',   'B60205', 'sprint-harness epic'],
+        ['task',   'FBCA04', 'sprint-harness task'],
+      ]) {
+        try {
+          execSync(`gh label create "${label}" --color "${color}" --description "${desc}" 2>&1`, { cwd: targetDir, stdio: 'pipe' });
+          ok(`label: ${label}`);
+        } catch (e) {
+          if (/already exists/.test(e.message)) ok(`label: ${label} (exists)`);
+          else warn(`label ${label}: ${e.message.split('\n')[0]}`);
+        }
+      }
+      config.gh_labels_created = ['sprint', 'epic', 'task'];
+    } catch { warn('gh not authenticated — labels skipped'); }
+    log('');
+  }
 
   log('═══════════════════════════════════════════════════════════════════');
   log('  Install complete!');

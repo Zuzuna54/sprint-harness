@@ -1,0 +1,42 @@
+{
+  "name": "test-backfill",
+  "description": "Generate Vitest/Supertest tests for Lambda routes flagged by daemon's `testgaps` worker. Bounded to files in apps/lambdas. New tests must include happy path + auth-fail + validation-fail at minimum.",
+  "trigger": "paired-with-daemon",
+  "paired_worker": "testgaps",
+  "active_only_during_sprint": true,
+  "command_template": "node scripts/sprint-generate-test.mjs --route ${route_path}",
+  "maxIterations": 10,
+  "iterationTimeoutMs": 180000,
+  "wallClockTimeoutMs": 1800000,
+  "taskSources": [".claude-flow/metrics/test-gaps.json"],
+  "permittedDomains": [
+    "apps/lambdas/**/__tests__/**/*.test.ts",
+    "apps/web/**/__tests__/**/*.test.{ts,tsx}",
+    "e2e/**/*.spec.ts"
+  ],
+  "forbidden": [
+    "git push",
+    "git push --force",
+    "pulumi up",
+    "pulumi destroy",
+    "rm -rf",
+    "modifying source code outside tests",
+    "DROP TABLE",
+    "DELETE FROM"
+  ],
+  "test_requirements": {
+    "must_include": ["happy_path", "auth_fail_401", "validation_fail_400"],
+    "should_include": ["rls_cross_user_fail_403", "not_found_404"],
+    "framework_per_surface": {
+      "apps/lambdas/**": "vitest + supertest",
+      "apps/web/components/**": "vitest + @testing-library/react",
+      "e2e/**": "@playwright/test"
+    }
+  },
+  "success_criteria": {
+    "min_assertion_count": 3,
+    "covers_route_methods": "all"
+  },
+  "failure_action": "report-and-skip-route",
+  "notes": "testgaps worker writes test-gaps.json every 20m with list of routes lacking sibling __tests__. autopilot picks oldest gap first, generates test, runs it, iterates if failing. Only commits when test passes."
+}

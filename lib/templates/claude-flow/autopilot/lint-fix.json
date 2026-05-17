@@ -1,0 +1,31 @@
+{
+  "name": "lint-fix",
+  "description": "Auto-fix lint issues during sprint build phase. Bounded to files changed in the current sprint branch. Refuses to push, deploy, or modify files outside the apps/web + apps/lambdas + packages glob.",
+  "trigger": "manual",
+  "active_only_during_sprint": true,
+  "command": "pnpm turbo run lint -- --fix --filter=...[HEAD]",
+  "maxIterations": 5,
+  "iterationTimeoutMs": 120000,
+  "wallClockTimeoutMs": 600000,
+  "taskSources": ["lint-violations"],
+  "permittedDomains": [
+    "apps/web/**/*.{ts,tsx,js,jsx}",
+    "apps/lambdas/**/*.{ts,js}",
+    "packages/**/*.{ts,tsx,js,jsx}"
+  ],
+  "forbidden": [
+    "git push",
+    "git push --force",
+    "pulumi up",
+    "pulumi destroy",
+    "rm -rf",
+    "DROP TABLE",
+    "DELETE FROM"
+  ],
+  "success_criteria": {
+    "exit_code": 0,
+    "max_iterations_to_clean": 5
+  },
+  "failure_action": "report-and-halt",
+  "notes": "Pairs with daemon's `optimize` worker (30m cadence) which surfaces optimization candidates. lint-fix only addresses lint issues; refactors are out of scope."
+}

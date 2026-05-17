@@ -16,8 +16,10 @@ import { tmpdir } from 'node:os';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = join(__dirname, '..');
 const BIN = join(PKG_ROOT, 'bin/sprint-harness.mjs');
+// AC B5: vendored fixtures live in lib/proof/ so the test is self-contained.
+// External PROOF_SOURCE env still wins if set (regression test against the original lifeos source).
 const PROOF_SOURCE = process.env.PROOF_SOURCE
-  || '/Users/gio/Desktop/lifeos/docs/sprints/harness-full-coverage/proof';
+  || join(PKG_ROOT, 'lib/proof');
 
 if (!existsSync(PROOF_SOURCE)) {
   console.error(`[!] PROOF_SOURCE not found: ${PROOF_SOURCE}`);

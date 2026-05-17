@@ -1,0 +1,16 @@
+# sprint-harness CODEOWNERS
+# Default: package author owns everything. Refine as contributors join.
+
+*       @Zuzuna54
+
+# Installer surfaces (Tier 1 + Tier 2) — high-blast-radius edits
+bin/                @Zuzuna54
+package.json        @Zuzuna54
+.github/workflows/  @Zuzuna54
+
+# Templates that ship to consumers
+lib/templates/      @Zuzuna54
+lib/skills/         @Zuzuna54
+
+# Test runners
+tests/              @Zuzuna54

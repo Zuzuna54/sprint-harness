@@ -18,7 +18,7 @@
 #   2 = configuration error (script can't proceed; commit allowed to avoid deadlock)
 #
 # See: .claude/skills/sprint-orchestrator/SKILL.md "Drift control responsibilities"
-#      /Users/gio/.claude/plans/hazy-gathering-kettle.md "Drift score mechanics"
+#      docs/sprints/_template/spec.md "Drift score mechanics" section
 
 set -uo pipefail
 

@@ -7,7 +7,7 @@ description: Run a complete 2-week Shape Up + SPARC sprint for <BRAND_SLUG_TITLE
 
 This skill defines the **14-day protocol** Claude follows to drive a <BRAND_SLUG_TITLE> sprint end-to-end with deterministic gates, drift control, and full ruflo activation. It is the centerpiece skill of the <BRAND_SLUG_TITLE> sprint system.
 
-> **Source of truth:** `/Users/gio/.claude/plans/hazy-gathering-kettle.md` — the approved sprint system plan. This skill operationalizes that plan.
+> **Source of truth:** `docs/sprints/<slug>/spec.md` — each sprint's approved spec. This skill operationalizes that spec against the active sprint's state machine.
 
 > **Companion skills:** `sprint-spec-wizard` (the adaptive wizard runs as part of phase 1), `sparc-methodology` (phase 3 SPARC chain), `verification-quality` (verify phase), `swarm-orchestration` (build-phase swarm).
 
@@ -340,7 +340,7 @@ When invoked during an active sprint, this skill must:
 
 ## Reference
 
-- Full plan: `/Users/gio/.claude/plans/hazy-gathering-kettle.md`
+- Active spec: `docs/sprints/<slug>/spec.md`
 - Wizard skill: `.claude/skills/sprint-spec-wizard/SKILL.md`
 - <BRAND_SLUG_TITLE> feature map: `docs/ruflo-sessions/ruflo-for-<BRAND_SLUG>.md`
 - Sprint directory: `docs/sprints/README.md`

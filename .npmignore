@@ -1,0 +1,31 @@
+# sprint-harness npm package — exclude from published tarball
+
+# Tests (vendored fixtures in lib/proof/ are kept; runners themselves are dev-only)
+tests/
+
+# Internal dev artifacts
+.last-71ac-report.json
+.claude-flow/
+docs/sprints/
+docs/sprints/
+
+# Repo metadata
+.github/
+.gitignore
+.gitattributes
+.editorconfig
+.nvmrc
+.npmrc
+
+# Pre-commit / hook config
+.husky/
+
+# Backup files
+*.bak
+*.orig
+*.tmp
+
+# Bulky / generated
+node_modules/
+coverage/
+*.log

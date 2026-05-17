@@ -134,7 +134,7 @@ The installer prompts for these at first install. Edit anytime to re-customize.
 
 ## Provenance
 
-Extracted from [lifeos](https://github.com/Zuzuna54/lifeos) (the Ordex product codebase) where the harness was developed over 4 sprints and proven across 71 acceptance criteria via inject-violation-catch-restore. See [HISTORY.md](./docs/HISTORY.md) for the audit trail.
+Extracted from an internal product codebase where the harness was developed across four sprints and proven against 71 acceptance criteria via inject-violation-catch-restore. See [HISTORY.md](./docs/HISTORY.md) for the audit trail.
 
 ## Contributing
 

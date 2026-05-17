@@ -228,7 +228,7 @@ The user may say at any point:
 
 ### DON'T
 
-- Re-ask things already decided in `/Users/gio/.claude/plans/hazy-gathering-kettle.md` (Shape Up cycle, drift threshold, etc.)
+- Re-ask things already decided in the active sprint's spec.md or in upstream sprint-system docs (Shape Up cycle, drift threshold, etc.)
 - Ask multiple things in one question (one question, one answer)
 - Use jargon without quick definitions
 - Accept vague answers — "user wants this" is not a why; push for "user is doing X and hits Y problem"
@@ -259,4 +259,4 @@ Update `state.json.phase = spec-locked-pending-review` (i.e., wizard done, await
 - Section files: `.claude/skills/sprint-spec-wizard/sections/A-vision.md` through `J-risks.md`
 - Orchestrator skill: `.claude/skills/sprint-orchestrator/SKILL.md`
 - Template: `docs/sprints/_template/spec.md`
-- Plan source-of-truth: `/Users/gio/.claude/plans/hazy-gathering-kettle.md`
+- Spec source-of-truth: `docs/sprints/<slug>/spec.md` (assembled from `spec.partial.json`)

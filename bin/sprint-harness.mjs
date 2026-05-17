@@ -22,6 +22,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const PKG_ROOT = join(__dirname, '..');
 const LIB = join(PKG_ROOT, 'lib');
+// AC #3: read version from package.json instead of hardcoding
+const PKG = JSON.parse(readFileSync(join(PKG_ROOT, 'package.json'), 'utf8'));
+const HARNESS_VERSION = PKG.version;
 
 // ── CLI args ─────────────────────────────────────────────────────────────────
 const [, , cmd, ...rest] = process.argv;
@@ -72,6 +75,23 @@ function detectPM(target) {
   if (existsSync(join(target, 'yarn.lock'))) return 'yarn';
   if (existsSync(join(target, 'package-lock.json'))) return 'npm';
   return null;
+}
+
+// AC #5: Sonar / Sonar admin pw / future secrets go to $HOME/.sprint-harness/
+function secretsDir() {
+  const dir = join(process.env.HOME || '', '.sprint-harness');
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+    try { execSync(`chmod 0700 "${dir}"`); } catch {}
+  }
+  return dir;
+}
+
+// AC #10: WSL detection — Linux kernel with `microsoft` substring
+function isWSL() {
+  if (detectOS() !== 'linux') return false;
+  try { return /microsoft/i.test(execSync('uname -r', { encoding: 'utf8' })); }
+  catch { return false; }
 }
 
 function detectOS() {
@@ -139,11 +159,77 @@ function cmdDoctor() {
   log('  Tier 3 (on-demand via dlx — verified at first use)');
   log('');
 
-  if (tier1Missing === 0) {
+  // AC #4: Verify v0.3 installed surfaces match .sprintrc.json claims
+  log('  Tier 2 installed surfaces (per .sprintrc.json):');
+  const rcPath = join(targetDir, '.sprintrc.json');
+  let surfaceMiss = 0;
+  if (existsSync(rcPath)) {
+    let rc = {};
+    try { rc = JSON.parse(readFileSync(rcPath, 'utf8')); } catch {}
+    // launchctl
+    if (Array.isArray(rc.launchctl_loaded) && rc.launchctl_loaded.length) {
+      try {
+        const uid = execSync('id -u', { encoding: 'utf8' }).trim();
+        const list = execSync(`launchctl print gui/${uid} 2>&1 || true`, { encoding: 'utf8' });
+        const matched = rc.launchctl_loaded.filter((p) => list.includes(p.replace(/\.plist$/, '')));
+        if (matched.length === rc.launchctl_loaded.length) ok(`launchctl plists    ${matched.length}/${rc.launchctl_loaded.length} loaded`);
+        else { warn(`launchctl plists    ${matched.length}/${rc.launchctl_loaded.length} loaded`); surfaceMiss++; }
+      } catch { warn(`launchctl plists    unable to verify`); }
+    }
+    // systemd
+    if (Array.isArray(rc.systemd_loaded) && rc.systemd_loaded.length) {
+      let active = 0;
+      for (const unit of rc.systemd_loaded) {
+        try { execSync(`systemctl --user is-active "${unit}" 2>&1 || true`, { stdio: 'pipe' }); active++; } catch {}
+      }
+      if (active === rc.systemd_loaded.length) ok(`systemd timers      ${active}/${rc.systemd_loaded.length} active`);
+      else warn(`systemd timers      ${active}/${rc.systemd_loaded.length} active`);
+    }
+    // sonar token
+    if (rc.sonar_token_path) {
+      if (existsSync(rc.sonar_token_path)) ok(`sonar token         ${rc.sonar_token_path}`);
+      else { err(`sonar token         missing at ${rc.sonar_token_path}`); surfaceMiss++; }
+    }
+    // playwright
+    if (rc.playwright_installed) {
+      const v = version('npx', '--version'); // proxy
+      if (which('npx')) ok(`playwright          installed (recorded)`);
+      else warn(`playwright          recorded installed but npx missing`);
+    }
+    // gh labels
+    if (Array.isArray(rc.gh_labels_created) && rc.gh_labels_created.length) {
+      ok(`gh labels           ${rc.gh_labels_created.join(', ')} (recorded)`);
+    }
+    // ruflo init
+    if (rc.ruflo_init_ran === true) ok(`ruflo init          ran`);
+    else if (rc.ruflo_init_ran === false) { err(`ruflo init          FAILED — run \`ruflo init\``); surfaceMiss++; }
+    // mcp wire-up
+    if (rc.mcp_configured === true) {
+      const mcp = join(targetDir, '.mcp.json');
+      if (existsSync(mcp)) {
+        try {
+          const j = JSON.parse(readFileSync(mcp, 'utf8'));
+          if (j.mcpServers && j.mcpServers.ruflo) ok(`mcp .mcp.json       has ruflo entry`);
+          else { err(`mcp .mcp.json       no ruflo entry`); surfaceMiss++; }
+        } catch { err(`mcp .mcp.json       invalid JSON`); surfaceMiss++; }
+      } else { err(`mcp .mcp.json       missing`); surfaceMiss++; }
+    }
+    // memory.db isolation
+    if (rc.memoryStrategy === 'per-project') {
+      const dbPath = join(targetDir, '.swarm/memory.db');
+      if (existsSync(dbPath)) ok(`memory.db isolation .swarm/memory.db present`);
+      else { warn(`memory.db isolation .swarm/memory.db missing`); }
+    }
+  } else {
+    warn(`.sprintrc.json not found in target — run install first`);
+  }
+  log('');
+
+  if (tier1Missing === 0 && surfaceMiss === 0) {
     log('  Result: TIER 1 COMPLETE ✓ — all 71 capabilities reachable');
     process.exit(0);
   } else {
-    log(`  Result: ${tier1Missing} TIER 1 dep(s) missing — run: npx @ordex/sprint-harness install`);
+    log(`  Result: ${tier1Missing} TIER 1 dep(s) missing, ${surfaceMiss} surface(s) degraded — run: npx @ordex/sprint-harness install`);
     process.exit(1);
   }
 }
@@ -166,15 +252,63 @@ async function cmdInstall() {
     process.exit(1);
   }
 
+  // AC #2: Brand prompts FIRST so subsequent steps can write into `config`
+  log('Step 0 — Brand configuration');
+  const config = await brandPrompts();
+  log('');
+
+  // AC #10: Windows native is unsupported. WSL2 falls through to Linux branch but
+  // systemd-user may not be enabled; warn rather than block.
+  if (process.platform === 'win32') {
+    err('Windows native is not supported in v0.4. Use WSL2 with systemd enabled.');
+    process.exit(2);
+  }
+  if (isWSL()) {
+    warn('WSL2 detected — systemd-user step requires systemd enabled in /etc/wsl.conf');
+  }
+
   // 2. Auto-install Tier 1 deps
   log('Step 1 — Verify/install Tier 1 deps');
-  await ensureDep('node', 'curl -fsSL https://nodejs.org/');  // instructive only
-  await ensureDep('git', 'brew install git');                  // instructive only
+  // AC #9: Tier 1 is hard-fail (node/git aren't 'instructive only' anymore — if they're
+  // genuinely missing, downstream steps will crash with cryptic errors. Bail early.)
+  for (const bin of ['node', 'git']) {
+    if (!which(bin)) {
+      err(`${bin} is required but not installed.`);
+      log(`    macOS: brew install ${bin}`);
+      log(`    Linux: sudo apt-get install -y ${bin}`);
+      process.exit(2);
+    }
+    ok(`${bin.padEnd(20)} ${version(bin)}`);
+  }
   await ensureDep('jq', detectOS() === 'macos' ? 'brew install jq' : 'sudo apt install -y jq');
   const pm = detectPM(targetDir) || 'pnpm';
   if (!which(pm)) await ensureDep(pm, `corepack enable && corepack prepare ${pm}@latest --activate`);
   await ensureDep('ruflo', 'npm install -g ruflo@latest');
-  if (!existing.husky) await ensureDep('husky-init', `${pm === 'npm' ? 'npx' : pm + ' dlx'} husky init`);
+
+  // AC #8: husky init can clobber package.json's `prepare` script. Snapshot first
+  // and chain the previous prepare value if it gets overwritten.
+  if (!existing.husky) {
+    const pkgPath = join(targetDir, 'package.json');
+    let preexistingPrepare = null;
+    if (existsSync(pkgPath)) {
+      try {
+        const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+        preexistingPrepare = pkg.scripts && pkg.scripts.prepare ? pkg.scripts.prepare : null;
+      } catch {}
+    }
+    await ensureDep('husky-init', `${pm === 'npm' ? 'npx' : pm + ' dlx'} husky init`);
+    if (preexistingPrepare && existsSync(pkgPath)) {
+      try {
+        const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+        if (pkg.scripts && pkg.scripts.prepare === 'husky' && preexistingPrepare !== 'husky') {
+          pkg.scripts.prepare = `${preexistingPrepare} && husky`;
+          writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
+          ok(`preserved existing prepare script: "${preexistingPrepare}" (chained husky)`);
+          config.preexisting_prepare_script = preexistingPrepare;
+        }
+      } catch {}
+    }
+  }
   // Optional Tier 2 (prompt only)
   log('');
   log('Step 1b — Tier 2 deps (optional)');
@@ -206,28 +340,70 @@ async function cmdInstall() {
     } else warn('docker missing — Linux: docs.docker.com/engine/install/');
   } else ok(`docker ${version('docker')}`);
 
-  // AC-3: SonarQube container + token bootstrap
+  // AC-3 + AC #5 + AC #11: SonarQube bootstrap (idempotent across re-runs).
+  //   - Token at $HOME/.sprint-harness/sonar-token (0600), NOT /tmp/.
+  //   - Admin pw at $HOME/.sprint-harness/sonar-admin (0600).
+  //   - Detects container state: not-exists / exists-stopped / exists-running.
+  //   - If already-initialized (pw changed): read admin pw from secrets dir or prompt.
   if (which('docker') && which('sonar-scanner')) {
     try {
       execSync('docker info', { stdio: 'pipe' });
-      let sonarExists = false;
-      try { sonarExists = execSync('docker ps -a --filter name=sonarqube --format "{{.Names}}"', { encoding: 'utf8' }).includes('sonarqube'); } catch {}
-      if (!sonarExists) {
+      const SECRETS = secretsDir();
+      const ADMIN_PW_FILE = join(SECRETS, 'sonar-admin');
+      const TOKEN_FILE = join(SECRETS, 'sonar-token');
+      let containerState = 'not-exists';
+      try {
+        const out = execSync('docker ps -a --filter name=^/sonarqube$ --format "{{.Names}}:{{.State}}"', { encoding: 'utf8' }).trim();
+        if (out) containerState = out.includes(':running') ? 'running' : 'stopped';
+      } catch {}
+
+      if (containerState === 'not-exists') {
         const proceed = await prompt('Bootstrap SonarQube container?', false);
         if (proceed) {
           execSync('docker run -d --name sonarqube -p 9000:9000 -e SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true sonarqube:community', { stdio: 'inherit' });
-          log('  Waiting for Sonar UP (~60s)...');
-          for (let i = 0; i < 60; i++) {
-            try { if (execSync('curl -s http://localhost:9000/api/system/status', { encoding: 'utf8' }).includes('"UP"')) { ok('Sonar UP'); break; } } catch {}
-            execSync('sleep 2');
-          }
-          try {
-            execSync('curl -s -u admin:admin -X POST "http://localhost:9000/api/users/change_password" -d "login=admin&password=sh-admin-pw&previousPassword=admin"', { stdio: 'ignore' });
-            const t = (execSync(`curl -s -u admin:sh-admin-pw -X POST "http://localhost:9000/api/user_tokens/generate?name=sh-${Date.now()}"`, { encoding: 'utf8' }).match(/"token":"([^"]+)"/) || [])[1];
-            if (t) { writeFileSync('/tmp/sonar-token.txt', t); ok(`Sonar token → /tmp/sonar-token.txt`); config.sonar_token_path = '/tmp/sonar-token.txt'; }
-          } catch (e) { warn(`Sonar token: ${e.message.split('\n')[0]}`); }
+          containerState = 'running';
         }
-      } else ok('SonarQube container exists');
+      } else if (containerState === 'stopped') {
+        execSync('docker start sonarqube', { stdio: 'inherit' });
+        containerState = 'running';
+        ok('SonarQube container restarted');
+      } else ok('SonarQube container already running');
+
+      if (containerState === 'running') {
+        log('  Waiting for Sonar UP (~60s)...');
+        for (let i = 0; i < 60; i++) {
+          try { if (execSync('curl -s http://localhost:9000/api/system/status', { encoding: 'utf8' }).includes('"UP"')) { ok('Sonar UP'); break; } } catch {}
+          execSync('sleep 2');
+        }
+        // Determine admin password — read cached or attempt change_password from admin:admin
+        let adminPw = null;
+        if (existsSync(ADMIN_PW_FILE)) {
+          try { adminPw = readFileSync(ADMIN_PW_FILE, 'utf8').trim(); } catch {}
+        }
+        if (!adminPw) {
+          try {
+            const newPw = `sh-admin-${Date.now().toString(36)}`;
+            const out = execSync(`curl -s -o /dev/null -w "%{http_code}" -u admin:admin -X POST "http://localhost:9000/api/users/change_password" -d "login=admin&password=${newPw}&previousPassword=admin"`, { encoding: 'utf8' });
+            if (out.startsWith('2')) {
+              writeFileSync(ADMIN_PW_FILE, newPw);
+              execSync(`chmod 0600 "${ADMIN_PW_FILE}"`);
+              adminPw = newPw;
+              ok(`Sonar admin pw → ${ADMIN_PW_FILE}`);
+            }
+          } catch {}
+        }
+        if (adminPw) {
+          try {
+            const t = (execSync(`curl -s -u admin:${adminPw} -X POST "http://localhost:9000/api/user_tokens/generate?name=sh-${Date.now()}"`, { encoding: 'utf8' }).match(/"token":"([^"]+)"/) || [])[1];
+            if (t) {
+              writeFileSync(TOKEN_FILE, t);
+              execSync(`chmod 0600 "${TOKEN_FILE}"`);
+              ok(`Sonar token → ${TOKEN_FILE}`);
+              config.sonar_token_path = TOKEN_FILE;
+            } else warn('Sonar token generation returned empty');
+          } catch (e) { warn(`Sonar token: ${e.message.split('\n')[0]}`); }
+        } else warn('Sonar admin password unknown — set $HOME/.sprint-harness/sonar-admin manually');
+      }
     } catch { warn('docker daemon down — Sonar skipped'); }
   }
 
@@ -242,11 +418,6 @@ async function cmdInstall() {
   }
   log('');
 
-  // 3. Prompt for brand config
-  log('Step 2 — Brand configuration');
-  const config = await brandPrompts();
-  log('');
-
   // 4. Copy files (with template substitution)
   log('Step 3 — Copy harness into target');
   copyWithSubstitution(join(LIB, 'scripts'),  join(targetDir, 'scripts'),       config);
@@ -258,7 +429,17 @@ async function cmdInstall() {
   if (existsSync(join(LIB, 'templates/github/workflows'))) {
     copyWithSubstitution(join(LIB, 'templates/github/workflows'), join(targetDir, '.github/workflows'), config);
   }
-  ok(`copied 57 scripts, 5 workflows, 12 skill files, 3 helpers, sprint docs, 2 GH Action YAMLs`);
+  // AC C2: 6 custom subagents into .claude/agents/
+  if (existsSync(join(LIB, 'templates/agents'))) {
+    copyWithSubstitution(join(LIB, 'templates/agents'), join(targetDir, '.claude/agents'), config);
+    ok('copied 6 custom agents → .claude/agents/');
+  }
+  // AC C3: autopilot configs into .claude-flow/autopilot/
+  if (existsSync(join(LIB, 'templates/claude-flow/autopilot'))) {
+    copyWithSubstitution(join(LIB, 'templates/claude-flow/autopilot'), join(targetDir, '.claude-flow/autopilot'), config);
+    ok('copied 3 autopilot configs → .claude-flow/autopilot/');
+  }
+  ok(`copied scripts, workflows, skills, helpers, sprint docs, GH Action YAMLs, agents, autopilot configs`);
   log('');
 
   // 5. Merge husky hooks
@@ -291,7 +472,7 @@ async function cmdInstall() {
     packageManager: pm,
     installedAt: new Date().toISOString(),
     installedDeps: ['ruflo', 'jq', 'husky'].filter((d) => which(d) || d === 'husky'),
-    harnessVersion: '0.1.0',
+    harnessVersion: HARNESS_VERSION,
   }, null, 2));
   ok('.sprintrc.json written');
   log('');
@@ -311,6 +492,60 @@ async function cmdInstall() {
     if (running) ok('daemon RUNNING (verified within 30s)');
     else warn('daemon did not RUNNING within 30s — harness degraded');
   } catch (e) { warn(`daemon start failed: ${e.message}`); }
+  log('');
+
+  // AC C1: ruflo init populates target's .claude/skills and .claude/helpers from ruflo.
+  // Without this, installed projects only get the 2 sprint-specific skills the harness ships.
+  log('Step 8b — ruflo init (populate .claude/skills + helpers)');
+  try {
+    execSync('ruflo init --workspace . --yes', { cwd: targetDir, stdio: 'inherit' });
+    config.ruflo_init_ran = true;
+    ok('ruflo init complete');
+  } catch (e) {
+    try {
+      execSync('ruflo init --workspace .', { cwd: targetDir, stdio: 'inherit' });
+      config.ruflo_init_ran = true;
+      ok('ruflo init complete (no --yes flag)');
+    } catch (e2) {
+      warn(`ruflo init failed: ${e2.message.split('\n')[0]} — run \`ruflo init\` manually`);
+      config.ruflo_init_ran = false;
+    }
+  }
+  log('');
+
+  // AC #6 + AC C4: MCP wire-up.
+  //   - If target has no .mcp.json, copy from lib/templates/mcp.json (with brand substitution).
+  //   - If target has one, idempotently merge a `ruflo` entry into mcpServers.
+  log('Step 8c — Wire ruflo MCP into .mcp.json');
+  try {
+    const mcpPath = join(targetDir, '.mcp.json');
+    if (!existsSync(mcpPath)) {
+      const tpl = join(LIB, 'templates/mcp.json');
+      if (existsSync(tpl)) {
+        let content = readFileSync(tpl, 'utf8');
+        content = content.replace(/<BRAND_SLUG>/g, config.codebaseIdentifier);
+        writeFileSync(mcpPath, content);
+        ok('.mcp.json created from template (ruflo wired)');
+      } else {
+        writeFileSync(mcpPath, JSON.stringify({ mcpServers: { ruflo: { command: 'ruflo', args: ['mcp', 'start'] } } }, null, 2));
+        ok('.mcp.json created (ruflo wired)');
+      }
+    } else {
+      let mcp = { mcpServers: {} };
+      try { mcp = JSON.parse(readFileSync(mcpPath, 'utf8')); }
+      catch { warn('.mcp.json exists but is invalid JSON — preserving by backing up to .mcp.json.bak'); writeFileSync(mcpPath + '.bak', readFileSync(mcpPath, 'utf8')); }
+      mcp.mcpServers = mcp.mcpServers || {};
+      if (!mcp.mcpServers.ruflo) {
+        mcp.mcpServers.ruflo = { command: 'ruflo', args: ['mcp', 'start'] };
+        writeFileSync(mcpPath, JSON.stringify(mcp, null, 2));
+        ok('.mcp.json updated with ruflo entry');
+      } else ok('.mcp.json already has ruflo entry');
+    }
+    config.mcp_configured = true;
+  } catch (e) {
+    warn(`MCP wire-up failed: ${e.message.split('\n')[0]}`);
+    config.mcp_configured = false;
+  }
   log('');
 
   // 10. AC-9 per-project memory.db isolation
@@ -350,32 +585,54 @@ async function cmdInstall() {
     log('');
   }
 
-  // 11. AC-4 launchctl auto-bootstrap (macOS)
+  // 11. AC-4 + AC E5 launchctl auto-bootstrap (macOS): prefer plists in
+  // ~/Library/LaunchAgents/ (recorded by installLaunchdPlists in config._launchd_plists).
+  // Fall back to scratch plists in target/scripts/launchd/ for older harness installs.
   if (detectOS() === 'macos') {
-    log('Step 10 — Auto-bootstrap launchd plists');
-    const plistDir = join(targetDir, 'scripts/launchd');
-    if (existsSync(plistDir)) {
-      const userId = execSync('id -u', { encoding: 'utf8' }).trim();
-      const loaded = [];
-      for (const plist of readdirSync(plistDir).filter((p) => p.endsWith('.plist'))) {
-        const plistPath = join(plistDir, plist);
-        try {
-          execSync(`launchctl bootstrap gui/${userId} "${plistPath}" 2>&1 || true`, { encoding: 'utf8' });
-          loaded.push(plist);
-          ok(`launchctl: ${plist} bootstrapped`);
-        } catch (e) {
-          warn(`launchctl ${plist}: ${e.message.split('\n')[0]}`);
-        }
+    log('Step 11 — Auto-bootstrap launchd plists');
+    const userId = execSync('id -u', { encoding: 'utf8' }).trim();
+    const loaded = [];
+    const sourcePlists = (config._launchd_plists && config._launchd_plists.length)
+      ? config._launchd_plists
+      : (() => {
+          const dir = join(targetDir, 'scripts/launchd');
+          if (!existsSync(dir)) return [];
+          return readdirSync(dir).filter((p) => p.endsWith('.plist')).map((p) => ({
+            name: p,
+            userPath: join(dir, p),
+          }));
+        })();
+    for (const { name, userPath } of sourcePlists) {
+      try {
+        execSync(`launchctl bootstrap gui/${userId} "${userPath}" 2>&1 || true`, { encoding: 'utf8' });
+        loaded.push(name);
+        ok(`launchctl: ${name} bootstrapped`);
+      } catch (e) {
+        warn(`launchctl ${name}: ${e.message.split('\n')[0]}`);
       }
-      config.launchctl_loaded = loaded;
     }
+    config.launchctl_loaded = loaded;
+    delete config._launchd_plists; // internal; don't persist
     log('');
   }
 
-  // 12. AC-10 GH labels (if gh available)
+  // 12. AC-10 + AC #7 GH labels (with auth prompt if needed)
   if (which('gh')) {
-    log('Step 11 — Auto-create GH labels (idempotent)');
-    try {
+    log('Step 12 — Auto-create GH labels (idempotent)');
+    let authed = false;
+    try { execSync('gh auth status 2>&1', { encoding: 'utf8', stdio: 'pipe' }); authed = true; } catch {}
+    if (!authed) {
+      const proceed = await prompt('gh is installed but not authenticated. Run `gh auth login` now?', false);
+      if (proceed) {
+        try { execSync('gh auth login', { cwd: targetDir, stdio: 'inherit' }); authed = true; }
+        catch (e) { warn(`gh auth login failed: ${e.message.split('\n')[0]}`); }
+      } else {
+        warn('gh auth skipped — labels skipped. Run `gh auth login` manually to re-enable.');
+        config.gh_auth_skipped = true;
+      }
+    }
+    if (!authed) { log(''); }
+    if (authed) try {
       execSync('gh auth status 2>&1', { encoding: 'utf8', stdio: 'pipe' });
       for (const [label, color, desc] of [
         ['sprint', '0E8A16', 'sprint-harness AC tracking'],
@@ -395,6 +652,28 @@ async function cmdInstall() {
     log('');
   }
 
+  // AC #12: .gitignore managed block
+  log('Step 13 — .gitignore managed block');
+  updateGitignore();
+  log('');
+
+  // AC #13: package.json sprint:* aliases
+  log('Step 14 — package.json sprint:* aliases');
+  addPackageScripts();
+  log('');
+
+  // Rewrite .sprintrc.json now that all post-Step-7 config fields are populated
+  // (ruflo_init_ran, mcp_configured, launchctl_loaded, systemd_loaded,
+  //  playwright_installed, sonar_token_path, gh_labels_created)
+  writeFileSync(join(targetDir, '.sprintrc.json'), JSON.stringify({
+    ...config,
+    os: detectOS(),
+    packageManager: pm,
+    installedAt: new Date().toISOString(),
+    installedDeps: ['ruflo', 'jq', 'husky'].filter((d) => which(d) || d === 'husky'),
+    harnessVersion: HARNESS_VERSION,
+  }, null, 2));
+
   log('═══════════════════════════════════════════════════════════════════');
   log('  Install complete!');
   log('═══════════════════════════════════════════════════════════════════');
@@ -405,6 +684,11 @@ async function cmdInstall() {
   log('    3. Start a sprint:');
   log('       bash scripts/sprint-start.sh first-sprint --no-issue');
   log('       Then in Claude Code: "start the spec wizard"');
+  log('');
+  // AC #16: BRAND_SLUG override hint for wizard memory recall
+  log(`  Memory recall uses BRAND_SLUG = "${config.codebaseIdentifier}"`);
+  log(`    Override via env:  export BRAND_SLUG=my-other-codebase`);
+  log(`    Or edit:           .sprintrc.json → codebaseIdentifier`);
   log('');
 }
 
@@ -463,6 +747,12 @@ async function brandPrompts() {
 }
 
 function copyWithSubstitution(src, dest, config) {
+  // AC E6: caller may pass a non-existent source — fail loudly with a useful message
+  // rather than silently emitting nothing.
+  if (!existsSync(src)) {
+    err(`copyWithSubstitution: source missing: ${src}`);
+    throw new Error(`Missing template dir: ${src}`);
+  }
   mkdirSync(dest, { recursive: true });
   for (const entry of readdirSync(src)) {
     const sp = join(src, entry);
@@ -482,8 +772,11 @@ function copyWithSubstitution(src, dest, config) {
         .replace(/<BRAND_SLUG_TITLE>/g, config.codebaseIdentifier.charAt(0).toUpperCase() + config.codebaseIdentifier.slice(1))
         .replace(/<NAMESPACE>/g, config.codebaseIdentifier)
         .replace(/<GITHUB_ORG>/g, config.gitHubOrg)
-        .replace(/<AWS_PROFILE_NAME>/g, config.awsProfile === 'none' ? '' : config.awsProfile)
-        .replace(/<AWS_ACCOUNT_ID>/g, '')
+        // AC B7: empty AWS profile would leave `profile=""` (bash syntax issue) and trip downstream scripts.
+        // Substitute `default` when user opted out, so AWS_PROFILE=default resolves to the user's
+        // default profile (no-op if not used) rather than an empty string.
+        .replace(/<AWS_PROFILE_NAME>/g, !config.awsProfile || config.awsProfile === 'none' ? 'default' : config.awsProfile)
+        .replace(/<AWS_ACCOUNT_ID>/g, '000000000000')
         .replace(/<REPO_ROOT>/g, targetDir);
       // AC-16: package-manager adapter — rewrite pnpm dlx to detected PM
       const pm = config.packageManager || 'pnpm';
@@ -520,20 +813,37 @@ function mergeHusky(src, dest) {
 }
 
 function mergeClaudeSettings(dest) {
+  // AC B10: cover all hook lifecycle phases, not only PreToolUse.
+  // AC B9: dedupe by matcher (a re-install must not double-fire each hook).
   const harnessHooks = {
     PreToolUse: [
       { matcher: 'Bash', hooks: [{ type: 'command', command: 'sh -c \'exec node "${CLAUDE_PROJECT_DIR:-.}/.claude/helpers/sprint-hook.cjs" pre-bash\'', timeout: 4000 }] },
       { matcher: 'Write|Edit|MultiEdit', hooks: [{ type: 'command', command: 'sh -c \'exec node "${CLAUDE_PROJECT_DIR:-.}/.claude/helpers/sprint-hook.cjs" pre-edit\'', timeout: 4000 }] },
       { matcher: 'WebSearch', hooks: [{ type: 'command', command: 'sh -c \'exec node "${CLAUDE_PROJECT_DIR:-.}/.claude/helpers/websearch-pii-redact.cjs"\'', timeout: 3000 }] },
     ],
+    PostToolUse: [
+      { matcher: 'Bash', hooks: [{ type: 'command', command: 'sh -c \'exec node "${CLAUDE_PROJECT_DIR:-.}/.claude/helpers/sprint-hook.cjs" post-bash 2>/dev/null || true\'', timeout: 3000 }] },
+    ],
+    SessionStart: [
+      { matcher: '*', hooks: [{ type: 'command', command: 'sh -c \'exec node "${CLAUDE_PROJECT_DIR:-.}/.claude/helpers/sprint-hook.cjs" session-start 2>/dev/null || true\'', timeout: 5000 }] },
+    ],
+    SubagentStop: [
+      { matcher: '*', hooks: [{ type: 'command', command: 'sh -c \'exec node "${CLAUDE_PROJECT_DIR:-.}/.claude/helpers/sprint-hook.cjs" subagent-stop 2>/dev/null || true\'', timeout: 3000 }] },
+    ],
+  };
+  const dedupe = (existing, additions) => {
+    const seen = new Set(existing.map((h) => h.matcher));
+    return existing.concat(additions.filter((a) => !seen.has(a.matcher)));
   };
   let merged;
   if (existsSync(dest)) {
     const existing = JSON.parse(readFileSync(dest, 'utf8'));
     existing.hooks = existing.hooks || {};
-    existing.hooks.PreToolUse = (existing.hooks.PreToolUse || []).concat(harnessHooks.PreToolUse);
+    for (const phase of Object.keys(harnessHooks)) {
+      existing.hooks[phase] = dedupe(existing.hooks[phase] || [], harnessHooks[phase]);
+    }
     merged = existing;
-    ok('.claude/settings.json: PreToolUse hooks appended');
+    ok('.claude/settings.json: PreToolUse + PostToolUse + SessionStart + SubagentStop hooks merged (deduped)');
   } else {
     mkdirSync(dirname(dest), { recursive: true });
     merged = { hooks: harnessHooks };
@@ -542,21 +852,89 @@ function mergeClaudeSettings(dest) {
   writeFileSync(dest, JSON.stringify(merged, null, 2));
 }
 
+// AC #12: append managed .gitignore block (idempotent — only adds if marker absent)
+function updateGitignore() {
+  const giPath = join(targetDir, '.gitignore');
+  const MARK_START = '# sprint-harness (managed) — DO NOT EDIT';
+  const MARK_END = '# /sprint-harness';
+  const block = [
+    MARK_START,
+    '.sprint-harness/',
+    '.swarm/memory.db',
+    '.swarm/memory.db-*',
+    'docs/sprints/**/*.lock',
+    'docs/sprints/**/jscpd-report/',
+    'docs/sprints/**/reuse-audit.json',
+    '.sprint-harness-backup-*/',
+    MARK_END,
+    '',
+  ].join('\n');
+  let cur = existsSync(giPath) ? readFileSync(giPath, 'utf8') : '';
+  if (cur.includes(MARK_START)) { ok('.gitignore already managed'); return; }
+  if (cur.length && !cur.endsWith('\n')) cur += '\n';
+  writeFileSync(giPath, cur + '\n' + block);
+  ok('.gitignore updated with managed block');
+}
+
+// AC #13: idempotently add sprint:* aliases to target package.json
+function addPackageScripts() {
+  const pkgPath = join(targetDir, 'package.json');
+  if (!existsSync(pkgPath)) return;
+  let pkg;
+  try { pkg = JSON.parse(readFileSync(pkgPath, 'utf8')); } catch { return; }
+  pkg.scripts = pkg.scripts || {};
+  const aliases = {
+    'sprint:start':  'bash scripts/sprint-start.sh',
+    'sprint:status': 'bash scripts/sprint-status.sh',
+    'sprint:end':    'bash scripts/sprint-end.sh',
+    'sprint:pause':  'bash scripts/sprint-pause.sh',
+    'sprint:resume': 'bash scripts/sprint-resume.sh',
+    'sprint:doctor': 'npx @ordex/sprint-harness doctor',
+    'sprint:verify': 'npx @ordex/sprint-harness verify',
+  };
+  let added = 0;
+  for (const [k, v] of Object.entries(aliases)) {
+    if (!pkg.scripts[k]) { pkg.scripts[k] = v; added++; }
+  }
+  if (added) {
+    writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+    ok(`package.json: +${added} sprint:* aliases`);
+  } else {
+    ok('package.json: sprint:* aliases already present');
+  }
+}
+
 function installLaunchdPlists(config) {
-  const plistDir = join(LIB, 'scripts/launchd');
+  // AC B3 + E5: read from lib/templates/launchd/ (canonical), fall back to lib/scripts/launchd/
+  // for back-compat. Write to ~/Library/LaunchAgents/ first (macOS 12+ requires this),
+  // then mirror a copy into target's scripts/launchd/ for reference + uninstall.
+  let plistDir = join(LIB, 'templates/launchd');
+  if (!existsSync(plistDir)) plistDir = join(LIB, 'scripts/launchd');
   if (!existsSync(plistDir)) return;
+
+  const home = process.env.HOME || '';
+  const userLaunchAgents = join(home, 'Library/LaunchAgents');
+  mkdirSync(userLaunchAgents, { recursive: true });
+  const targetPlistDir = join(targetDir, 'scripts/launchd');
+  mkdirSync(targetPlistDir, { recursive: true });
+
+  const installed = [];
   for (const plist of readdirSync(plistDir).filter((p) => p.endsWith('.plist'))) {
     const src = join(plistDir, plist);
     let content = readFileSync(src, 'utf8');
     content = content
       .replace(/<BRAND_SLUG>/g, config.codebaseIdentifier)
       .replace(/<REPO_ROOT>/g, targetDir);
-    const targetPlistDir = join(targetDir, 'scripts/launchd');
-    mkdirSync(targetPlistDir, { recursive: true });
-    const dest = join(targetPlistDir, plist.replace(/<BRAND_SLUG>/g, config.codebaseIdentifier));
-    writeFileSync(dest, content);
-    ok(`plist: ${basename(dest)} (run: launchctl bootstrap gui/$(id -u) ${dest})`);
+    const renamed = plist.replace(/<BRAND_SLUG>/g, config.codebaseIdentifier);
+    const userDest = join(userLaunchAgents, renamed);
+    const refDest = join(targetPlistDir, renamed);
+    writeFileSync(userDest, content);
+    writeFileSync(refDest, content);
+    installed.push({ name: renamed, userPath: userDest });
+    ok(`plist: ${renamed} → ~/Library/LaunchAgents/`);
   }
+  // Expose installed plists for auto-bootstrap loop downstream
+  config._launchd_plists = installed;
 }
 
 function cmdVerify() {

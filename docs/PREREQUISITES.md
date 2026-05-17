@@ -2,134 +2,89 @@
 
 > **Locked assumption:** Target machine has **only Claude Code** preinstalled. The installer handles every other dependency.
 
-This document inventories every dependency the harness uses, why it's needed, and how it gets onto your machine.
+This document covers what `@ordex/sprint-harness install` expects on the host machine and how to set up each supported OS.
 
----
+## Tier 1 (hard requirements)
 
-## TL;DR — one command does it all
+The installer hard-fails if any of these are missing. Install them first.
 
-```
-npx @ordex/sprint-harness install
-```
+| Tool | macOS | Linux (Ubuntu/Debian) |
+|------|-------|-----------------------|
+| node ≥ 20 | `brew install node` | `curl -fsSL https://deb.nodesource.com/setup_20.x \| sudo -E bash - && sudo apt-get install -y nodejs` |
+| git | `brew install git` | `sudo apt-get install -y git` |
+| Claude Code | [install from claude.ai/code](https://claude.ai/code) | same |
 
-This installs everything below in the correct order, with interactive prompts for optional tools. To skip prompts (CI-friendly), use `--non-interactive`.
+`jq`, `pnpm`/`npm`, `ruflo`, and `husky` are auto-installed if missing.
 
-Verify after install:
+## Tier 2 (recommended)
+
+These unlock optional surfaces. The installer prompts before installing each.
+
+| Tool | Purpose | Notes |
+|------|---------|-------|
+| gh (GitHub CLI) | sprint-pr-body, sprint-gh-mirror, label creation | Run `gh auth login` after install; the installer prompts for this. |
+| Docker | SonarQube container | macOS: `brew install --cask docker`; Linux: see [docker.com/engine/install](https://docs.docker.com/engine/install/). The installer can run the brew cask install on macOS. |
+| sonar-scanner | Code quality scans | macOS: `brew install sonar-scanner`. Native arm64 binary — **do NOT use the Docker scanner on Apple Silicon**. |
+| Playwright | E2E test suite | Auto-installed via `pnpm dlx playwright install` when prompted. |
+
+## Linux specifics
+
+The Linux branch of the installer auto-copies systemd-user units (`.service` + `.timer`) under `~/.config/systemd/user/` and runs `systemctl --user enable --now` for each timer. Requirements:
+
+- systemd (most modern distros)
+- `XDG_RUNTIME_DIR` set (most desktop sessions handle this; headless servers may need `loginctl enable-linger $USER`)
+
+## WSL2
+
+WSL2 is supported via the Linux branch. `systemctl --user` requires:
+
+1. systemd enabled in `/etc/wsl.conf`:
+   ```
+   [boot]
+   systemd=true
+   ```
+2. `wsl --shutdown` from PowerShell, then reopen WSL.
+
+Without those steps the installer warns and skips the systemd-user timers.
+
+## Windows native
+
+**Not supported in v0.4.** The installer exits with a clear error if it detects `process.platform === 'win32'`. Use WSL2 instead.
+
+## macOS specifics
+
+The macOS branch:
+
+- Copies launchd plists to `~/Library/LaunchAgents/` (required by macOS 12+ — `launchctl bootstrap` from arbitrary paths is unreliable).
+- Runs `launchctl bootstrap gui/$(id -u) <plist>` for each.
+- Mirrors a copy at `<target>/scripts/launchd/` for reference + uninstall.
+
+## After install
+
+Run the verifier:
 
 ```
 npx @ordex/sprint-harness doctor
 ```
 
----
-
-## Tier 1 — Critical (without these, harness doesn't run)
-
-| Tool | Min version | Why | Auto-installed? |
-|---|---|---|---|
-| Claude Code CLI | latest | Skills, PreToolUse hooks, subagent spawns | No (only preinstall required) |
-| node | 20+ | Half the harness scripts are .mjs | Yes (via nvm if missing) |
-| git | 2.30+ | Drift baseline, branch resolution | Yes (instructive) |
-| jq | 1.6+ | state.json mutations across ~30 scripts | Yes (brew/apt) |
-| pnpm or npm or yarn | pnpm 9+ / npm 10+ / yarn 4+ | Workspace task runner, dlx | Yes (detects existing) |
-| ruflo (claude-flow) | 3.7.0-alpha.44+ | Daemon workers, memory recall, hive-mind, MCP | Yes (`npm install -g ruflo@latest`) |
-| husky | 9+ | Pre/post-commit, pre-push, post-merge hooks | Yes (`pnpm dlx husky init`) |
-
----
-
-## Tier 2 — Recommended (installer offers; you can skip)
-
-| Tool | Min | Why | Auto-install offer |
-|---|---|---|---|
-| gh (GitHub CLI) | 2.40+ | sprint-pr-body, sprint-gh-mirror, rebase-check | Yes; auth manual |
-| sonar-scanner | 5+ | sprint-sonar-parse static-analysis gate | Yes via brew |
-| docker | 24+ | Local SonarQube server | No (install via docker.com) |
-| Playwright | 1.40+ | playbook E2E runner | Optional prompt |
-| launchctl (macOS) / systemd-user (Linux) | — | memory-decay, workers-shim, sprint-standup schedules | Yes (macOS) |
-
----
-
-## Tier 3 — On-demand via dlx (no install needed)
-
-Pulled on first use; installer verifies network access only:
-
-- madge, knip, jscpd, c8, eslint
-
----
-
-## Platform support
-
-| Platform | Status |
-|---|---|
-| macOS 14+ (arm64/x64) | Primary — all 71 capabilities |
-| Linux (Ubuntu 22+/Debian 12+) | v0.2 — instructive |
-| Windows | v0.2 — WSL2 recommended |
-
----
-
-## Doctor output sample
-
-```
-═══ sprint-harness doctor ═══
-
-  Tier 1 (critical):
-    ✓ claude (CLI)            v1.x.x
-    ✓ node                    v20.10.0
-    ✓ git                     v2.42.0
-    ✓ jq                      v1.7
-    ✓ pnpm                    v9.0.0
-    ✓ ruflo                   v3.7.0-alpha.44
-    ✓ husky                   v9.0.0
-    ✓ ruflo daemon            RUNNING (PID 12345)
-
-  Tier 2 (recommended):
-    ✓ gh                      v2.42.0    (authenticated)
-    ⚠ sonar-scanner           not installed (Sonar gate will skip)
-
-  Result: TIER 1 COMPLETE ✓
-          TIER 2 PARTIAL (Sonar gate will skip)
-  All 71 capabilities reachable.
-```
-
-Exit 0 if Tier 1 complete; exit 1 if missing.
-
----
-
-## Manual fallback (if installer fails)
-
-macOS Tier 1 manual:
-
-```
-brew install jq git
-brew install pnpm   # or use installer script from pnpm.io
-npm install -g ruflo@latest
-pnpm dlx husky init
-claude --version
-ruflo daemon start --workspace .
-```
-
-Then copy harness pieces manually from this repo's `lib/` into your target.
-
----
-
-## Verifying full functionality
-
-```
-npx @ordex/sprint-harness test:install
-```
-
-Expected: 71/71 PRODUCTION, exit 0.
-
----
+It reports Tier 1 + Tier 2 + installed surfaces (launchctl/systemd/Sonar/Playwright/gh labels/ruflo init/MCP). All-green = ready to sprint.
 
 ## Troubleshooting
 
-Common prereq issues (full list in target's `docs/sprints/_guides/troubleshooting.md`):
+| Symptom | Fix |
+|---------|-----|
+| `ruflo: command not found` | `npm install -g ruflo@latest` |
+| Sonar token missing | check `$HOME/.sprint-harness/sonar-token` (0600). If absent, re-run installer — Sonar bootstrap is idempotent. |
+| launchctl: `bootstrap failed` on macOS 14+ | Make sure the plist is in `~/Library/LaunchAgents/`, not the repo's `scripts/launchd/`. The installer handles this in v0.4+. |
+| systemd-user timers don't fire on WSL | Confirm `/etc/wsl.conf` has `systemd=true` and you've shut down + restarted WSL. |
+| `gh label create: not authenticated` | Run `gh auth login` — the installer prompts; if you said no, run manually and re-invoke the install step. |
 
-- ruflo daemon not RUNNING → `ruflo daemon start --workspace .`
-- jq missing → `brew install jq`
-- gh not authenticated → `gh auth login --scopes project`
-- husky hooks not firing → `pnpm dlx husky init && git config core.hooksPath .husky`
+## Running the 71-AC self-test
 
----
+The package vendors the original proof fixtures at `lib/proof/`. To verify the installer:
 
-**Last refreshed:** 2026-05-17
+```
+npm test                              # full chain: smoke + matrix + 71-ACs
+node tests/run-all-71-acs.mjs         # 71/71 PRODUCTION
+node tests/install-matrix.mjs         # 3/3 sample shapes
+```

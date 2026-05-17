@@ -27,7 +27,7 @@ Thanks for considering a contribution. Three rules before you start:
 ## Dev setup
 
 ```
-git clone https://github.com/Zuzuna54/sprint-harness.git
+git clone <repo-url>      # e.g. https://github.com/<your-org>/sprint-harness.git
 cd sprint-harness
 # No build step — bin/ is plain mjs.
 # Test installer in a scratch dir:

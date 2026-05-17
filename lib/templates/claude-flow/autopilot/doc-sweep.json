@@ -1,0 +1,46 @@
+{
+  "name": "doc-sweep",
+  "description": "Update CLAUDE.md + JSDoc when convention emerges in the sprint. Triggered by significant code changes that introduce new patterns. Paired with daemon's `document` worker (paused during sprint, so doc-sweep runs in its place).",
+  "trigger": "post-edit-burst",
+  "trigger_threshold": "5+ commits touching the same module/area within 2h",
+  "active_only_during_sprint": true,
+  "command_template": "node scripts/sprint-doc-sweep.mjs --slug ${slug} --area ${area}",
+  "maxIterations": 3,
+  "iterationTimeoutMs": 300000,
+  "wallClockTimeoutMs": 600000,
+  "taskSources": ["sprint-state.commits", "daemon.document.queued"],
+  "permittedDomains": [
+    "CLAUDE.md",
+    "**/CLAUDE.md",
+    "apps/**/CLAUDE.md",
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "doc_targets": {
+    "CLAUDE.md": "convention updates only (not full feature docs)",
+    "JSDoc": "new exported functions in packages/* and apps/lambdas/*/src/routes/*",
+    "README.md": "rare — only if module entry-point changes"
+  },
+  "forbidden": [
+    "git push",
+    "git push --force",
+    "pulumi up",
+    "pulumi destroy",
+    "rm -rf",
+    "modifying source code logic (only doc comments + markdown)",
+    "DROP TABLE",
+    "DELETE FROM"
+  ],
+  "scope_rules": {
+    "JSDoc": "add docs to NEW exported functions; do NOT rewrite existing docs unless wrong",
+    "CLAUDE.md": "propose under '## Active sprint' Convention learnings — never auto-merge to main rules",
+    "format": "match existing voice — terse, what+why, no obvious info"
+  },
+  "success_criteria": {
+    "no_logic_changes": true,
+    "matches_existing_voice": true,
+    "user_approval_required_before_commit": true
+  },
+  "failure_action": "report-proposed-changes-but-do-not-commit",
+  "notes": "doc-sweep proposes changes but does NOT auto-commit. Surfaces a diff to the user; they approve, then the commit lands. Pairs with the `documentation-sync` skill if installed."
+}

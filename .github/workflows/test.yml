@@ -1,0 +1,71 @@
+name: test
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: install-smoke (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install dev tooling (jq + ruflo)
+        run: |
+          sudo apt-get update -y && sudo apt-get install -y jq
+          npm install -g ruflo@latest || echo "ruflo install skipped (network)"
+
+      - name: install-smoke
+        run: node tests/install-smoke.mjs
+
+  matrix:
+    name: install-matrix (3 shapes)
+    runs-on: ubuntu-latest
+    needs: smoke
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install jq + corepack pnpm
+        run: |
+          sudo apt-get update -y && sudo apt-get install -y jq
+          corepack enable
+          corepack prepare pnpm@latest --activate
+
+      - name: install-matrix
+        run: node tests/install-matrix.mjs
+
+  acs:
+    name: 71-AC regression (vendored proof/)
+    runs-on: ubuntu-latest
+    needs: smoke
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install jq
+        run: sudo apt-get update -y && sudo apt-get install -y jq
+
+      - name: 71-AC test against vendored fixtures
+        run: node tests/run-all-71-acs.mjs

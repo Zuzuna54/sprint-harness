@@ -12,13 +12,13 @@ const BIN = join(PKG_ROOT, 'bin/sprint-harness.mjs');
 
 const SHAPES = [
   { id: 'pnpm-blank', setup: (dir) => {
-    execSync(`cd ${dir} && git init -b main && echo '{"name":"pnpm-blank","packageManager":"pnpm@9.0.0"}' > package.json && touch pnpm-lock.yaml && git add . && git commit -m init`, { stdio: 'ignore' });
+    execSync(`cd ${dir} && git init -b main && git config user.email "ci@sprint-harness.local" && git config user.name "sprint-harness-ci" && echo '{"name":"pnpm-blank","packageManager":"pnpm@9.0.0"}' > package.json && touch pnpm-lock.yaml && git add . && git commit -m init`, { stdio: 'ignore' });
   }},
   { id: 'npm-blank', setup: (dir) => {
-    execSync(`cd ${dir} && git init -b main && echo '{"name":"npm-blank"}' > package.json && touch package-lock.json && git add . && git commit -m init`, { stdio: 'ignore' });
+    execSync(`cd ${dir} && git init -b main && git config user.email "ci@sprint-harness.local" && git config user.name "sprint-harness-ci" && echo '{"name":"npm-blank"}' > package.json && touch package-lock.json && git add . && git commit -m init`, { stdio: 'ignore' });
   }},
   { id: 'monorepo-with-husky', setup: (dir) => {
-    execSync(`cd ${dir} && git init -b main`, { stdio: 'ignore' });
+    execSync(`cd ${dir} && git init -b main && git config user.email "ci@sprint-harness.local" && git config user.name "sprint-harness-ci"`, { stdio: 'ignore' });
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'mono', private: true, workspaces: ['packages/*'] }, null, 2));
     writeFileSync(join(dir, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\n');
     mkdirSync(join(dir, '.husky'), { recursive: true });

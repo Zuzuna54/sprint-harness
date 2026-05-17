@@ -31,7 +31,7 @@ const TARGET = join(tmpdir(), `sh-71ac-${Date.now()}`);
 console.log(`Target: ${TARGET}`);
 
 mkdirSync(TARGET, { recursive: true });
-execSync(`cd ${TARGET} && git init -b main && echo '{"name":"sh-71ac"}' > package.json && git add . && git commit -m init`, { stdio: 'ignore' });
+execSync(`cd ${TARGET} && git init -b main && git config user.email "ci@sprint-harness.local" && git config user.name "sprint-harness-ci" && echo '{"name":"sh-71ac"}' > package.json && git add . && git commit -m init`, { stdio: 'ignore' });
 console.log('Installing harness into target...');
 execSync(`node ${BIN} install --non-interactive --target ${TARGET}`, { stdio: 'inherit' });
 

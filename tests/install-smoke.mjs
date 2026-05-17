@@ -33,7 +33,7 @@ function check(label, cmd, expectExit = 0) {
 
 try {
   mkdirSync(TARGET, { recursive: true });
-  execSync(`cd ${TARGET} && git init -b main && echo '{"name":"sample"}' > package.json && git add . && git commit -m init`, { stdio: 'ignore' });
+  execSync(`cd ${TARGET} && git init -b main && git config user.email "ci@sprint-harness.local" && git config user.name "sprint-harness-ci" && echo '{"name":"sample"}' > package.json && git add . && git commit -m init`, { stdio: 'ignore' });
   writeFileSync(join(TARGET, '.gitignore'), 'node_modules\n.claude-flow\n.swarm\n');
 
   console.log('── 1. Install ──');

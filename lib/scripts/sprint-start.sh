@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# sprint-start.sh — Phase 0 of the <BRAND_SLUG_TITLE> sprint protocol
+# sprint-start.sh — Phase 0 of the LifeOS sprint protocol
 #
 # Usage:
 #   bash scripts/sprint-start.sh <slug> [--with-branch] [--no-issue]
@@ -221,12 +221,12 @@ if [ "$NO_ISSUE" = false ] && command -v gh >/dev/null 2>&1; then
     # Ensure 'sprint' label exists (idempotent)
     if ! gh label list --limit 200 --json name -q '.[].name' 2>/dev/null | grep -qx "sprint"; then
       gh label create "sprint" --color "0E8A16" \
-        --description "Sprint tracking issue (<BRAND_SLUG_TITLE> sprint system)" 2>/dev/null || \
+        --description "Sprint tracking issue (LifeOS sprint system)" 2>/dev/null || \
         echo "[i] Could not auto-create 'sprint' label (insufficient perms?); will try without it."
     fi
 
     ISSUE_TITLE="Sprint: $SLUG"
-    ISSUE_BODY=$(cat <<'EOF'
+    ISSUE_BODY=$(cat <<EOF
 **Sprint slug:** \`$SLUG\`
 **Started:** $NOW_ISO
 **Appetite:** 14 days (Shape Up + SPARC hybrid)
@@ -288,6 +288,15 @@ if command -v ruflo >/dev/null 2>&1; then
   else
     echo "[i] Trajectory start failed (daemon down or no task-id); sprint continues."
   fi
+fi
+
+# ── Session-file (AC-1, harness-parallel-safety-v2) ─────────────────────────
+# Write the slug to ~/.claude/sessions/<session>/sprint-slug so the hook can
+# resolve the active sprint without mtime fallback.
+if [ -f "$(dirname "$0")/lib/session-file.sh" ]; then
+  # shellcheck disable=SC1091
+  source "$(dirname "$0")/lib/session-file.sh"
+  write_session_file "$SLUG"
 fi
 
 # ── Done ─────────────────────────────────────────────────────────────────────

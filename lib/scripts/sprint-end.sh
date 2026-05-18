@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# sprint-end.sh — Phase 8 of the <BRAND_SLUG_TITLE> sprint protocol
+# sprint-end.sh — Phase 8 of the LifeOS sprint protocol
 #
 # Usage:
 #   bash scripts/sprint-end.sh <slug> [--skip-patterns] [--skip-claude-md]
@@ -181,6 +181,15 @@ if command -v ruflo >/dev/null 2>&1; then
   ruflo daemon enable -w refactor >/dev/null 2>&1 || true
   ruflo daemon enable -w document >/dev/null 2>&1 || true
   echo "[+] Re-enabled daemon workers: refactor, document"
+fi
+
+# ── Clear session-file (AC-1, harness-parallel-safety-v2) ───────────────────
+# Only clears the file if its content matches this sprint's slug — protects
+# sibling parallel sprints from accidental clears.
+if [ -f "$REPO_ROOT/scripts/lib/session-file.sh" ]; then
+  # shellcheck disable=SC1091
+  source "$REPO_ROOT/scripts/lib/session-file.sh"
+  clear_session_file "$SLUG"
 fi
 
 # ── AC-3 (Bug #21): retro pattern auto-save ──────────────────────────────────

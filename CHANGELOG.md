@@ -3,6 +3,22 @@
 All notable changes to `@ordex/sprint-harness` are documented here.
 This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.4.1] — 2026-05-18
+
+### Fixed
+- **Critical:** Heredoc quoting — `<<EOF` changed to `<<'EOF'` in `sprint-smoke-validate.sh`, `sprint-system-audit.sh`, `sprint-amend-spec.sh` (3 instances), `sprint-start.sh`, `sprint-workers-shim.sh`. Without quoting, `<BRAND_SLUG>` was interpreted as shell stdin redirect, causing plist generation failures. (Found in internal audit, 2026-05-18)
+- **Critical:** Duplicate `let adminPw` declaration in `bin/sprint-harness.mjs` caused syntax error on install. Removed the duplicate (introduced during token fallback fix).
+- **High:** `smoke-prod.sh` listed in `sprint-smoke-validate.sh` file list but does not exist. Removed orphan reference.
+- **High:** `update` command hardcoded `harnessVersion: '0.2.0'` instead of reading from `package.json`. Fixed to use `HARNESS_VERSION`.
+- **Medium:** ruflo daemon polling was 30s (15×2s) — insufficient for fresh workspace initialization in ruflo v3.7.0-alpha.44. Bumped to 60s (30×2s).
+- **Medium:** GH label creation failed silently in fresh repos with no GitHub remote. Added `git remote get-url origin` pre-check; skips block with informational message.
+- **Medium:** Sonar token generation failed silently when `admin:admin` fallback failed (Sonar already initialized with different password). Now checks existing `~/.sprint-harness/sonar-token` file before attempting reset.
+
+### Added
+- **`docs/HISTORY.md`** — full 4-sprint provenance narrative, inject-violation-catch-restore methodology explanation, and version reference table. README.md no longer references a missing file.
+
+---
+
 ## [0.4.0] — 2026-05-17
 
 ### Added

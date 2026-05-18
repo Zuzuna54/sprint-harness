@@ -226,7 +226,7 @@ if [ "$NO_ISSUE" = false ] && command -v gh >/dev/null 2>&1; then
     fi
 
     ISSUE_TITLE="Sprint: $SLUG"
-    ISSUE_BODY=$(cat <<EOF
+    ISSUE_BODY=$(cat <<'EOF'
 **Sprint slug:** \`$SLUG\`
 **Started:** $NOW_ISO
 **Appetite:** 14 days (Shape Up + SPARC hybrid)

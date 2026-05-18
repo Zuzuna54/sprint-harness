@@ -1,2 +1,9 @@
 .last-71ac-report.json
 .claude-flow/
+lib/docs/
+lib/.swarm/
+lib/ruvector.db
+lib/ruvector.db-shm
+lib/ruvector.db-wal
+lib/research/
+graphify-out/

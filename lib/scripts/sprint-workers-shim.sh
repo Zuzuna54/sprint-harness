@@ -78,7 +78,7 @@ install_macos() {
   fi
   mkdir -p "$LAUNCHD_DIR"
 
-  cat > "$PLIST_ULTRALEARN" <<EOF
+  cat > "$PLIST_ULTRALEARN" <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -103,7 +103,7 @@ install_macos() {
 </plist>
 EOF
 
-  cat > "$PLIST_DEEPDIVE" <<EOF
+  cat > "$PLIST_DEEPDIVE" <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">

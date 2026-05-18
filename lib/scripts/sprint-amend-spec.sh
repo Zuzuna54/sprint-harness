@@ -128,7 +128,7 @@ case "$MODE" in
       AMEND_DECIDED_BY="${AMEND_DECIDED_BY:-AMEND_ALLOW_EMPTY-bypass}"
     fi
 
-    cat >> "$SPEC_FILE" <<EOF
+    cat >> "$SPEC_FILE" <<'EOF'
 
 ### Amendment ${NOW_ISO} — scope cut
 
@@ -207,7 +207,7 @@ MSG
       AMEND_DECIDED_BY="${AMEND_DECIDED_BY:-AMEND_ALLOW_EMPTY-bypass}"
     fi
 
-    cat >> "$SPEC_FILE" <<EOF
+    cat >> "$SPEC_FILE" <<'EOF'
 
 ### Amendment ${NOW_ISO} — add file to scope
 
@@ -292,7 +292,7 @@ EOF
       exit 1
     fi
     # Append amendment note to spec.md for audit trail
-    cat >> "$SPEC_FILE" <<EOF
+    cat >> "$SPEC_FILE" <<'EOF'
 
 ### Amendment ${NOW_ISO} — closed $AC_ID
 EOF

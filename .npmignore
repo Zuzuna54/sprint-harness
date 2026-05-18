@@ -29,3 +29,5 @@ docs/sprints/
 node_modules/
 coverage/
 *.log
+graphify-out/
+AUDIT-REPORT.md

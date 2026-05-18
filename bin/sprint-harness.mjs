@@ -330,7 +330,7 @@ async function cmdInstall() {
           execSync('brew install --cask docker', { stdio: 'inherit' });
           execSync('open -a Docker 2>&1 || true');
           let dockerUp = false;
-          for (let i = 0; i < 15; i++) {
+for (let i = 0; i < 30; i++) {
             try { execSync('docker info', { stdio: 'pipe' }); dockerUp = true; break; }
             catch { execSync('sleep 2'); }
           }
@@ -374,6 +374,10 @@ async function cmdInstall() {
         for (let i = 0; i < 60; i++) {
           try { if (execSync('curl -s http://localhost:9000/api/system/status', { encoding: 'utf8' }).includes('"UP"')) { ok('Sonar UP'); break; } } catch {}
           execSync('sleep 2');
+        }
+        // Try existing token file first (survives re-runs)
+        if (existsSync(TOKEN_FILE)) {
+          try { const existingToken = readFileSync(TOKEN_FILE, 'utf8').trim(); if (existingToken) { config.sonar_token_path = TOKEN_FILE; ok(`Sonar token from existing file`); } } catch {}
         }
         // Determine admin password — read cached or attempt change_password from admin:admin
         let adminPw = null;
@@ -616,8 +620,14 @@ async function cmdInstall() {
     log('');
   }
 
-  // 12. AC-10 + AC #7 GH labels (with auth prompt if needed)
-  if (which('gh')) {
+// 12. AC-10 + AC #7 GH labels (with auth prompt if needed)
+    let hasRemote = false;
+    try { execSync('git remote get-url origin', { stdio: 'pipe' }); hasRemote = true; } catch {}
+    if (!hasRemote) {
+      log('  (No GitHub remote — GH labels skipped)');
+      config.gh_labels_skipped = true;
+      log('');
+    } else if (which('gh')) {
     log('Step 12 — Auto-create GH labels (idempotent)');
     let authed = false;
     try { execSync('gh auth status 2>&1', { encoding: 'utf8', stdio: 'pipe' }); authed = true; } catch {}
@@ -650,7 +660,7 @@ async function cmdInstall() {
       config.gh_labels_created = ['sprint', 'epic', 'task'];
     } catch { warn('gh not authenticated — labels skipped'); }
     log('');
-  }
+    }
 
   // AC #12: .gitignore managed block
   log('Step 13 — .gitignore managed block');
@@ -1019,13 +1029,13 @@ async function cmdUpdate() {
   ok('Files refreshed (existing files overwritten; backup preserved at above path)');
 
   // Record update history
-  config.update_history = (config.update_history || []).concat([{
-    at: new Date().toISOString(),
-    from: config.harnessVersion || 'unknown',
-    to: '0.2.0',
-    backupPath: backupRoot,
-  }]);
-  config.harnessVersion = '0.2.0';
+config.update_history = (config.update_history || []).concat([{
+      at: new Date().toISOString(),
+      from: config.harnessVersion || 'unknown',
+      to: HARNESS_VERSION,
+      backupPath: backupRoot,
+    }]);
+  config.harnessVersion = HARNESS_VERSION;
   writeFileSync(sprintrcPath, JSON.stringify(config, null, 2));
   ok('.sprintrc.json updated with version + history');
   log('');

@@ -13,7 +13,9 @@ cd "$REPO_ROOT"
 
 SLUG="${1:-$(bash scripts/sprint-status.sh --slug-only 2>/dev/null || true)}"
 if [ -z "$SLUG" ]; then
-  echo "[!] No active sprint." >&2
+  echo "[!] No active sprint and no slug given." >&2
+  echo "Usage: bash scripts/sprint-build-launch.sh [<slug>]" >&2
+  echo "       Pre-condition: phase must be design-locked" >&2
   exit 1
 fi
 

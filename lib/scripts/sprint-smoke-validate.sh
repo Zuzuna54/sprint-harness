@@ -53,7 +53,6 @@ for f in \
   scripts/sprint-claude-md-upgrade.mjs \
   scripts/sprint-cleanup-launch.sh \
   scripts/pre-commit-duplication.mjs \
-  scripts/smoke-prod.sh \
   scripts/sprint-amend-spec.sh \
   scripts/sprint-coverage-delta.mjs \
   scripts/sprint-rebaseline.sh \
@@ -165,7 +164,7 @@ echo ""
 # Write report
 REPORT="docs/sprints/$SLUG/smoke-validation.json"
 mkdir -p "docs/sprints/$SLUG"
-cat > "$REPORT" <<JSON
+cat > "$REPORT" <<'JSON'
 {
   "slug": "$SLUG",
   "run_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",

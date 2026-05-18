@@ -47,10 +47,10 @@ mkdir -p "$TEST_DIR"
 cat > "$TEST_DIR/state.json" <<JSON
 {"slug":"$TEST_SLUG","phase":"done","started_at":"2026-05-17T08:00:00Z","started_at_epoch":$(date +%s),"day":0,"appetite_days":14,"appetite_seconds":1209600,"gates_passed":["spec-lock"],"acs_total":3,"acs_closed":0,"acs_closed_ids":[],"drift_events":[],"scope_amendments":[],"files_touched":["apps/test.ts","scripts/sprint-system-audit.sh"],"wizard_state":{"current_section":"complete"},"prev_phase":null,"closed_at":"2026-05-17T08:00:00Z"}
 JSON
-cat > "$TEST_DIR/spec.partial.json" <<JSON
+cat > "$TEST_DIR/spec.partial.json" <<'JSON'
 {"slug":"$TEST_SLUG","current_section":"complete","sections_status":{"A":"complete"},"sections_answers":{"A":{"A1":"Build supplements compliance Lambda route with RLS","flags":{}}},"skip_reasons":{},"recalled_patterns":[],"coherence_checks":[]}
 JSON
-cat > "$TEST_DIR/spec.md" <<MD
+cat > "$TEST_DIR/spec.md" <<'MD'
 # Sprint $TEST_SLUG: Test
 ## §I — Acceptance Criteria
 **AC-1** \`complex: false\` basic

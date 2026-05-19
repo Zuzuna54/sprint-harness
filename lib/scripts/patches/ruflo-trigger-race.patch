@@ -1,0 +1,52 @@
+# ruflo-trigger-race.patch
+#
+# Patches ruflo's `daemon trigger -w <worker>` to wait for the ephemeral
+# WorkerDaemon's async initHeadlessExecutor() promise to resolve before
+# calling triggerWorker(). Without this, headlessAvailable is still false
+# (initial value at worker-daemon.js line 47) when triggerWorker fires, so
+# the worker always falls through to local-only stub mode — never reaching
+# `claude --print`, never actually using your OAuth quota for the analysis.
+#
+# Confirmed: race is identical between v3.7.0-alpha.44 (our installed) and
+# v3.7.0-alpha.69 (latest as of 2026-05-19). NOT fixed upstream.
+#
+# Diagnosis path:
+#   1. ruflo daemon trigger -w audit always returned `mode: local` in 1ms
+#   2. ruflo doctor showed claude CLI v2.1.144 found correctly
+#   3. Tracing trigger handler at commands/daemon.js line 737-741:
+#        const daemon = getDaemon(process.cwd());
+#        const result = await daemon.triggerWorker(workerType);
+#      `getDaemon` instantiates a fresh WorkerDaemon. Constructor calls
+#      `initHeadlessExecutor().catch(...)` as fire-and-forget (line 95).
+#      triggerWorker fires before the promise resolves — `headlessAvailable`
+#      stays at its initial `false` value.
+#   4. After patch: 36s real Haiku call returning real vulnerabilities.
+#
+# Re-apply procedure (after `npm i -g ruflo`):
+#   bash scripts/patches/apply-ruflo-trigger-race.sh
+#
+# Target file (absolute path on this machine):
+#   /opt/homebrew/lib/node_modules/ruflo/node_modules/@claude-flow/cli/dist/src/commands/daemon.js
+#
+# Anchor: line beginning with `const daemon = getDaemon(process.cwd());`
+# Insert AFTER the existing `const daemon = ...` line, BEFORE the spinner setup.
+
+--- a/dist/src/commands/daemon.js
++++ b/dist/src/commands/daemon.js
+@@ -735,6 +735,15 @@
+             return { success: false, exitCode: 1 };
+         }
+         try {
+             const daemon = getDaemon(process.cwd());
++            // LIFEOS PATCH 2026-05-19: await headless executor's async init so
++            // triggerWorker() sees headlessAvailable=true. Without this, the
++            // ephemeral daemon instance fires triggerWorker before its async
++            // initHeadlessExecutor() resolves and always falls back to local
++            // mode. Race documented in headless-worker-executor.js + worker-
++            // daemon.js line 95. Re-apply after `npm i -g ruflo`. ~3 LOC.
++            if (daemon && daemon.headlessExecutor && typeof daemon.headlessExecutor.isAvailable === 'function') {
++                try { daemon.headlessAvailable = await daemon.headlessExecutor.isAvailable(); } catch {}
++            }
+             const spinner = output.createSpinner({ text: `Running ${workerType} worker...`, spinner: 'dots' });
+             spinner.start();
+             const result = await daemon.triggerWorker(workerType);

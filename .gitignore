@@ -1,9 +1,86 @@
-.last-71ac-report.json
-.claude-flow/
-lib/docs/
-lib/.swarm/
+# ============================================================
+# SPRINT HARNESS SOURCE FILES (KEEP IN GIT)
+# ============================================================
+# ONLY these files should be committed - they are the SOURCE
+# that gets installed when someone runs `npx @ordex/sprint-harness install`
+#
+# Source locations:
+# - bin/                → installer CLI
+# - lib/scripts/        → script source files
+# - lib/templates/      → template source files
+# - lib/skills/        → skill source files
+# - lib/proof/          → inject-violation proof files
+# - tests/              → test files
+# - package.json       → npm package definition
+# - README.md, CHANGELOG.md, LICENSE, CONTRIBUTING.md
+# - .nvmrc, .npmrc, .editorconfig
+
+# ============================================================
+# INSTALLED / GENERATED FILES (DO NOT COMMIT)
+# ============================================================
+
+# --- Installed by harness install command ---
+scripts/                      # installed scripts
+docs/                         # installed docs (DEVELOPER.md, QUICKSTART.md, etc.)
+docs/sprints/                  # installed sprint docs
+docs/workflows/                # installed workflow YAMLs
+docs/.sprintrc.json.bak       # backup file
+
+.claude/                      # installed Claude config
+.opencode/                    # installed OpenCode config
+.husky/                       # installed git hooks
+
+.mcp.json                     # Claude Code MCP config
+opencode.json                 # OpenCode config
+.sprintrc.json               # runtime config (per-project)
+
+package.json                  # MODIFIED by install (sprint:* aliases)
+
+# --- Runtime data directories ---
+.swarm/                       # ruflo/opencode-orchestrator memory
+.claude-flow/                 # ruflo daemon data
+.claude-flow/metrics/         # daemon metrics
+.claude-flow/autopilot/       # autopilot configs
+.claude-flow/data/            # daemon data
+.claude-flow/sessions/        # session data
+.claude-flow/shim-logs/       # worker shim logs
+.opencode-flow/               # OpenCode orchestrator data
+lib/.swarm/                  # lib-level ruflo data
+lib/.claude-flow/            # lib-level claude-flow data
+lib/docs/                    # lib-level installed docs
+
+# --- Database files ---
+.ruvector.db                  # vector database
+.ruvector.db-*
+ruvector.db                  # at project root
+ruvector.db-*
 lib/ruvector.db
+lib/ruvector.db-*
 lib/ruvector.db-shm
 lib/ruvector.db-wal
-lib/research/
-graphify-out/
+
+# --- Sprint runtime artifacts ---
+docs/sprints/**/*.lock        # phase lock files
+docs/sprints/**/jscpd-report/ # duplication reports
+docs/sprints/**/reuse-audit.json
+docs/sprints/**/worker-output/ # daemon worker output
+
+# --- Development artifacts ---
+graphify-out/                 # graphify output
+.last-71ac-report.json        # AC test report
+
+# --- Backup files ---
+.sprint-harness-backup-*/
+.sprint-harness/
+.sprint-harness-backup-*/
+
+# --- Project-local files (not templates) ---
+CLAUDE.md                     # local project context (templates are in lib/templates/)
+CONTRIBUTING.md              # local contributor guide
+README.md                    # local README
+
+# --- System files ---
+.DS_Store
+*.swp
+*.swo
+*~

@@ -632,61 +632,70 @@ for (let i = 0; i < 30; i++) {
 
   // AC C1: ruflo/opencode-orchestrator init populates target's .claude/skills and .claude/helpers.
   // Without this, installed projects only get the 2 sprint-specific skills the harness ships.
-  // Note: opencode-orchestrator doesn't have an init command like ruflo
-  const initCmd = targetRuntime === 'opencode'
-    ? 'echo "opencode-orchestrator: MCP-only, no init command"'
-    : 'ruflo init --workspace . --yes';
-  log(`Step 8b — ${daemonName} init (populate .claude/skills + helpers)`);
-  try {
-    execSync(initCmd, { cwd: targetDir, stdio: 'inherit' });
-    config.ruflo_init_ran = true;
-    ok(`${daemonName} init complete`);
-  } catch (e) {
+  // AC #8b: Only run ruflo init for Claude Code runtime
+  // (opencode-orchestrator is MCP-only, no init command needed)
+  if (targetRuntime !== 'opencode') {
+    log(`Step 8b — ${daemonName} init (populate .claude/skills + helpers)`);
     try {
-      execSync('ruflo init --workspace .', { cwd: targetDir, stdio: 'inherit' });
+      execSync('ruflo init --workspace . --yes', { cwd: targetDir, stdio: 'inherit' });
       config.ruflo_init_ran = true;
-      ok('ruflo init complete (no --yes flag)');
-    } catch (e2) {
-      warn(`ruflo init failed: ${e2.message.split('\n')[0]} — run \`ruflo init\` manually`);
-      config.ruflo_init_ran = false;
-    }
-  }
-  log('');
-
-  // AC #6 + AC C4: MCP wire-up.
-  //   - If target has no .mcp.json, copy from lib/templates/mcp.json (with brand substitution).
-  //   - If target has one, idempotently merge a `ruflo` entry into mcpServers.
-  log('Step 8c — Wire ruflo MCP into .mcp.json');
-  try {
-    const mcpPath = join(targetDir, '.mcp.json');
-    if (!existsSync(mcpPath)) {
-      const tpl = join(LIB, 'templates/mcp.json');
-      if (existsSync(tpl)) {
-        let content = readFileSync(tpl, 'utf8');
-        content = content.replace(/<BRAND_SLUG>/g, config.codebaseIdentifier);
-        writeFileSync(mcpPath, content);
-        ok('.mcp.json created from template (ruflo wired)');
-      } else {
-        writeFileSync(mcpPath, JSON.stringify({ mcpServers: { ruflo: { command: 'ruflo', args: ['mcp', 'start'] } } }, null, 2));
-        ok('.mcp.json created (ruflo wired)');
+      ok(`${daemonName} init complete`);
+    } catch (e) {
+      try {
+        execSync('ruflo init --workspace .', { cwd: targetDir, stdio: 'inherit' });
+        config.ruflo_init_ran = true;
+        ok('ruflo init complete (no --yes flag)');
+      } catch (e2) {
+        warn(`ruflo init failed: ${e2.message.split('\n')[0]} — run \`ruflo init\` manually`);
+        config.ruflo_init_ran = false;
       }
-    } else {
-      let mcp = { mcpServers: {} };
-      try { mcp = JSON.parse(readFileSync(mcpPath, 'utf8')); }
-      catch { warn('.mcp.json exists but is invalid JSON — preserving by backing up to .mcp.json.bak'); writeFileSync(mcpPath + '.bak', readFileSync(mcpPath, 'utf8')); }
-      mcp.mcpServers = mcp.mcpServers || {};
-      if (!mcp.mcpServers.ruflo) {
-        mcp.mcpServers.ruflo = { command: 'ruflo', args: ['mcp', 'start'] };
-        writeFileSync(mcpPath, JSON.stringify(mcp, null, 2));
-        ok('.mcp.json updated with ruflo entry');
-      } else ok('.mcp.json already has ruflo entry');
     }
-    config.mcp_configured = true;
-  } catch (e) {
-    warn(`MCP wire-up failed: ${e.message.split('\n')[0]}`);
-    config.mcp_configured = false;
+    log('');
+  } else {
+    config.ruflo_init_ran = false;
+    log('Step 8b — Skipping ruflo init (OpenCode runtime uses opencode-orchestrator)');
+    log('');
   }
-  log('');
+
+  // AC #6 + AC C4: MCP wire-up for Claude Code only
+  // (OpenCode uses opencode-orchestrator, not ruflo - configured via opencode.json)
+  if (targetRuntime !== 'opencode') {
+    log('Step 8c — Wire ruflo MCP into .mcp.json');
+    try {
+      const mcpPath = join(targetDir, '.mcp.json');
+      if (!existsSync(mcpPath)) {
+        const tpl = join(LIB, 'templates/mcp.json');
+        if (existsSync(tpl)) {
+          let content = readFileSync(tpl, 'utf8');
+          content = content.replace(/<BRAND_SLUG>/g, config.codebaseIdentifier);
+          writeFileSync(mcpPath, content);
+          ok('.mcp.json created from template (ruflo wired)');
+        } else {
+          writeFileSync(mcpPath, JSON.stringify({ mcpServers: { ruflo: { command: 'ruflo', args: ['mcp', 'start'] } } }, null, 2));
+          ok('.mcp.json created (ruflo wired)');
+        }
+      } else {
+        let mcp = { mcpServers: {} };
+        try { mcp = JSON.parse(readFileSync(mcpPath, 'utf8')); }
+        catch { warn('.mcp.json exists but is invalid JSON — preserving by backing up to .mcp.json.bak'); writeFileSync(mcpPath + '.bak', readFileSync(mcpPath, 'utf8')); }
+        mcp.mcpServers = mcp.mcpServers || {};
+        if (!mcp.mcpServers.ruflo) {
+          mcp.mcpServers.ruflo = { command: 'ruflo', args: ['mcp', 'start'] };
+          writeFileSync(mcpPath, JSON.stringify(mcp, null, 2));
+          ok('.mcp.json updated with ruflo entry');
+        } else ok('.mcp.json already has ruflo entry');
+      }
+      config.mcp_configured = true;
+    } catch (e) {
+      warn(`MCP wire-up failed: ${e.message.split('\n')[0]}`);
+      config.mcp_configured = false;
+    }
+    log('');
+  } else {
+    config.mcp_configured = false;
+    log('Step 8c — Skipping .mcp.json (OpenCode uses opencode-orchestrator via opencode.json)');
+    log('');
+  }
 
   // 10. AC-9 per-project memory.db isolation
   log('Step 9 — Per-project memory.db isolation');

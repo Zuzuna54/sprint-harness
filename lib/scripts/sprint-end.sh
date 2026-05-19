@@ -9,6 +9,9 @@
 
 set -euo pipefail
 
+# shellcheck disable=SC1091
+source "$(dirname "$0")/lib/atomic-state.sh"
+
 SLUG="${1:-}"
 SKIP_PATTERNS=false
 SKIP_CLAUDE_MD=false
@@ -127,45 +130,21 @@ cat > "$METRICS_FILE" <<JSON
 JSON
 echo "[+] Metrics written: $METRICS_FILE"
 
-# ── Update state.phase = done (BUG 4+5 fix) ─────────────────────────────────
-# Previous version chained `jq … > tmp && mv tmp file` — if jq exited non-zero
-# (e.g., state.json malformed, or a variable interpolated badly), the chain
-# silently skipped the mv, leaving phase unchanged. Now: verify jq output
-# parses before moving, and ALWAYS run sed as a fallback for phase + closed_at
-# so the transition lands even if jq fails.
-
-PHASE_TRANSITION_OK=false
-
+# ── Update state.phase = done ───────────────────────────────────────────────
 if command -v jq >/dev/null 2>&1; then
-  tmp="$(mktemp)"
-  if jq ".phase = \"done\" | .closed_at = \"$NOW_ISO\" | .elapsed_seconds = $ELAPSED_SEC" \
-       "$STATE_FILE" > "$tmp" 2>/dev/null && [ -s "$tmp" ]; then
-    if node -e "JSON.parse(require('fs').readFileSync('$tmp'))" 2>/dev/null; then
-      mv "$tmp" "$STATE_FILE"
-      PHASE_TRANSITION_OK=true
+  if ! atomic_update_state "$SLUG" ".phase = \"done\" | .closed_at = \"$NOW_ISO\" | .elapsed_seconds = $ELAPSED_SEC"; then
+    echo "[!] atomic_update_state failed — falling back to sed"
+    sed -i.bak 's/"phase":[[:space:]]*"[^"]*"/"phase": "done"/' "$STATE_FILE"
+    if grep -q '"closed_at"' "$STATE_FILE"; then
+      sed -i.bak "s|\"closed_at\":[[:space:]]*[^,}]*|\"closed_at\": \"$NOW_ISO\"|" "$STATE_FILE"
     else
-      echo "[!] jq output is not valid JSON — falling back to sed"
-      rm -f "$tmp"
+      sed -i.bak "s|\"phase\": \"done\"|\"phase\": \"done\",\n  \"closed_at\": \"$NOW_ISO\"|" "$STATE_FILE"
     fi
-  else
-    echo "[!] jq failed or produced empty output — falling back to sed"
-    rm -f "$tmp"
+    rm -f "$STATE_FILE.bak"
   fi
 fi
 
-# Fallback: sed (always runs if jq didn't succeed). Mutates in-place via .bak.
-if [ "$PHASE_TRANSITION_OK" != "true" ]; then
-  sed -i.bak 's/"phase":[[:space:]]*"[^"]*"/"phase": "done"/' "$STATE_FILE"
-  # Add closed_at if not present, or update if present
-  if grep -q '"closed_at"' "$STATE_FILE"; then
-    sed -i.bak "s|\"closed_at\":[[:space:]]*[^,}]*|\"closed_at\": \"$NOW_ISO\"|" "$STATE_FILE"
-  else
-    sed -i.bak "s|\"phase\": \"done\"|\"phase\": \"done\",\n  \"closed_at\": \"$NOW_ISO\"|" "$STATE_FILE"
-  fi
-  rm -f "$STATE_FILE.bak"
-fi
-
-# Verify the transition actually landed
+# Verify the transition landed
 ACTUAL_PHASE="$(grep -o '"phase":[[:space:]]*"[^"]*"' "$STATE_FILE" | head -1 | sed 's/.*"\([^"]*\)"$/\1/')"
 ACTUAL_CLOSED="$(grep -o '"closed_at":[[:space:]]*"[^"]*"' "$STATE_FILE" | head -1 | sed 's/.*"\([^"]*\)"$/\1/')"
 if [ "$ACTUAL_PHASE" = "done" ]; then
@@ -190,6 +169,33 @@ if [ -f "$REPO_ROOT/scripts/lib/session-file.sh" ]; then
   # shellcheck disable=SC1091
   source "$REPO_ROOT/scripts/lib/session-file.sh"
   clear_session_file "$SLUG"
+fi
+
+# ── Day 14 worker integration (plan: ruflo workers → sprint-harness, Q5+Q10) ─
+# Fire `document` worker (sonnet) to propose CLAUDE.md updates; output goes to
+# retro.md §"CLAUDE.md updates proposed". User approves at retro time.
+# Fire `consolidate` (local, free) for memory dedup at sprint close.
+if [ -f "$REPO_ROOT/scripts/lib/worker-trigger.sh" ]; then
+  # shellcheck disable=SC1091
+  source "$REPO_ROOT/scripts/lib/worker-trigger.sh"
+  echo "[+] Firing document worker → CLAUDE.md update proposals"
+  if trigger_worker document "$SLUG" 600 2>&1 | tail -3; then
+    DOC_OUTPUT="$SPRINT_DIR/worker-output/document.json"
+    if [ -f "$DOC_OUTPUT" ] && [ -f "$RETRO_FILE" ]; then
+      {
+        echo ""
+        echo "<!-- auto-appended by sprint-end.sh document worker -->"
+        echo "### document worker proposals ($(date -u +%FT%TZ))"
+        echo ""
+        echo '```json'
+        head -100 "$DOC_OUTPUT"
+        echo '```'
+      } >> "$RETRO_FILE"
+      echo "    appended to $RETRO_FILE"
+    fi
+  fi
+  echo "[+] Firing consolidate worker → memory dedup"
+  trigger_worker consolidate "$SLUG" 30 >/dev/null 2>&1 || true
 fi
 
 # ── AC-3 (Bug #21): retro pattern auto-save ──────────────────────────────────

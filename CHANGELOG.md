@@ -1,3 +1,27 @@
+## v0.6.0 — 2026-05-19
+
+### Workers → sprint-protocol on-demand integration
+
+- Daemon worker scheduling replaced with sprint-stage-driven invocation.
+  Workers fire ONLY at protocol checkpoints (Day 0 map, Day 1-2 ultralearn/
+  deepdive, per-wave predict, Day 5 consolidate, Day 11 refactor, Day 11-12
+  audit+testgaps+optimize, Day 14 document+consolidate).
+- ~9h/day silent Sonnet burn → ~50min per 14-day sprint (>99% reduction).
+- New: `lib/scripts/lib/worker-trigger.sh`, `lib/scripts/lib/worker-gates.sh`,
+  `lib/scripts/sprint-verify.sh`, `lib/scripts/sprint-wave-start.sh`.
+- audit gate: zero-tolerance (any finding blocks deploy).
+- testgaps gate: scope-bounded to spec ## Files touched.
+- optimize: advisory only.
+- CI hard-fails if claude OAuth missing; local dev degrades gracefully.
+
+### Token-burn cleanup (rolled in from lifeos@47b29ab)
+
+- statusline-sprint.cjs: 10s file-cache
+- hook-handler.cjs: 30s intelligence cache + skip-short-prompts + drop
+  25-line theatrical routing table
+- sprint-start.sh: graphify-rebuild skips when <4h fresh
+- post-commit: POSIX child-spawn timeout (replaces perl-alarm misfires)
+
 # Changelog
 
 All notable changes to `@ordex/sprint-harness` are documented here.

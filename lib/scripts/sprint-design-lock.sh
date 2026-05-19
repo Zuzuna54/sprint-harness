@@ -24,7 +24,8 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
-SLUG=""
+# shellcheck disable=SC1091
+source "$(dirname "$0")/lib/atomic-state.sh"
 NO_COMMIT=false
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -82,6 +83,26 @@ if [ -f "$DESIGN_FILE" ]; then
   done
 fi
 
+# Day 1-2 worker integration (plan: ruflo workers → sprint-harness, Q6).
+# Fire `ultralearn` (opus) IFF spec flags architecture-heavy work.
+# Fire `deepdive` (opus) IFF any AC has complexity keywords. Both write to
+# docs/sprints/<slug>/worker-output/ so design.md can reference findings.
+PARTIAL="$SPRINT_DIR/spec.partial.json"
+if [ -f scripts/lib/worker-trigger.sh ] && [ -f "$PARTIAL" ]; then
+  # shellcheck disable=SC1091
+  source scripts/lib/worker-trigger.sh
+  ARCH_FLAG="$(jq -r '.sections_answers.B.flags.architecture // false' "$PARTIAL" 2>/dev/null)"
+  if [ "$ARCH_FLAG" = "true" ]; then
+    echo "[+] §B.flags.architecture=true → firing ultralearn worker (opus)"
+    trigger_worker ultralearn "$SLUG" 900 || echo "    (ultralearn skipped — advisory)"
+  fi
+  # Complexity keyword scan in any AC title
+  if jq -e '.sections_answers.I.acs // {} | to_entries[] | .value | (.title // "") | test("(auth|RLS|migration|JWT|payment|secret|key|delete)"; "i")' "$PARTIAL" >/dev/null 2>&1; then
+    echo "[+] complex AC detected → firing deepdive worker (opus)"
+    trigger_worker deepdive "$SLUG" 900 || echo "    (deepdive skipped — advisory)"
+  fi
+fi
+
 NOW_ISO="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 BYPASS_NOTE="null"
 if [ "${SPRINT_DESIGN_LOCK_BYPASS:-0}" = "1" ]; then
@@ -97,12 +118,7 @@ JQ_EXPR=".phase = \"design-locked\" |
             else .
           end)"
 
-if command -v jq_state_lock >/dev/null 2>&1; then
-  jq_state_lock "$STATE_FILE" "$JQ_EXPR"
-else
-  tmp="$(mktemp)"
-  jq "$JQ_EXPR" "$STATE_FILE" > "$tmp" && mv "$tmp" "$STATE_FILE"
-fi
+atomic_update_state "$SLUG" "$JQ_EXPR"
 
 echo "[✓] $SLUG: phase → design-locked, gates += design-lock"
 

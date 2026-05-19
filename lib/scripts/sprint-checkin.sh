@@ -11,6 +11,9 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# shellcheck disable=SC1091
+source "$(dirname "$0")/lib/atomic-state.sh"
+
 SLUG="${1:-$(bash scripts/sprint-status.sh --slug-only 2>/dev/null || true)}"
 if [ -z "$SLUG" ]; then
   echo "[!] No active sprint." >&2
@@ -22,6 +25,14 @@ STATE_FILE="$SPRINT_DIR/state.json"
 HILL_FILE="$SPRINT_DIR/hill-chart.md"
 CHECKIN_FILE="$SPRINT_DIR/check-in-day5.md"
 NOW_ISO="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+# Day 5 worker integration (plan: Q10) — fire consolidate worker (local, free)
+# to dedup memory entries from waves 1-2 before later waves recall them.
+if [ -f scripts/lib/worker-trigger.sh ]; then
+  # shellcheck disable=SC1091
+  source scripts/lib/worker-trigger.sh
+  trigger_worker consolidate "$SLUG" 30 >/dev/null 2>&1 || true
+fi
 
 # Refresh hill chart based on current state
 node scripts/sprint-hillchart.mjs "$SLUG" --refresh
@@ -58,10 +69,7 @@ _(any blockers, surprises, course corrections)_
 MARK
 
 # Update state
-if command -v jq >/dev/null 2>&1; then
-  tmp="$(mktemp)"
-  jq ".gates_passed = (.gates_passed + [\"mid-checkin\"] | unique) | .day = 5 | .last_checkin_at = \"$NOW_ISO\"" "$STATE_FILE" > "$tmp" && mv "$tmp" "$STATE_FILE"
-fi
+atomic_update_state "$SLUG" ".gates_passed = (.gates_passed + [\"mid-checkin\"] | unique) | .day = 5 | .last_checkin_at = \"$NOW_ISO\""
 
 echo ""
 echo "╔══════════════════════════════════════════════════════════════════════╗"

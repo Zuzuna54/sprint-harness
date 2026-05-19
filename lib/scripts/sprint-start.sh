@@ -62,24 +62,30 @@ if [ -d "$SPRINT_DIR" ]; then
   exit 1
 fi
 
-# P5d (gap #21): rebuild graphify so spec wizard reads fresh architecture.
-# Token-burn audit item #14: only rebuild if graphify-out is stale (>4h old)
-# or missing. Each rebuild is 30-60s of codebase scanning; skipping when
-# nothing changed saves ~3-6min/day.
-if [ "${SPRINT_SKIP_GRAPHIFY:-0}" != "1" ] && command -v pnpm >/dev/null 2>&1; then
-  GRAPH_REPORT="graphify-out/GRAPH_REPORT.md"
-  NEED_REBUILD=1
-  if [ -f "$GRAPH_REPORT" ]; then
-    GRAPH_AGE=$(( $(date +%s) - $(stat -f %m "$GRAPH_REPORT" 2>/dev/null || stat -c %Y "$GRAPH_REPORT" 2>/dev/null || echo 0) ))
-    # 4h freshness window
-    if [ "$GRAPH_AGE" -lt 14400 ]; then
-      NEED_REBUILD=0
-      echo "[i] graphify-out fresh ($((GRAPH_AGE / 60))m old) — skipping rebuild"
-    fi
+# Day 0 — fire `map` worker (local, free) so the wizard's codebase grep sees
+# fresh structure. graphify-rebuild stays as fallback.
+# Plan: ruflo workers → sprint-harness on-demand (Q1 + table row "Day 0 — start").
+if [ "${SPRINT_SKIP_GRAPHIFY:-0}" != "1" ]; then
+  if [ -f "$(dirname "$0")/lib/worker-trigger.sh" ]; then
+    # shellcheck disable=SC1091
+    source "$(dirname "$0")/lib/worker-trigger.sh"
+    trigger_worker map "$SLUG" 30 >/dev/null 2>&1 || true
   fi
-  if [ "$NEED_REBUILD" -eq 1 ]; then
-    echo "[i] Rebuilding graphify-out for fresh codebase context..."
-    pnpm graphify:rebuild >/dev/null 2>&1 || echo "    (graphify rebuild failed; continuing)"
+  # Fallback: graphify-rebuild only if stale (>4h old)
+  if command -v pnpm >/dev/null 2>&1; then
+    GRAPH_REPORT="graphify-out/GRAPH_REPORT.md"
+    NEED_REBUILD=1
+    if [ -f "$GRAPH_REPORT" ]; then
+      GRAPH_AGE=$(( $(date +%s) - $(stat -f %m "$GRAPH_REPORT" 2>/dev/null || stat -c %Y "$GRAPH_REPORT" 2>/dev/null || echo 0) ))
+      if [ "$GRAPH_AGE" -lt 14400 ]; then
+        NEED_REBUILD=0
+        echo "[i] graphify-out fresh ($((GRAPH_AGE / 60))m old) — skipping rebuild"
+      fi
+    fi
+    if [ "$NEED_REBUILD" -eq 1 ]; then
+      echo "[i] Rebuilding graphify-out for fresh codebase context..."
+      pnpm graphify:rebuild >/dev/null 2>&1 || echo "    (graphify rebuild failed; continuing)"
+    fi
   fi
 else
   # AC-10 (harness-portability-v2): log bypass to state.gate_bypasses[]

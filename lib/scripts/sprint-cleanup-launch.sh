@@ -49,9 +49,9 @@ fi
 if command -v ruflo >/dev/null 2>&1 && ruflo workflow --help >/dev/null 2>&1; then
   echo "[+] Delegating to ruflo workflow execute lifeos-sprint-cleanup"
   if [ "$COMMIT_DEADCODE" = true ]; then
-    SPRINT_DEADCODE_COMMIT=1 ruflo workflow execute lifeos-sprint-cleanup --input slug="$SLUG" 2>&1 | tail -30
+    SPRINT_DEADCODE_COMMIT=1 ruflo workflow run lifeos-sprint-cleanup --input slug="$SLUG" 2>&1 | tail -30
   else
-    ruflo workflow execute lifeos-sprint-cleanup --input slug="$SLUG" 2>&1 | tail -30
+    ruflo workflow run lifeos-sprint-cleanup --input slug="$SLUG" 2>&1 | tail -30
   fi
   exit $?
 fi

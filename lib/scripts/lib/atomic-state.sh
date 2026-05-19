@@ -141,7 +141,8 @@ atomic_update_state() {
   fi
 
   # Apply filter.
-  if ! jq "${jq_args[@]}" "$filter" "$state_file" > "$tmp_file" 2>/dev/null; then
+  # Bash 3.2 (macOS) + `set -u` trips on empty ${arr[@]}; guard the expansion.
+  if ! jq ${jq_args[@]+"${jq_args[@]}"} "$filter" "$state_file" > "$tmp_file" 2>/dev/null; then
     echo "[atomic-state] jq filter failed: $filter" >&2
     rm -f "$tmp_file"
     _release_lock

@@ -38,7 +38,7 @@ fi
 # Try ruflo workflow execute; fall back to printing instructions if not available
 if command -v ruflo >/dev/null 2>&1 && ruflo workflow --help 2>&1 | grep -q execute; then
   echo "[+] Executing lifeos-sprint-build workflow"
-  ruflo workflow execute --file "$WORKFLOW" \
+  ruflo workflow run --file "$WORKFLOW" \
     --input spec="$SPEC_FILE" \
     --input slug="$SLUG"
 else

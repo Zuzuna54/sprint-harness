@@ -216,9 +216,9 @@ The `scripts/sprint-inject-violation.sh` helper is the standard runner. Fixtures
 
 ---
 
-## Exemplar sprints (under `sprints/`)
+## Exemplar sprints (under `lib/docs/sprints/`)
 
-Closed sprints that built this harness. Walk-through evidence with full spec / design / retro / proof artifacts.
+Closed sprints that built this harness. Walk-through evidence with full spec / design / retro / proof artifacts. Cross-referenced AC-by-AC in [`lib/docs/sprints/_index/capabilities.md`](./lib/docs/sprints/_index/capabilities.md).
 
 | Slug                                        | Closes        | Topic                                                                  |
 | ------------------------------------------- | ------------- | ---------------------------------------------------------------------- |
@@ -231,6 +231,8 @@ Closed sprints that built this harness. Walk-through evidence with full spec / d
 | `w2-smoke-fixture`                          | (test)        | Test fixture for W2 worker-recording smoke                             |
 
 Each sprint dir contains: `spec.md`, `architect-review.md`, `security-review.md`, `consensus-spec.json`, `design.md`, `state.json`, `retro.md`, `worker-output/`, and `proof/` (inject-violation evidence).
+
+Pre-existing exemplars (predate v0.7.0 mirror) also live under `lib/docs/sprints/`: `harness-full-coverage` (71/71), `harness-parallel-safety-v2` (13/13), `harness-portability-v1..v3`, `sprint-system-100`, `sprint-system-hardening`, `bundle-optimization-v1`, `ci-gates-fix`, `smoke-compliance-widget`. See [capabilities.md](./lib/docs/sprints/_index/capabilities.md) for the full AC index.
 
 ---
 

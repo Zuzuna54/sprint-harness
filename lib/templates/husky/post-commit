@@ -109,8 +109,11 @@ if [ -x scripts/sprint-reuse-audit.sh ] && [ "${SPRINT_SKIP_REUSE_AUDIT:-0}" != 
       # Already running — quietly skip; next commit picks it up
       exit 0
     fi
-    # Stale (process gone) — reclaim
+    # Stale (process gone) — reclaim AND kill any orphaned jscpd children
     rm -f "$AUDIT_LOCK"
+    # Belt-and-suspenders: kill any orphaned jscpd processes started by this repo
+    # (defensive; prevents RAM pile-up from 3 concurrent sessions each at 1-3 GB)
+    pkill -f "jscpd.*$SLUG" 2>/dev/null || true
   fi
 
   AUDIT_RUNNER="$(cat <<'INNER'
@@ -121,10 +124,27 @@ STATE_LOCK="$STATE.lock"
 
 # Write our PID to lock file; clean up on any exit
 echo $$ > "$LOCK"
-trap 'rm -f "$LOCK"' EXIT INT TERM
+trap 'rm -f "$LOCK"; pkill -f "jscpd.*$SLUG" 2>/dev/null' EXIT INT TERM
 
-# Run the audit (jscpd-heavy)
-bash scripts/sprint-reuse-audit.sh "$SLUG" >/dev/null 2>&1
+# Run the audit (jscpd-heavy) with hard 120s timeout to prevent RAM pile-up.
+# Each concurrent jscpd scan can consume 1-3 GB; without timeout, 3 sessions
+# × 1-3 GB = ~7 GB of hung processes. Wrap with `timeout` (GNU coreutils) or
+# fall back to perl alarm on macOS.
+if command -v timeout >/dev/null 2>&1; then
+  timeout 120 bash scripts/sprint-reuse-audit.sh "$SLUG" >/dev/null 2>&1
+elif command -v gtimeout >/dev/null 2>&1; then
+  # GNU coreutils on macOS via brew install coreutils
+  gtimeout 120 bash scripts/sprint-reuse-audit.sh "$SLUG" >/dev/null 2>&1
+else
+  # POSIX fallback: spawn child, kill on timeout. Avoids perl-alarm misfires
+  # that fired even on normal completion (token-burn audit item #13, 2026-05-19).
+  bash scripts/sprint-reuse-audit.sh "$SLUG" >/dev/null 2>&1 &
+  CHILD=$!
+  ( sleep 120 && kill -9 "$CHILD" 2>/dev/null ) &
+  GUARD=$!
+  wait "$CHILD" 2>/dev/null
+  kill "$GUARD" 2>/dev/null
+fi
 
 # Append result atomically (retry on state.json lock contention)
 REPORT="docs/sprints/$SLUG/reuse-audit.json"
@@ -148,7 +168,23 @@ fi
 INNER
 )"
   # Detached daemon (commit returns immediately). Lock prevents pile-up.
-  nohup sh -c "$AUDIT_RUNNER" sh "$SLUG" >/dev/null 2>&1 </dev/null &
+  #
+  # AC-13 (onboarding-flow-v3) subprocess hardening: strip the audit
+  # subprocess env via `env -i` + allowlist so secrets (DATABASE_URL,
+  # SUPABASE_*, GEMINI_API_KEY, …) cannot leak into the detached
+  # jscpd/audit process. Logs go to .husky/logs/ (gitignored), not
+  # /dev/null, so a real-world failure leaves a forensic trail without
+  # polluting the repo.
+  LOG_DIR="$REPO_ROOT/.husky/logs"
+  mkdir -p "$LOG_DIR"
+  LOG_FILE="$LOG_DIR/reuse-audit.log"
+  nohup env -i \
+    HOME="$HOME" \
+    PATH="$PATH" \
+    SHELL="${SHELL:-/bin/sh}" \
+    REPO_ROOT="$REPO_ROOT" \
+    SLUG="$SLUG" \
+    sh -c "$AUDIT_RUNNER" sh "$SLUG" >>"$LOG_FILE" 2>&1 </dev/null &
 fi
 
 exit 0

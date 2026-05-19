@@ -20,6 +20,9 @@
 
 set -euo pipefail
 
+# shellcheck disable=SC1091
+source "$(dirname "$0")/lib/atomic-state.sh"
+
 # ── Args ─────────────────────────────────────────────────────────────────────
 SLUG="${1:-}"
 WITH_BRANCH=false           # Default: do NOT switch branches.
@@ -59,18 +62,30 @@ if [ -d "$SPRINT_DIR" ]; then
   exit 1
 fi
 
-# P5d (gap #21): rebuild graphify so spec wizard reads fresh architecture
+# P5d (gap #21): rebuild graphify so spec wizard reads fresh architecture.
+# Token-burn audit item #14: only rebuild if graphify-out is stale (>4h old)
+# or missing. Each rebuild is 30-60s of codebase scanning; skipping when
+# nothing changed saves ~3-6min/day.
 if [ "${SPRINT_SKIP_GRAPHIFY:-0}" != "1" ] && command -v pnpm >/dev/null 2>&1; then
-  echo "[i] Rebuilding graphify-out for fresh codebase context..."
-  pnpm graphify:rebuild >/dev/null 2>&1 || echo "    (graphify rebuild failed; continuing)"
+  GRAPH_REPORT="graphify-out/GRAPH_REPORT.md"
+  NEED_REBUILD=1
+  if [ -f "$GRAPH_REPORT" ]; then
+    GRAPH_AGE=$(( $(date +%s) - $(stat -f %m "$GRAPH_REPORT" 2>/dev/null || stat -c %Y "$GRAPH_REPORT" 2>/dev/null || echo 0) ))
+    # 4h freshness window
+    if [ "$GRAPH_AGE" -lt 14400 ]; then
+      NEED_REBUILD=0
+      echo "[i] graphify-out fresh ($((GRAPH_AGE / 60))m old) — skipping rebuild"
+    fi
+  fi
+  if [ "$NEED_REBUILD" -eq 1 ]; then
+    echo "[i] Rebuilding graphify-out for fresh codebase context..."
+    pnpm graphify:rebuild >/dev/null 2>&1 || echo "    (graphify rebuild failed; continuing)"
+  fi
 else
   # AC-10 (harness-portability-v2): log bypass to state.gate_bypasses[]
   # State file may not exist yet (pre-sprint-init); skip if so.
   if [ "${SPRINT_SKIP_GRAPHIFY:-0}" = "1" ] && [ -f "$STATE_FILE" ] && command -v jq >/dev/null 2>&1; then
-    tmp_b=$(mktemp)
-    jq --arg at "$(date -u +%FT%TZ)" \
-      '.gate_bypasses = ((.gate_bypasses // []) + [{gate:"graphify-rebuild", at:$at, reason:"SPRINT_SKIP_GRAPHIFY=1"}])' \
-      "$STATE_FILE" > "$tmp_b" && mv "$tmp_b" "$STATE_FILE"
+    atomic_update_state "$SLUG" --arg at "$(date -u +%FT%TZ)" '.gate_bypasses = ((.gate_bypasses // []) + [{gate:"graphify-rebuild", at:$at, reason:"SPRINT_SKIP_GRAPHIFY=1"}])'
   fi
 fi
 
@@ -196,8 +211,7 @@ if [ "$WITH_BRANCH" = true ]; then
     echo "[+] Created branch: $BRANCH"
   fi
   if command -v jq >/dev/null 2>&1; then
-    tmp="$(mktemp)"
-    jq ".git_branch = \"$BRANCH\"" "$STATE_FILE" > "$tmp" && mv "$tmp" "$STATE_FILE"
+    atomic_update_state "$SLUG" ".git_branch = \"$BRANCH\""
   fi
 else
   # Default: stay on current branch. Record it in state for reference; multi-sprint
@@ -205,8 +219,7 @@ else
   CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo)"
   echo "[i] Staying on current branch: ${CURRENT_BRANCH:-?} (use --with-branch for legacy sprint/<slug> mode)"
   if command -v jq >/dev/null 2>&1 && [ -n "$CURRENT_BRANCH" ]; then
-    tmp="$(mktemp)"
-    jq --arg b "$CURRENT_BRANCH" '.git_branch = $b' "$STATE_FILE" > "$tmp" && mv "$tmp" "$STATE_FILE"
+    atomic_update_state "$SLUG" --arg b "$CURRENT_BRANCH" '.git_branch = $b'
   fi
 fi
 
@@ -248,8 +261,7 @@ EOF
     if [ -n "$ISSUE_URL" ]; then
       echo "[+] Created GitHub Issue: $ISSUE_URL"
       if command -v jq >/dev/null 2>&1; then
-        tmp="$(mktemp)"
-        jq ".github_issue = \"$ISSUE_URL\"" "$STATE_FILE" > "$tmp" && mv "$tmp" "$STATE_FILE"
+        atomic_update_state "$SLUG" ".github_issue = \"$ISSUE_URL\""
       fi
     else
       echo "[i] Could not create GitHub Issue (no permissions or no remote)."
@@ -282,8 +294,7 @@ if command -v ruflo >/dev/null 2>&1; then
   TRAJ_OUT="$(ruflo hooks pre-task --description "sprint:$SLUG" 2>&1 || true)"
   TRAJ_ID="$(echo "$TRAJ_OUT" | grep -oE 'task-[a-zA-Z0-9]+' | head -1 || true)"
   if [ -n "$TRAJ_ID" ] && command -v jq >/dev/null 2>&1; then
-    tmp="$(mktemp)"
-    jq --arg id "$TRAJ_ID" '.trajectory_id = $id' "$STATE_FILE" > "$tmp" && mv "$tmp" "$STATE_FILE"
+    atomic_update_state "$SLUG" --arg id "$TRAJ_ID" '.trajectory_id = $id'
     echo "[+] Trajectory started: $TRAJ_ID"
   else
     echo "[i] Trajectory start failed (daemon down or no task-id); sprint continues."

@@ -9,10 +9,10 @@ Drop-in 14-day sprint protocol for any TypeScript/Node project. Brings:
 - **5 workflow YAMLs** (build / verify / cleanup / deploy / retro) with `cmd` + `type:skill` + `type:mcp` dispatch
 - **Inject-violation-catch-restore methodology** — every capability proven via real injection, not file presence
 - **Hooks** — husky pre-commit / post-commit / pre-push / post-merge + Claude Code PreToolUse (Bash, Edit, WebSearch)
-- **Multi-sprint parallel** — single-branch + `--slug` resolution
+- **Multi-sprint parallel-safe** — session-file resolution chain v2, atomic `state.json` writes (`flock` + `mktemp` same-FS + `.bak` recovery), `XDG_RUNTIME_DIR` lock dir for git index serialization
 - **GitHub integration** — PR body auto-fill, rebase-check warnings, Project board sync
-- **Daemon workers** (audit, optimize, consolidate, testgaps, predict, document, map) via ruflo
-- **30+ helper scripts**: state machine, drift, hill chart, dashboard, velocity, harness-readiness aggregator
+- **On-demand daemon workers** — `audit` / `optimize` / `consolidate` / `testgaps` / `predict` / `document` / `map` fire at sprint-protocol checkpoints only, **not on schedule** (cuts ~9h/day silent Sonnet burn to ~50min per sprint, v0.6.0)
+- **65+ helper scripts** — full state machine, drift, hill chart, dashboard, velocity, harness-readiness aggregator, atomic-state helpers, worker triggers + gates, mirror-parity check, ruflo trigger-race patch
 
 ## Install
 

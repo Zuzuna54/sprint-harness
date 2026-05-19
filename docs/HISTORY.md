@@ -102,6 +102,58 @@ The existing solutions were either too rigid (cookie-cutter templates) or too lo
 
 ---
 
+### Sprint 5 — Parallel-safety (v0.5.0)
+
+**Goal:** Two concurrent sprints in different sessions should never corrupt each other's state. Three classes of bug were eliminated:
+
+1. **Cross-filesystem `state.json` writes** — when `/tmp` was on a different FS than the repo, `mv` was non-atomic and left half-written JSON visible to readers.
+2. **mtime-based slug resolution drift** — when a sibling session touched `state.json`, the wrong sprint resolved as "active" in this session's hooks.
+3. **Inter-sprint claim collisions** — two sessions racing for the same AC could both grab it.
+
+**What was built:**
+
+- `lib/scripts/lib/atomic-state.sh` — variadic `atomic_update_state` helper (forwards `--arg`/`--argjson` to jq). mktemp on same FS + `flock` (or PID-noclobber fallback) + `jq empty` validate + `.bak` backup + atomic `mv` rename.
+- `lib/scripts/lib/session-file.sh` — session-scoped active-sprint context. Eliminates sibling-session interference.
+- `lib/scripts/lib/lock-dir.sh` — `LOCK_DIR=${XDG_RUNTIME_DIR:-$HOME/.cache/<BRAND_SLUG>/locks}` (0700-perm) for `flock` around git commits.
+- Resolution chain v2 — `env-override → session-file → state.json → none`. **mtime fallback REMOVED**.
+- 16 unsafe scripts refactored to use `atomic_update_state` (every `cat | jq | tee state.json` callsite).
+- launchd reasserter phase-awareness + 24h hard-timeout escape for hung sprints. Corrupt `state.json` writes `needs-review.json` sidecar instead of clobbering.
+- `lib/scripts/sprint-mirror-check.sh` — pre-push hard-fail when lifeos outpaces sprint-harness mirror by > `MIRROR_LAG_THRESHOLD=2` commits.
+
+**What was learned:**
+
+- macOS bash 3.2 + `set -u` trips on empty `${arr[@]}`. Variadic helpers must guard with `${arr[@]+"${arr[@]}"}`.
+- The dogfooding-while-building pattern (using the harness to build itself) surfaced 2 upstream bugs the spec missed: the variadic `--arg` forwarding gap, and a ruflo `daemon trigger` async-init race that made every worker fall to local-mode stub instead of calling Claude.
+
+**Delivered:** 13/13 ACs Production + 1 implicit AC-14 (ruflo trigger race patch).
+
+---
+
+### Sprint 6 — Workers → on-demand (v0.6.0)
+
+**Goal:** Eliminate ~9 hours/day of silent Sonnet quota burn from scheduled daemon workers.
+
+The problem: ruflo's 7 daemon workers (`audit`, `optimize`, `testgaps`, `predict`, `document`, `map`, `consolidate`) fire on hardcoded 10-30 min intervals. Each invocation shells out to `claude --print` using the **same Claude Code OAuth session** as interactive work — burning Pro/Max subscription quota silently while reports rotted in `.claude-flow/metrics/`, never consumed by a gate.
+
+**What was built:**
+
+- Workers re-mapped to **sprint-protocol checkpoints only**: Day 0 `map`, Day 1-2 `ultralearn`/`deepdive`, per-wave `predict`, Day 5 `consolidate`, Day 11 `refactor`, Day 11-12 `audit`+`testgaps`+`optimize`, Day 14 `document`+`consolidate`.
+- `lib/scripts/lib/worker-trigger.sh` — polls `.claude-flow/metrics/<worker>.json` mtime, copies output to `docs/sprints/<slug>/worker-output/<worker>.json`.
+- `lib/scripts/lib/worker-gates.sh` — `gate_audit_blocks` (zero-tolerance, any finding blocks deploy) + `gate_testgaps_blocks` (scope-bounded to spec `## Files touched`).
+- `lib/scripts/sprint-verify.sh` — wraps the full USAGE.md verify chain (`typecheck → lint → tests → api-contract → debug-rls → module-status → perf-profile → aidefence-scan`) AND fires `audit`+`testgaps`+`optimize` workers in parallel at the end.
+- `lib/scripts/sprint-wave-start.sh` — fires `predict` per wave for context preloading.
+- `lib/scripts/patches/ruflo-trigger-race.patch` + `apply-ruflo-trigger-race.sh` — patches upstream ruflo `daemon trigger` async-init race (calls `triggerWorker()` before `initHeadlessExecutor()` resolves, so `headlessAvailable` stays false and every worker falls to a local-mode stub). Not fixed in alpha.69 either.
+- Daemon settings flipped to `autoStart=false`, all workers `disabled` by default. Daemon stays warm but never fires on schedule.
+
+**What was learned:**
+
+- Workers use the user's OAuth session (Pro/Max quota), NOT a separate API key. Background scheduling is silent quota burn.
+- The diagnosis pattern that surfaces this: count background processes (`ps aux | grep ruflo`), read `ruflo daemon status` for `Workers Enabled: N`, check `.claude-flow/metrics/<worker>.json` for `model` field. See `lifeos-diagnose-subscription-quota-burn` memory.
+
+**Delivered:** ~9 h/day → ~50 min per 14-day sprint. >99 % reduction in worker quota usage. CI hard-fails when `claude` OAuth missing; local dev degrades gracefully.
+
+---
+
 ## Methodology — Inject-Violation-Catch-Restore
 
 After Sprint 2's discovery that file-presence tests were lying, every capability that ships in this harness is now proven by the following protocol:
@@ -128,6 +180,10 @@ There is no "Scaffolded" middle bucket. That category was where false victories 
 | 0.2.0 | ~2026-04 | Enforcement: drift hooks, PreToolUse, scope guard |
 | 0.3.0 | ~2026-05 | Intelligence: memory recall, reuse audit, pair-mode |
 | 0.4.0 | 2026-05-17 | Self-audit: 71-AC regression suite, npm packaging |
+| 0.4.1 | 2026-05-18 | Heredoc + `<<'EOF'` quoting, hardcoded-path fixes, HISTORY.md |
+| 0.4.2 | 2026-05-18 | Token-efficiency: lazy-require handlers + 5-min `getActiveSprint()` cache |
+| 0.5.0 | 2026-05-18 | Parallel-safety: atomic-state + session-file + resolution-chain v2 + mirror-check |
+| 0.6.0 | 2026-05-19 | Workers → on-demand sprint-protocol integration (~9h/day burn → ~50min/sprint) + ruflo trigger-race patch |
 
 ---
 

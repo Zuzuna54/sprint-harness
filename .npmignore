@@ -7,7 +7,9 @@ tests/
 .last-71ac-report.json
 .claude-flow/
 docs/sprints/
-docs/sprints/
+lib/docs/
+lib/.swarm/
+lib/.claude-flow/
 
 # Repo metadata
 .github/

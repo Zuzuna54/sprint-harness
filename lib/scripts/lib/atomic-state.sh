@@ -53,8 +53,18 @@ _atomic_state_dir="$(cd "$(dirname "$_atomic_state_self")" && pwd)"
 source "$_atomic_state_dir/lock-dir.sh"
 
 atomic_update_state() {
+  # Args: <slug> [jq-flags...] <filter>
+  # Last positional arg is the jq filter; everything between slug and filter
+  # is forwarded to jq verbatim (supports --arg, --argjson, --slurpfile, etc.).
   local slug="$1"
-  local filter="$2"
+  shift
+  # Last arg is the filter; collect the rest as jq pre-args.
+  local jq_args=()
+  while [ $# -gt 1 ]; do
+    jq_args+=("$1")
+    shift
+  done
+  local filter="$1"
   local repo_root
   repo_root="$(cd "$_atomic_state_dir/../.." && pwd)"
   local state_file="$repo_root/docs/sprints/$slug/state.json"
@@ -131,7 +141,7 @@ atomic_update_state() {
   fi
 
   # Apply filter.
-  if ! jq "$filter" "$state_file" > "$tmp_file" 2>/dev/null; then
+  if ! jq "${jq_args[@]}" "$filter" "$state_file" > "$tmp_file" 2>/dev/null; then
     echo "[atomic-state] jq filter failed: $filter" >&2
     rm -f "$tmp_file"
     _release_lock

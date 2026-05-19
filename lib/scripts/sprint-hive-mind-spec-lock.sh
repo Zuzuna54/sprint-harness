@@ -20,6 +20,9 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# shellcheck disable=SC1091
+source "$(dirname "$0")/lib/atomic-state.sh"
+
 SLUG="${1:-$(bash scripts/sprint-status.sh --slug-only 2>/dev/null || true)}"
 if [ -z "$SLUG" ]; then
   echo "[!] No active sprint and no slug given." >&2
@@ -70,16 +73,15 @@ fi
 
 # ── 2. Spawn 2 queens + 4 workers each ─────────────────────────────────────
 echo "[2/4] Spawning strategic queen + 4 workers (scope coherence review)..."
-ruflo hive-mind spawn --queen strategic --workers 4 --task "scope-coherence:$SLUG" 2>&1 | tail -3 | sed 's/^/    /' || true
+ruflo hive-mind spawn -n 4 -r specialist --objective "scope-coherence:$SLUG" 2>&1 | tail -3 | sed 's/^/    /' || true
 
 echo "[3/4] Spawning tactical queen + 4 workers (AC testability review)..."
-ruflo hive-mind spawn --queen tactical --workers 4 --task "ac-testability:$SLUG" 2>&1 | tail -3 | sed 's/^/    /' || true
+ruflo hive-mind spawn -n 4 -r specialist --objective "ac-testability:$SLUG" 2>&1 | tail -3 | sed 's/^/    /' || true
 
 # ── 3. Submit consensus proposal ───────────────────────────────────────────
 PROPOSAL_ID="spec-lock-${SLUG}-${NOW_ISO}"
 echo "[4/4] Submitting consensus proposal on spec SHA $SPEC_HASH..."
-ruflo hive-mind consensus -a propose -t spec-lock \
-  --proposal-id "$PROPOSAL_ID" \
+ruflo hive-mind consensus -a propose -p "$PROPOSAL_ID" -t spec-lock \
   --value "$SPEC_HASH" 2>&1 | tail -3 | sed 's/^/    /' || true
 
 # Poll for terminal state up to HIVE_POLL_TIMEOUT seconds (default 60).
@@ -87,7 +89,7 @@ HIVE_POLL_TIMEOUT="${HIVE_POLL_TIMEOUT:-60}"
 DEADLINE=$(($(date +%s) + HIVE_POLL_TIMEOUT))
 OUTCOME="pending"
 while [ $(date +%s) -lt $DEADLINE ]; do
-  RESULT="$(ruflo hive-mind consensus -a status --proposal-id "$PROPOSAL_ID" 2>&1 || echo)"
+  RESULT="$(ruflo hive-mind consensus -a status -p "$PROPOSAL_ID" 2>&1 || echo)"
   if printf '%s' "$RESULT" | grep -qi "accepted\|approved\|passed"; then
     OUTCOME="accepted"; break
   elif printf '%s' "$RESULT" | grep -qi "rejected\|denied"; then
@@ -110,8 +112,8 @@ echo ""
 CONSENSUS_FILE="$SPRINT_DIR/consensus-spec.json"
 if command -v jq >/dev/null 2>&1; then
   # (a) append to state.consensus[]
-  tmp="$(mktemp)"
-  jq --arg pid "$PROPOSAL_ID" \
+  atomic_update_state "$SLUG" \
+     --arg pid "$PROPOSAL_ID" \
      --arg hash "$SPEC_HASH" \
      --arg outcome "$OUTCOME" \
      --arg at "$NOW_ISO" \
@@ -123,8 +125,7 @@ if command -v jq >/dev/null 2>&1; then
        outcome: $outcome,
        at: $at,
        queens: ["strategic", "tactical"]
-     }])' \
-     "$STATE_FILE" > "$tmp" && mv "$tmp" "$STATE_FILE"
+     }])'
   echo "  Recorded to state.consensus[] (queue depth: $(jq -r '(.consensus // []) | length' "$STATE_FILE"))"
 
   # (b) write canonical consensus-spec.json file (overwrites prior proposal)
@@ -152,10 +153,7 @@ if [ "$OUTCOME" = "rejected" ]; then
   if [ "${SPRINT_HIVE_MIND_BYPASS:-0}" = "1" ]; then
     # Log bypass per round-4/5 contract
     if command -v jq >/dev/null 2>&1; then
-      tmp_b=$(mktemp)
-      jq --arg at "$(date -u +%FT%TZ)" \
-        '.gate_bypasses = ((.gate_bypasses // []) + [{gate:"hive-mind-spec-lock", at:$at, reason:"SPRINT_HIVE_MIND_BYPASS=1 after rejected outcome"}])' \
-        "$STATE_FILE" > "$tmp_b" && mv "$tmp_b" "$STATE_FILE"
+      atomic_update_state "$SLUG" --arg at "$(date -u +%FT%TZ)" '.gate_bypasses = ((.gate_bypasses // []) + [{gate:"hive-mind-spec-lock", at:$at, reason:"SPRINT_HIVE_MIND_BYPASS=1 after rejected outcome"}])'
     fi
     exit 0
   fi

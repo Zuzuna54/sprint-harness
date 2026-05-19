@@ -82,20 +82,18 @@ printf '%s' "$COMPOSITE_TEXT" > "$TMP_TEXT"
 # Re-export so downstream uses composite, not just spec
 SPEC_TEXT="$COMPOSITE_TEXT"
 
-# BUG 2 fix: `ruflo memory embed` doesn't exist as a subcommand in
-# v3.7.0-alpha.42-44 (only init/store/retrieve/search/list/delete/stats/
-# configure/cleanup/compress/export/import are documented). Previously this
-# was getting the CLI usage text as $EMBEDDING_JSON, then writing baseline
-# with model="Xenova/..." but embedding=[]. Until a real embed CLI ships,
-# always use BoW fallback (drift-score handles it correctly).
+# BUG 2 (2026-05-17): `ruflo memory embed` didn't exist; switched to
+# `embeddings encode --text`. AUDIT 2026-05-19: `embeddings encode` doesn't
+# exist either — the valid subcommand is `embeddings generate`. Default stays
+# BoW fallback (faster, no daemon dep, deterministic). Opt-in via env var.
 
 NOW_ISO="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
-# Optional opt-in: if SPRINT_USE_RUFLO_EMBED=1 AND ruflo gains an embed CLI,
-# this branch can be reactivated. For now, default to BoW fallback path.
+# Optional opt-in: SPRINT_USE_RUFLO_EMBED=1 → use ruflo embeddings generate
+# -o json. Default: BoW fallback path.
 if [ "${SPRINT_USE_RUFLO_EMBED:-0}" = "1" ] && command -v ruflo >/dev/null 2>&1 && \
-   ruflo memory embed --help >/dev/null 2>&1; then
-  EMBEDDING_JSON="$(ruflo memory embed --text "$SPEC_TEXT" 2>/dev/null || true)"
+   ruflo embeddings --help >/dev/null 2>&1; then
+  EMBEDDING_JSON="$(ruflo embeddings generate -t "$SPEC_TEXT" -o json 2>/dev/null || true)"
   cat > "$BASELINE_FILE" <<JSON
 {
   "model": "Xenova/all-MiniLM-L6-v2",

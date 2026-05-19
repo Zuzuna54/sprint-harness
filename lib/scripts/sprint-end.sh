@@ -304,5 +304,5 @@ echo "    4. Batch PR feedback to DAA reviewer (\`mcp__claude-flow__daa_agent_ad
 echo "    5. Close trajectory (\`hooks_intelligence_trajectory-end\`)"
 echo "    6. Commit: \`sprint($SLUG): retro + close\`"
 echo ""
-echo "  If 20+ trajectories accumulated, propose: ruflo neural train --type coordination --epochs 50"
+echo "  If 20+ trajectories accumulated, propose: ruflo neural train -p coordination -e 50"
 echo ""

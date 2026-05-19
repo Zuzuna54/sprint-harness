@@ -467,6 +467,70 @@ Overall: ✓ SUCCESS
 
 ---
 
+## Phase enforcement (v0.7.0+)
+
+> **Why this section exists.** Before v0.7.0, the 14-day protocol was documented in this file but the model could skip sub-steps (wizard sections, day-5 questions, retro patterns, verify-chain commands) and the sprint would still close. v0.7.0 introduced **mechanical phase gating**: every USAGE.md step is now either a required predicate in `phase-manifest.json` or an explicit `SPRINT_BYPASS_GATE` audit entry.
+
+### The canonical phase mutator
+
+`scripts/sprint-advance-phase.sh <next-phase>` is the **only** sanctioned writer of `state.phase`. Every other phase-writer (`sprint-amend-spec.sh --lock`, `sprint-design-lock.sh`, `sprint-build-launch.sh`, `sprint-checkin.sh`, `sprint-cleanup-launch.sh`, `sprint-verify.sh`, `sprint-predeploy-gate.sh`, `sprint-end.sh`, `sprint-pause.sh`, `sprint-resume.sh`) delegates the actual phase write to this script after running its own artifact validation.
+
+The PreToolUse hook (`.claude/helpers/sprint-hook.cjs`) blocks every other path:
+
+- Inline `jq '.phase = "X"' state.json` from any Bash command → exit 2 (unless caller is `sprint-advance-phase.sh` AND `SPRINT_ADVANCE_PHASE_RUNNING=1` AND `ps -o command= -p $PPID` resolves to `sprint-advance-phase.sh`).
+- Direct Write/Edit on `docs/sprints/*/state.json` → exit 2 (no env exemption).
+
+### Phase manifest (source of truth)
+
+`scripts/lib/phase-manifest.json` declares, for every phase, the required artifacts + state fields + sub-step gate names. The advance-phase script refuses to move forward until every predicate passes (or has an explicit bypass).
+
+| Phase           | Required artifacts                                                                                                                                                                                               | Required sub-step gates                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `spec-wizard`   | `spec.md` ≥500B, `wizard-transcript.md` ≥100B, `spec.partial.json.current_section ∈ {complete, J}`                                                                                                               | `wizard-section-A`..`-J` (10), `wizard-coherence-after-C`, `wizard-coherence-after-F`, `wizard-coherence-after-I`, `wizard-assemble`                                                                                                                                                                                                                                                                                                                                                                     |
+| `spec-locked`   | `solution-sketches.md` ≥200B, `architect-review.md` ≥200B, `security-review.md` ≥200B, `consensus-spec.json.verdict ∈ {pass, pass-with-notes}`, `.baseline-embedding.json`, `state.worker_rigor ∈ {lax, strict}` | `spec-lock-solution-sketches`, `spec-lock-architect-review`, `spec-lock-security-review`, `spec-lock-hive-mind-consensus`, `spec-lock-baseline-written`                                                                                                                                                                                                                                                                                                                                                  |
+| `design-locked` | `design.md` ≥300B, `state.design_locked_at` set                                                                                                                                                                  | `design-sparc-spec-pseudocode`, `design-sparc-architect`, `design-locked`                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `building`      | —                                                                                                                                                                                                                | `build-launched`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `day-5-checkin` | `check-in-day5.md` with `### Cut` / `### Push` / `### Pivot` each ≥30 chars of content                                                                                                                           | `day-5-question-cut`, `day-5-question-push`, `day-5-question-pivot`, `day-5-hill-chart-refreshed`                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `cleaning`      | —                                                                                                                                                                                                                | `cleanup-deadcode-delete`, `cleanup-lint-fix`, `cleanup-claude-md-clean`                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `verifying`     | `state.verify_runs[]` len ≥1                                                                                                                                                                                     | `verify-typecheck`, `verify-lint`, `verify-tests`, `verify-api-contract`, `verify-debug-rls`, `verify-module-status`, `verify-perf-profile`, `verify-aidefence-scan`, `verify-sonar`, `verify-knip`, `verify-cycle-check`, `verify-audit-deps`, `verify-bundle-budget`, `verify-coverage-delta`, `verify-migration-check`, `verify-worker-audit`, `verify-worker-testgaps`, `verify-worker-optimize` (+ `verify-worker-map-refreshed`, `verify-worker-consolidate-refreshed` when `worker_rigor=strict`) |
+| `pre-deploy`    | `pre-deploy-review.md` ≥200B, `state.predeploy_at` set                                                                                                                                                           | `pre-deploy-reviewer-agent`, `pre-deploy-security-architect`                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `deploying`     | —                                                                                                                                                                                                                | `deploy-pulumi-preview-captured`, `deploy-human-gate-approved`, `deploy-pulumi-up`, `deploy-smoke`, `deploy-vercel`                                                                                                                                                                                                                                                                                                                                                                                      |
+| `done`          | `retro.md` with 6 required H2 sections + 3+ `### Pattern N: <name>` sub-headings, `metrics.json`, `dashboard.html`, `state.closed_at` set                                                                        | `retro-worked`, `retro-didnt`, `retro-surprised`, `retro-pattern-1`, `retro-pattern-2`, `retro-pattern-3`, `retro-claude-md`, `retro-followups`, `daa-feedback-batched`, `trajectory-closed`, `velocity-computed`                                                                                                                                                                                                                                                                                        |
+| `paused`        | `state.prev_phase` set                                                                                                                                                                                           | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+
+### Bypass procedure
+
+If you genuinely need to skip a predicate (e.g., a verify command's tool is unavailable):
+
+```bash
+SPRINT_BYPASS_GATE=verify-sonar \
+SPRINT_BYPASS_WHY='Sonar container down — escalated to infra; verify rerun scheduled within 24h' \
+  bash scripts/sprint-advance-phase.sh pre-deploy
+```
+
+Requirements:
+
+- `SPRINT_BYPASS_GATE` matches one gate name from the failing manifest predicate.
+- `SPRINT_BYPASS_WHY` is ≥10 chars of real rationale.
+- Multi-gate bypass: comma-separated (`SPRINT_BYPASS_GATE='gate1,gate2,gate3'`), single WHY applies to all.
+
+Every bypass appends a record to `state.gate_bypasses[]` with the gate, why, ISO timestamp, and caller script name. Surfaces in `dashboard.html` + retro.md + velocity-script "high-bypass" flag (>3 bypasses per sprint).
+
+Legacy per-script bypass envs (`SPRINT_DRIFT_BYPASS=1`, `SPRINT_DESIGN_LOCK_BYPASS=1`, etc) emit a deprecation warning + auto-synthesize new bypass envs for v0.7.x compat. Removal scheduled for v0.8.0.
+
+### CI replay validator
+
+`bash scripts/sprint-system-test.sh --replay-gate-history` (delegates to `scripts/sprint-replay-validator.mjs`) walks every closed sprint and asserts:
+
+1. `gate_history[]` is monotonic by `at`.
+2. Every required sub-step gate per phase walked through is in `gates_passed[]` ∪ `gate_bypasses[]`.
+3. Bypasses have `why` ≥10 chars + `gate` matches manifest.
+4. Doc-vs-manifest drift: every gate name in this "## Phase enforcement" section exists in `phase-manifest.json`.
+
+Wired into `.github/workflows/test.yml` as a PR gate. Default `--ignore-pre 2026-05-19T00:00:00Z` skips pre-v0.7.0 closures.
+
+---
+
 ## What the system enforces automatically
 
 ### Pre-commit (husky)

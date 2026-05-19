@@ -84,15 +84,55 @@ case "$MODE" in
     " 2>/dev/null || echo '[]')"
 
     if command -v jq >/dev/null 2>&1; then
+      # AC-7 (deterministic-phases-v1): write files_touched + record spec-lock sub-step,
+      # but DELEGATE the phase write to sprint-advance-phase.sh. The delegated call
+      # enforces the spec-locked phase's manifest predicates (4-way review artifacts).
       atomic_update_state "$SLUG" --argjson f "$FILES_TOUCHED_JSON" \
-        ".phase = \"spec-locked\" | .gates_passed = (.gates_passed + [\"spec-lock\"] | unique) | .files_touched = (\$f + (.files_touched // []) | unique)"
+        ".files_touched = (\$f + (.files_touched // []) | unique)"
 
-      atomic_update_state "$SLUG" --arg at "$NOW_ISO" '.gate_history = ((.gate_history // []) + [{gate: "spec-lock", status: "passed", at: $at}])'
+      # AC-10 (deterministic-phases-v1): read worker_rigor from wizard §J answers
+      # and write to state.worker_rigor. Default 'lax' if unset.
+      PARTIAL_FILE="$REPO_ROOT/docs/sprints/$SLUG/spec.partial.json"
+      if [ -f "$PARTIAL_FILE" ]; then
+        WORKER_RIGOR=$(jq -r '.sections_answers.J.worker_rigor // "lax"' "$PARTIAL_FILE" 2>/dev/null)
+      else
+        WORKER_RIGOR="lax"
+      fi
+      # Validate value
+      case "$WORKER_RIGOR" in
+        lax|strict) ;;
+        *) WORKER_RIGOR="lax" ;;
+      esac
+      atomic_update_state "$SLUG" --arg r "$WORKER_RIGOR" '.worker_rigor = $r'
+      echo "[+] state.worker_rigor = $WORKER_RIGOR"
+
+      # Record spec-lock sub-step via sub-step.sh (idempotent, dual-write to gates + gates_passed)
+      # shellcheck disable=SC1091
+      source "$(dirname "$0")/lib/sub-step.sh" 2>/dev/null || true
+      if declare -F record_sub_step >/dev/null 2>&1; then
+        record_sub_step "$SLUG" "spec-lock-baseline-written" pass ".baseline-embedding.json" || true
+      else
+        # Fallback for harnesses without sub-step.sh installed yet (legacy compat)
+        atomic_update_state "$SLUG" --arg at "$NOW_ISO" '.gate_history = ((.gate_history // []) + [{gate: "spec-lock", status: "passed", at: $at}])'
+      fi
     fi
 
     FILES_COUNT="$(echo "$FILES_TOUCHED_JSON" | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>console.log(JSON.parse(s).length))')"
     echo "[+] Spec locked. Drift baseline written."
     echo "[+] state.files_touched populated from §H1: $FILES_COUNT files"
+
+    # AC-7 (deterministic-phases-v1): delegate the actual phase transition to
+    # sprint-advance-phase.sh. It enforces the spec-locked manifest predicates
+    # (4-way review artifacts + sub-step gates). If predicates fail, baseline
+    # is still written (that succeeded above) but phase stays at spec-wizard
+    # until operator completes the 4-way review + re-runs:
+    #   bash scripts/sprint-advance-phase.sh spec-locked
+    if [ -x "$(dirname "$0")/sprint-advance-phase.sh" ]; then
+      SPRINT_SLUG_OVERRIDE="$SLUG" bash "$(dirname "$0")/sprint-advance-phase.sh" spec-locked 2>&1 || {
+        echo "[i] Spec lock baseline written; phase advance to spec-locked deferred." >&2
+        echo "[i] Complete the 4-way review then run: bash scripts/sprint-advance-phase.sh spec-locked" >&2
+      }
+    fi
     ;;
 
   cut)

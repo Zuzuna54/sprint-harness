@@ -14,6 +14,14 @@ set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# AC-13 (deterministic-phases-v1): --replay-gate-history mode — delegates to
+# sprint-replay-validator.mjs. Walks all closed sprints and asserts
+# gate_history monotonicity + completeness + bypass validity + doc-vs-manifest drift.
+if [ "${1:-}" = "--replay-gate-history" ]; then
+  shift
+  exec node "$(dirname "$0")/sprint-replay-validator.mjs" "$@"
+fi
+
 SLUG="${1:-$(bash scripts/sprint-status.sh --slug-only 2>/dev/null || echo sprint-system-100)}"
 REPORT="docs/sprints/$SLUG/full-system-test.md"
 mkdir -p "$(dirname "$REPORT")"

@@ -240,23 +240,65 @@ Each sprint is ONE module slice in a 2-week Shape Up + SPARC cycle. Phases below
 
 ---
 
-## State machine (deterministic)
+## State machine (deterministic) — v0.7.0+ phase enforcement
 
 ```
 spec-wizard ─────→ spec-locked ─────→ design-locked ─────→ building
                                                               │
                                        ┌──────────────────────┤
                                        ↓                       ↓
-                                  mid-checkin              (continue)
+                                  day-5-checkin           (continue)
                                        ↓
                                   building (continued)
                                        ↓
-                                  verifying ─────→ pre-deploy ─────→ deploying ─────→ done
+                                  cleaning ─────→ verifying ─────→ pre-deploy ─────→ deploying ─────→ done
 
 Anywhere ─────→ paused ─────→ (resume to previous phase)
 ```
 
-State is persisted in `docs/sprints/<slug>/state.json`. Every phase transition writes both `state.json` and a git commit.
+State is persisted in `docs/sprints/<slug>/state.json`.
+
+### Canonical phase transitions (v0.7.0+)
+
+**Since `harness-deterministic-phases-v1`, `state.phase` is mutated by ONE script only: `scripts/sprint-advance-phase.sh`.** Every other phase-writer (`sprint-amend-spec.sh --lock`, `sprint-design-lock.sh`, `sprint-build-launch.sh`, `sprint-checkin.sh`, `sprint-cleanup-launch.sh`, `sprint-verify.sh`, `sprint-predeploy-gate.sh`, `sprint-end.sh`, `sprint-pause.sh`, `sprint-resume.sh`) delegates the phase write to `sprint-advance-phase.sh` after running its own artifact-build code.
+
+The PreToolUse hook (`.claude/helpers/sprint-hook.cjs`) blocks every other path: inline `jq '.phase = X'`, direct `Edit` on state.json, `sed -i` on state.json, `>` redirects to state.json.
+
+#### Calling sprint-advance-phase.sh between phases
+
+When you (the orchestrator) drive a phase transition, the pattern is:
+
+1. **Do the phase's work** (assemble artifacts, run agents, record sub-steps).
+2. **Call `bash scripts/sprint-advance-phase.sh <next-phase>`** — the script reads `scripts/lib/phase-manifest.json`, evaluates per-phase predicates, refuses to advance if any predicate fails.
+3. **If predicates fail**, either: (a) fix the missing artifact and re-run, or (b) bypass with `SPRINT_BYPASS_GATE=<name> SPRINT_BYPASS_WHY='<rationale ≥10 chars>'` and re-run.
+
+Each phase's predicates are documented in `docs/sprints/USAGE.md` "## Phase enforcement" table.
+
+Example: completing day-5 check-in and resuming building:
+
+```bash
+# 1. Generate the template (records day-5-hill-chart-refreshed sub-step)
+bash scripts/sprint-checkin.sh <slug>
+# 2. Operator fills check-in-day5.md with real ### Cut / ### Push / ### Pivot answers
+# 3. Validate the file content (records day-5-question-cut/push/pivot sub-steps)
+bash scripts/sprint-checkin.sh <slug> --validate
+# 4. Advance back to building (or forward to cleaning/verifying)
+bash scripts/sprint-advance-phase.sh building
+```
+
+You (the orchestrator) **must not** write `state.phase` via any other path. The hook will block.
+
+### Bypass procedure (when a predicate genuinely cannot be satisfied)
+
+```bash
+SPRINT_BYPASS_GATE=<manifest-gate-name>  \
+SPRINT_BYPASS_WHY='<reason ≥10 chars>'   \
+  bash scripts/sprint-advance-phase.sh <next-phase>
+```
+
+Multi-gate (comma-separated): `SPRINT_BYPASS_GATE='gate1,gate2,gate3'`. Single WHY applies to all.
+
+Bypasses are recorded to `state.gate_bypasses[]` with timestamp + caller. Velocity flags >3 bypasses/sprint as `high-bypass`. See `_guides/bypass-cheatsheet.md` for the full bypass catalog.
 
 ---
 

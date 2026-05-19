@@ -1,0 +1,54 @@
+name: Test
+on: [push, pull_request]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install
+      - run: pnpm turbo run typecheck
+      - run: pnpm turbo run lint
+      - run: pnpm turbo run test:unit
+      - name: Check narrow-SELECT contract (AC-8)
+        run: node scripts/check-narrow-selects.mjs --strict
+      - name: Sprint phase-manifest validator (deterministic-phases-v1 AC-1)
+        run: node scripts/lib/validate-phase-manifest.mjs
+      - name: Replay-gate-history validator (deterministic-phases-v1 AC-13)
+        run: bash scripts/sprint-system-test.sh --replay-gate-history --quiet
+      - name: Check OpenAPI spec drift
+        run: |
+          pnpm generate:openapi
+          git diff --exit-code docs/openapi.json || {
+            echo "::error::OpenAPI spec drift detected. Run: pnpm generate:openapi && git add docs/openapi.json"
+            exit 1
+          }
+        env:
+          SUPABASE_JWT_SECRET: ci-spec-only-not-used-for-validation
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install
+      - run: npx playwright install --with-deps
+      - run: pnpm turbo run test:e2e
+        env:
+          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}

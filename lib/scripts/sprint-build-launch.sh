@@ -60,6 +60,17 @@ else
   echo "      → fires predict (haiku) → docs/sprints/$SLUG/worker-output/predict.json"
   echo ""
 
-  # Best-effort: just update the state to building so per-AC loop can start
-atomic_update_state "$SLUG" '.phase = "building"'
+  # AC-7 (deterministic-phases-v1): record build-launched sub-step + delegate phase write
+  # shellcheck disable=SC1091
+  source "$(dirname "$0")/lib/sub-step.sh" 2>/dev/null || true
+  if declare -F record_sub_step >/dev/null 2>&1; then
+    record_sub_step "$SLUG" "build-launched" pass || true
+  fi
+  if [ -x "$(dirname "$0")/sprint-advance-phase.sh" ]; then
+    SPRINT_SLUG_OVERRIDE="$SLUG" bash "$(dirname "$0")/sprint-advance-phase.sh" building 2>&1 || {
+      echo "[i] build-launched sub-step recorded; phase advance deferred (manifest predicates not met)." >&2
+    }
+  else
+    atomic_update_state "$SLUG" '.phase = "building"'  # legacy fallback
+  fi
 fi

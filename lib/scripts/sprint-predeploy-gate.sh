@@ -98,16 +98,28 @@ REVIEWER_JSON="null"
 SECURITY_JSON="null"
 [ -n "$SECURITY_FILE" ] && SECURITY_JSON="\"$SECURITY_FILE\""
 
-JQ_EXPR=".phase = \"pre-deploy\" |
-         .gates = ((.gates // []) + [\"pre-deploy\"]) |
-         .predeploy_at = \"$NOW_ISO\" |
-         .predeploy_review = {reviewer: $REVIEWER_JSON, security: $SECURITY_JSON} |
-         (if $BYPASS_NOTE != null
-            then .gate_bypasses = ((.gate_bypasses // []) + [{at: \"$NOW_ISO\", gate: \"pre-deploy\", reason: $BYPASS_NOTE}])
-            else .
-          end)"
-
-atomic_update_state "$SLUG" "$JQ_EXPR"
+# AC-7 (deterministic-phases-v1): record pre-deploy review sub-steps + delegate phase advance.
+atomic_update_state "$SLUG" --arg at "$NOW_ISO" --argjson rev "$REVIEWER_JSON" --argjson sec "$SECURITY_JSON" \
+  '.predeploy_review = {reviewer: $rev, security: $sec}'
+# shellcheck disable=SC1091
+source "$(dirname "$0")/lib/sub-step.sh" 2>/dev/null || true
+if declare -F record_sub_step >/dev/null 2>&1; then
+  [ "$REVIEWER_JSON" != "null" ] && record_sub_step "$SLUG" "pre-deploy-reviewer-agent" pass "$REVIEWER_FILE" || true
+  [ "$SECURITY_JSON" != "null" ] && record_sub_step "$SLUG" "pre-deploy-security-architect" pass "$SECURITY_FILE" || true
+fi
+if [ "${SPRINT_PREDEPLOY_BYPASS:-0}" = "1" ]; then
+  export SPRINT_BYPASS_GATE="${SPRINT_BYPASS_GATE:-pre-deploy}"
+  export SPRINT_BYPASS_WHY="${SPRINT_BYPASS_WHY:-legacy-shim-from-SPRINT_PREDEPLOY_BYPASS}"
+  echo "[!] SPRINT_PREDEPLOY_BYPASS=1 is DEPRECATED — migrate to SPRINT_BYPASS_GATE + SPRINT_BYPASS_WHY (removal in v0.8.0)" >&2
+fi
+if [ -x "$(dirname "$0")/sprint-advance-phase.sh" ]; then
+  SPRINT_SLUG_OVERRIDE="$SLUG" bash "$(dirname "$0")/sprint-advance-phase.sh" pre-deploy 2>&1 || {
+    echo "[!] phase advance to pre-deploy blocked. Manifest predicates not met." >&2
+    exit 1
+  }
+else
+  atomic_update_state "$SLUG" "$JQ_EXPR"  # legacy fallback (unused since advance-phase.sh ships)
+fi
 
 echo "[✓] $SLUG: phase → pre-deploy, gates += pre-deploy"
 

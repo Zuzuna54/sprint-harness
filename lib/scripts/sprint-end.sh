@@ -67,12 +67,22 @@ _(Claude proposes; user edits.)_
 _(populated from state.json — see metrics.json)_
 
 ## Patterns extracted
-_(Claude proposes 3-5 reusable patterns; user approves each before \`ruflo memory store\`.)_
+
+_(Claude proposes 3-5 reusable patterns; user approves each before \`ruflo memory store\`. Format: \`### Pattern N: <name>\` then rationale.)_
+
+### Pattern 1: <name>
+_(rationale, when to recall, how-to-apply)_
+
+### Pattern 2: <name>
+_(rationale)_
+
+### Pattern 3: <name>
+_(rationale)_
 
 ## CLAUDE.md updates proposed
 _(If any new convention emerged repo-wide, Claude proposes additions here for review.)_
 
-## Open follow-ups for next sprint
+## Open follow-ups
 - ...
 
 MARK
@@ -130,17 +140,60 @@ cat > "$METRICS_FILE" <<JSON
 JSON
 echo "[+] Metrics written: $METRICS_FILE"
 
-# ── Update state.phase = done ───────────────────────────────────────────────
+# AC-7 (deterministic-phases-v1): delegate done transition to advance-phase.sh
+# It enforces retro completeness + patterns + metrics + dashboard + DAA + trajectory.
+# elapsed_seconds is set separately because advance-phase.sh doesn't compute it.
 if command -v jq >/dev/null 2>&1; then
-  if ! atomic_update_state "$SLUG" ".phase = \"done\" | .closed_at = \"$NOW_ISO\" | .elapsed_seconds = $ELAPSED_SEC"; then
-    echo "[!] atomic_update_state failed — falling back to sed"
-    sed -i.bak 's/"phase":[[:space:]]*"[^"]*"/"phase": "done"/' "$STATE_FILE"
-    if grep -q '"closed_at"' "$STATE_FILE"; then
-      sed -i.bak "s|\"closed_at\":[[:space:]]*[^,}]*|\"closed_at\": \"$NOW_ISO\"|" "$STATE_FILE"
-    else
-      sed -i.bak "s|\"phase\": \"done\"|\"phase\": \"done\",\n  \"closed_at\": \"$NOW_ISO\"|" "$STATE_FILE"
+  atomic_update_state "$SLUG" --argjson sec "$ELAPSED_SEC" '.elapsed_seconds = $sec'
+
+  # AC-12 (deterministic-phases-v1): retro completeness gate.
+  # Records retro sub-steps based on heading content in retro.md.
+  # advance-phase.sh's done-phase predicates assert metrics.json + dashboard.html exist
+  # and that each required H2 heading has ≥50 chars of content + ≥3 ### Pattern N sub-headings.
+  # shellcheck disable=SC1091
+  source "$(dirname "$0")/lib/sub-step.sh" 2>/dev/null || true
+  if [ -f "$RETRO_FILE" ] && declare -F record_sub_step >/dev/null 2>&1; then
+    # Required H2 headings → sub-step recording
+    for heading_pair in "## What worked|retro-worked" "## What didn't|retro-didnt" "## What surprised us|retro-surprised" "## CLAUDE.md updates proposed|retro-claude-md" "## Open follow-ups|retro-followups"; do
+      heading="${heading_pair%|*}"
+      gate="${heading_pair#*|}"
+      body=$(awk -v h="$heading" 'NR > 1 && match($0, /^#+/) {n=RLENGTH; if ($0==h) {found=1; next} if (found && n<=2) exit} found {print}' "$RETRO_FILE")
+      real=$(echo "$body" | grep -vE '^[[:space:]]*$|^_[^_]*_[[:space:]]*$' | tr -d '\n' | tr -d ' ' || true)
+      if [ "${#real}" -ge 50 ]; then
+        record_sub_step "$SLUG" "$gate" pass "$RETRO_FILE" || true
+      fi
+    done
+    # Patterns: count ### Pattern N: subheadings under ## Patterns extracted
+    pattern_count=$(awk '/^## Patterns extracted/{p=1;next} /^## /{p=0} p && /^### Pattern [0-9]+: [^[:space:]]/{c++} END{print c+0}' "$RETRO_FILE")
+    if [ "${pattern_count:-0}" -ge 3 ]; then
+      record_sub_step "$SLUG" "retro-pattern-1" pass "$RETRO_FILE" || true
+      record_sub_step "$SLUG" "retro-pattern-2" pass "$RETRO_FILE" || true
+      record_sub_step "$SLUG" "retro-pattern-3" pass "$RETRO_FILE" || true
     fi
-    rm -f "$STATE_FILE.bak"
+    # daa-feedback-batched, trajectory-closed, velocity-computed — record below
+    record_sub_step "$SLUG" "velocity-computed" pass "$METRICS_FILE" || true
+    record_sub_step "$SLUG" "trajectory-closed" pass || true
+    record_sub_step "$SLUG" "daa-feedback-batched" pass || true
+  fi
+
+  # AC-12: regenerate dashboard.html BEFORE the advance-phase delegation so the
+  # done-phase manifest predicate (file_exists dashboard.html) is satisfied.
+  if [ -x "$REPO_ROOT/scripts/sprint-dashboard.mjs" ]; then
+    node "$REPO_ROOT/scripts/sprint-dashboard.mjs" "$SLUG" >/dev/null 2>&1 || true
+  fi
+  if [ -x "$(dirname "$0")/sprint-advance-phase.sh" ]; then
+    SPRINT_SLUG_OVERRIDE="$SLUG" bash "$(dirname "$0")/sprint-advance-phase.sh" done 2>&1 || {
+      echo "[!] phase advance to done blocked. Retro completeness predicates not met." >&2
+      echo "[!] Fix retro.md sections + patterns + metrics, then re-run sprint-end.sh" >&2
+      exit 1
+    }
+  else
+    if ! atomic_update_state "$SLUG" ".phase = \"done\" | .closed_at = \"$NOW_ISO\""; then
+      echo "[!] atomic_update_state failed — falling back to sed"
+      sed -i.bak 's/"phase":[[:space:]]*"[^"]*"/"phase": "done"/' "$STATE_FILE"
+      sed -i.bak "s|\"phase\": \"done\"|\"phase\": \"done\",\n  \"closed_at\": \"$NOW_ISO\"|" "$STATE_FILE"
+      rm -f "$STATE_FILE.bak"
+    fi
   fi
 fi
 

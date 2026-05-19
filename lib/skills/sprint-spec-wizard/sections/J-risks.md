@@ -17,6 +17,10 @@
 - J2 — **Privacy**: "Data touched: <from C5/H1>. Retention policy? (LifeOS default: indefinite, user-controlled deletion via soft-delete). Encryption-at-rest: already enabled per Ordex setup — confirm."
 - J3 — **Rollback**: "How do we revert if this breaks prod? LifeOS defaults: Vercel preview deploy → smoke test → promote; DB rollback via soft-delete + additive-only migrations. Need feature flag for staged rollout, or default plan sufficient?"
 - J4 — **Open questions**: "What do we still NOT know? List unknowns. For each: (a) decide now, (b) accept ambiguity + revisit at design lock, (c) needs a spike before sprint can proceed."
+- **J5 — Worker rigor (v0.7+, harness-deterministic-phases-v1 AC-10)**: "How strict should worker output enforcement be for this sprint? Two options:
+  - `lax` (default): only `audit` + `testgaps` workers block the verify gate. Other workers (`map`, `consolidate`, `predict`, `refactor`, `document`, `optimize`) are advisory.
+  - `strict`: every fired worker's output becomes a required artifact for its day's phase gate. Day 0 needs `map.json`, Day 5 needs `consolidate.json`, Day 11 needs `refactor.json` (if spec mentions 'refactor'), Day 14 needs `document.json`. Adds `verify-worker-map-refreshed` + `verify-worker-consolidate-refreshed` to verify-phase required gates.
+    Recommend `strict` for code-quality-heavy sprints; `lax` for harness infrastructure work. Stored at `state.worker_rigor` by `sprint-wizard-assemble.mjs` at spec-lock time."
 
 ## Conditional follow-ups
 
@@ -31,6 +35,7 @@
 - `requires_spike: true/false`
 - `requires_feature_flag: true/false`
 - `pii_handling_documented: true/false`
+- `worker_rigor: lax | strict` (v0.7+, default `lax`)
 
 ## Recall targets
 

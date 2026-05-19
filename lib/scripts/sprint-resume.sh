@@ -31,8 +31,19 @@ if [ "$CUR_PHASE" != "paused" ]; then
   exit 0
 fi
 
-# Restore phase
-atomic_update_state "$SLUG" ".phase = \"$PREV_PHASE\" | .pause_events |= (.[:-1] + [(.[-1] // {}) | . + {resumed_at: \"$NOW_ISO\"}])"
+# AC-7 (deterministic-phases-v1): restore prev_phase via advance-phase.sh.
+# Pause→<prev_phase> bypasses normal predicate check because paused's manifest
+# has empty required_artifacts/sub_step_gates — the predicates for resuming target
+# phase were already met when entering pause.
+atomic_update_state "$SLUG" --arg at "$NOW_ISO" '.pause_events |= (.[:-1] + [(.[-1] // {}) | . + {resumed_at: $at}])'
+if [ -x "$(dirname "$0")/sprint-advance-phase.sh" ]; then
+  SPRINT_SLUG_OVERRIDE="$SLUG" bash "$(dirname "$0")/sprint-advance-phase.sh" "$PREV_PHASE" 2>&1 || {
+    echo "[i] phase advance to $PREV_PHASE blocked; falling back to direct restore." >&2
+    atomic_update_state "$SLUG" --arg pp "$PREV_PHASE" '.phase = $pp'
+  }
+else
+  atomic_update_state "$SLUG" --arg pp "$PREV_PHASE" '.phase = $pp'  # legacy fallback
+fi
 
 # Re-enable workers (best-effort)
 if command -v ruflo >/dev/null 2>&1; then

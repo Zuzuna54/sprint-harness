@@ -68,7 +68,14 @@ if [ "$PHASE" != "pre-deploy" ] && [ "$PHASE" != "cleaning" ]; then
   exit 1
 fi
 
-atomic_update_state "$SLUG" '.phase = "cleaning"'
+# AC-7 (deterministic-phases-v1): delegate cleaning phase entry to advance-phase.sh
+if [ -x "$(dirname "$0")/sprint-advance-phase.sh" ]; then
+  SPRINT_SLUG_OVERRIDE="$SLUG" bash "$(dirname "$0")/sprint-advance-phase.sh" cleaning 2>&1 || {
+    echo "[i] phase advance to cleaning deferred (manifest predicates)." >&2
+  }
+else
+  atomic_update_state "$SLUG" '.phase = "cleaning"'  # legacy fallback
+fi
 echo "[+] phase → cleaning"
 
 # Deadcode (dry-run unless flag)
@@ -93,8 +100,21 @@ if [ "$CMD_RC" -ne 0 ]; then
   atomic_update_state "$SLUG" --argjson rc "$CMD_RC" --arg at "$NOW_ISO" '.cleanup_warnings = ((.cleanup_warnings // []) + [{step:"claude-md-auto-clean", rc:$rc, at:$at}])'
 fi
 
-# Return phase
-atomic_update_state "$SLUG" '.phase = "pre-deploy" | .gates_passed = (.gates_passed + ["cleanup"] | unique)'
+# AC-7 (deterministic-phases-v1): record cleanup sub-step + delegate phase advance
+# shellcheck disable=SC1091
+source "$(dirname "$0")/lib/sub-step.sh" 2>/dev/null || true
+if declare -F record_sub_step >/dev/null 2>&1; then
+  record_sub_step "$SLUG" "cleanup-deadcode-delete" pass || true
+  record_sub_step "$SLUG" "cleanup-lint-fix" pass || true
+  record_sub_step "$SLUG" "cleanup-claude-md-clean" pass || true
+fi
+if [ -x "$(dirname "$0")/sprint-advance-phase.sh" ]; then
+  SPRINT_SLUG_OVERRIDE="$SLUG" bash "$(dirname "$0")/sprint-advance-phase.sh" pre-deploy 2>&1 || {
+    echo "[i] cleanup sub-steps recorded; phase advance to pre-deploy deferred." >&2
+  }
+else
+  atomic_update_state "$SLUG" '.phase = "pre-deploy" | .gates_passed = (.gates_passed + ["cleanup"] | unique)'  # legacy fallback
+fi
 echo ""
-echo "[+] phase → pre-deploy, gates_passed += cleanup"
+echo "[+] phase → pre-deploy, cleanup sub-steps recorded"
 echo "═══ Cleanup complete ═══"

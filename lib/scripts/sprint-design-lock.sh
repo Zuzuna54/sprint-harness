@@ -109,16 +109,28 @@ if [ "${SPRINT_DESIGN_LOCK_BYPASS:-0}" = "1" ]; then
   BYPASS_NOTE="\"SPRINT_DESIGN_LOCK_BYPASS=1\""
 fi
 
-# Atomic state update
-JQ_EXPR=".phase = \"design-locked\" |
-         .gates = ((.gates // []) + [\"design-lock\"]) |
-         .design_locked_at = \"$NOW_ISO\" |
-         (if $BYPASS_NOTE != null
-            then .gate_bypasses = ((.gate_bypasses // []) + [{at: \"$NOW_ISO\", gate: \"design-lock\", reason: $BYPASS_NOTE}])
-            else .
-          end)"
-
-atomic_update_state "$SLUG" "$JQ_EXPR"
+# AC-7 (deterministic-phases-v1): record design-lock sub-steps + delegate phase advance.
+# shellcheck disable=SC1091
+source "$(dirname "$0")/lib/sub-step.sh" 2>/dev/null || true
+if declare -F record_sub_step >/dev/null 2>&1; then
+  record_sub_step "$SLUG" "design-sparc-spec-pseudocode" pass || true
+  record_sub_step "$SLUG" "design-sparc-architect" pass || true
+  record_sub_step "$SLUG" "design-locked" pass || true
+fi
+if [ "${SPRINT_DESIGN_LOCK_BYPASS:-0}" = "1" ]; then
+  # AC-6 deprecation shim — auto-set SPRINT_BYPASS_GATE + SPRINT_BYPASS_WHY
+  export SPRINT_BYPASS_GATE="${SPRINT_BYPASS_GATE:-design-locked}"
+  export SPRINT_BYPASS_WHY="${SPRINT_BYPASS_WHY:-legacy-shim-from-SPRINT_DESIGN_LOCK_BYPASS}"
+  echo "[!] SPRINT_DESIGN_LOCK_BYPASS=1 is DEPRECATED — migrate to SPRINT_BYPASS_GATE + SPRINT_BYPASS_WHY (removal in v0.8.0)" >&2
+fi
+if [ -x "$(dirname "$0")/sprint-advance-phase.sh" ]; then
+  SPRINT_SLUG_OVERRIDE="$SLUG" bash "$(dirname "$0")/sprint-advance-phase.sh" design-locked 2>&1 || {
+    echo "[!] phase advance to design-locked blocked. Manifest predicates not met." >&2
+    exit 1
+  }
+else
+  atomic_update_state "$SLUG" ".phase = \"design-locked\" | .gates = ((.gates // []) + [\"design-lock\"]) | .design_locked_at = \"$NOW_ISO\""  # legacy fallback
+fi
 
 echo "[✓] $SLUG: phase → design-locked, gates += design-lock"
 

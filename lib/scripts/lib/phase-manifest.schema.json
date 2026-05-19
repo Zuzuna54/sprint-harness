@@ -1,0 +1,96 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Sprint Phase Manifest",
+  "description": "Source of truth for required gates per sprint phase. Read by sprint-advance-phase.sh and sprint-system-test.sh --replay-gate-history.",
+  "type": "object",
+  "required": ["version", "phases"],
+  "properties": {
+    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "_comment": {
+      "type": "string",
+      "description": "L18 (closure Wave C): optional human-readable note. Tolerated by strict consumers."
+    },
+    "deferred_gates": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9-]+$" }
+    },
+    "phases": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/Phase" },
+      "propertyNames": {
+        "enum": [
+          "spec-wizard",
+          "spec-locked",
+          "design-locked",
+          "building",
+          "day-5-checkin",
+          "cleaning",
+          "verifying",
+          "pre-deploy",
+          "deploying",
+          "done",
+          "paused"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "Phase": {
+      "type": "object",
+      "required": [
+        "advances_to",
+        "required_artifacts",
+        "required_state_fields",
+        "required_sub_step_gates"
+      ],
+      "properties": {
+        "advances_to": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "required_artifacts": { "type": "array", "items": { "$ref": "#/definitions/Predicate" } },
+        "required_state_fields": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/Predicate" }
+        },
+        "required_sub_step_gates": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9-]+$" }
+        },
+        "strict_only_sub_step_gates": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9-]+$" }
+        },
+        "comment": { "type": "string" }
+      }
+    },
+    "Predicate": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "enum": [
+            "file_exists",
+            "file_min_bytes",
+            "file_contains_heading",
+            "json_path_present",
+            "json_path_equals",
+            "json_path_in",
+            "state_field_min_length",
+            "state_field_all_values_in",
+            "sub_step_recorded"
+          ]
+        },
+        "path": { "type": "string" },
+        "json_path": { "type": "string" },
+        "min_bytes": { "type": "integer", "minimum": 0 },
+        "min_length": { "type": "integer", "minimum": 0 },
+        "min_chars_under": { "type": "integer", "minimum": 0 },
+        "heading": { "type": "string" },
+        "equals": {},
+        "in": { "type": "array" },
+        "applies_to": { "type": "string" }
+      }
+    }
+  }
+}

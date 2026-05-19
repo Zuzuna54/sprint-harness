@@ -35,10 +35,21 @@ if [ "$PREV_PHASE" = "paused" ]; then
   exit 0
 fi
 
-# Update state.json: phase=paused, prev_phase=<current>, record pause event.
+# Update state.json: prev_phase + pause_events, then delegate phase=paused to advance-phase.sh.
+# AC-7 (deterministic-phases-v1): pause has empty required artifacts per manifest, so the
+# advance always succeeds. prev_phase is written first so resume can restore.
 if command -v jq >/dev/null 2>&1; then
   REASON_JSON="$(printf '%s' "$REASON" | jq -Rs .)"
-  atomic_update_state "$SLUG" ".phase = \"paused\" | .prev_phase = \"$PREV_PHASE\" | .pause_events += [{at: \"$NOW_ISO\", reason: $REASON_JSON, prev_phase: \"$PREV_PHASE\"}]"
+  atomic_update_state "$SLUG" --arg pp "$PREV_PHASE" --arg at "$NOW_ISO" --argjson reason "$REASON_JSON" \
+    '.prev_phase = $pp | .pause_events += [{at: $at, reason: $reason, prev_phase: $pp}]'
+  if [ -x "$(dirname "$0")/sprint-advance-phase.sh" ]; then
+    SPRINT_SLUG_OVERRIDE="$SLUG" bash "$(dirname "$0")/sprint-advance-phase.sh" paused 2>&1 || {
+      echo "[!] phase advance to paused blocked. Falling back to direct write." >&2
+      atomic_update_state "$SLUG" '.phase = "paused"'  # legacy fallback (pause requires no predicates)
+    }
+  else
+    atomic_update_state "$SLUG" '.phase = "paused"'  # legacy fallback
+  fi
 else
   echo "[!] jq not available — state.json update may be partial" >&2
 fi

@@ -485,6 +485,87 @@ Or in BoW fallback mode:
 
 ## Extending the system
 
+### Extending phase-manifest.json (v0.7.0+)
+
+`scripts/lib/phase-manifest.json` is the single declarative source of truth for per-phase predicate enforcement. Adding a new gate, predicate, or phase requires updates in ≥3 files.
+
+#### Adding a new sub-step gate
+
+A sub-step gate represents "a step within a phase that must complete before phase advance" (e.g., `wizard-section-A`, `verify-typecheck`, `retro-pattern-1`).
+
+1. **Pick a gate name.** Must match regex `^[a-zA-Z0-9][a-zA-Z0-9-]+$` (kebab-case + optional uppercase letters for wizard sections like `wizard-section-A`).
+2. **Add to manifest.** Open `scripts/lib/phase-manifest.json`, find the phase the gate belongs to, append to `required_sub_step_gates[]`:
+   ```json
+   "verifying": {
+     "required_sub_step_gates": [
+       ...existing...,
+       "verify-my-new-check"
+     ]
+   }
+   ```
+   For gates that should ONLY fire when `state.worker_rigor === "strict"`, append to `strict_only_sub_step_gates[]` instead.
+3. **Validate the manifest:** `node scripts/lib/validate-phase-manifest.mjs`. Must report `[OK] manifest valid: 11 phases, N unique sub-step gates`.
+4. **Wire the instrumentation.** Find the script that produces the artifact this gate represents (e.g., `sprint-verify.sh` for verify-\* gates). Add:
+   ```bash
+   # shellcheck disable=SC1091
+   source "$(dirname "$0")/lib/sub-step.sh" 2>/dev/null || true
+   if declare -F record_sub_step >/dev/null 2>&1; then
+     record_sub_step "$SLUG" "verify-my-new-check" pass "<optional evidence path>" || true
+   fi
+   ```
+5. **Update the documentation table** in `docs/sprints/USAGE.md` "## Phase enforcement" section — add the gate name to the relevant phase row. Add a row in `docs/sprints/_guides/sub-step-coverage.md` under "Instrumented".
+6. **Smoke-test:** run the instrumentation script against a test sprint. Verify `jq '.gates_passed[] | select(.gate=="verify-my-new-check")' state.json` returns the recorded entry.
+7. **Validate replay:** run `bash scripts/sprint-system-test.sh --replay-gate-history` against any post-v0.7.0 closed sprint. The doc-vs-manifest drift gate (AC-13d) catches new gates not yet wired.
+
+#### Adding a new predicate kind
+
+Predicate kinds are evaluated by `scripts/lib/phase-predicates.sh`. Today's kinds: `file_exists`, `file_min_bytes`, `file_contains_heading`, `json_path_present`, `json_path_equals`, `json_path_in`, `state_field_min_length`, `state_field_all_values_in`, `sub_step_recorded`.
+
+1. **Pick a kind name.** Must be a kebab-case string distinct from existing kinds.
+2. **Add to schema enum.** Edit `scripts/lib/phase-manifest.schema.json` — append to `definitions.Predicate.properties.kind.enum`.
+3. **Add to validator.** Edit `scripts/lib/validate-phase-manifest.mjs` — append to `VALID_PREDICATE_KINDS` Set.
+4. **Implement evaluator.** Edit `scripts/lib/phase-predicates.sh` — add a `_pp_pred_<your_kind>()` function following the pattern of existing evaluators (return 0 pass / 1 fail; print `[FAIL]` line on fail).
+5. **Wire into `check_phase_requirements`.** Find the `case "$kind" in` block; add your case branch that extracts predicate fields from `$pred` and calls your evaluator.
+6. **Use the kind** in the manifest predicates as needed.
+7. **Smoke-test:** add a predicate using the new kind to a fixture sprint, run `check_phase_requirements`, verify it fires/passes correctly.
+
+#### Adding a new phase
+
+A new phase between e.g. `building` and `verifying` would require:
+
+1. **Add to schema.** `scripts/lib/phase-manifest.schema.json` — append to `properties.phases.propertyNames.enum`.
+2. **Add to validator.** `scripts/lib/validate-phase-manifest.mjs` — append to `VALID_PHASES` Set.
+3. **Add to manifest.** `scripts/lib/phase-manifest.json` — new `<phase-name>` key with `advances_to[]`, `required_artifacts[]`, `required_state_fields[]`, `required_sub_step_gates[]`.
+4. **Update neighbor phases' `advances_to[]`** — `building.advances_to` should now include the new phase; the new phase should advance to whatever follows.
+5. **Add a phase-writer script** (or extend an existing one) to call `bash sprint-advance-phase.sh <new-phase>` when its work is done.
+6. **Update USAGE.md "## Phase enforcement" table** with the new phase row.
+7. **Update DEVELOPER.md "## State machine reference"** — add the phase to the state diagram.
+8. **Validate + smoke:** `node scripts/lib/validate-phase-manifest.mjs`; run against a fixture sprint to ensure transitions resolve.
+
+#### Adding a new bypass gate name
+
+Bypass gates are referenced by `SPRINT_BYPASS_GATE=<name>`. As of T2.1 (deterministic-phases-v1 follow-up), the bypass-validation in `sprint-advance-phase.sh` checks the gate name against the manifest before recording. Two valid gate-name shapes:
+
+- **Sub-step gate names** — any name in `required_sub_step_gates[]` or `strict_only_sub_step_gates[]` of any phase. Always valid.
+- **Path-shaped gates** — strings containing `.` or `/` (e.g., `design.md`, `docs/sprints/<slug>/x.json`). Valid because they represent artifact-path predicates (`file_exists`, `file_min_bytes`, etc).
+
+To support a new bypass shape (e.g., a state-field bypass), update the validation block in `scripts/sprint-advance-phase.sh` to recognize it.
+
+#### Verification after extending
+
+Run **all** of these before committing a manifest change:
+
+```bash
+node scripts/lib/validate-phase-manifest.mjs                      # structural valid
+bash scripts/sprint-system-test.sh --replay-gate-history --quiet  # no replay regressions
+# Smoke against your dogfood sprint:
+SPRINT_SLUG_OVERRIDE=<your-slug> bash scripts/sprint-advance-phase.sh <next-phase>
+```
+
+The replay validator's doc-vs-manifest drift check (AC-13d) will fail at PR time if USAGE.md mentions a gate name that's not in the manifest. Keep both in sync.
+
+---
+
 ### Adding a new wizard section
 
 1. Create `.claude/skills/sprint-spec-wizard/sections/K-newthing.md` (follow the existing template — Discovery goals, Typical question shape, Conditional follow-ups, Output flags, Recall targets, Style guidance)

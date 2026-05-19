@@ -6,6 +6,61 @@ This project follows [Semantic Versioning](https://semver.org/) and the
 
 ---
 
+## [0.7.0] — 2026-05-19
+
+### Added — Deterministic phase enforcement
+
+- **`scripts/lib/phase-manifest.json`** — source-of-truth declaring 11 sprint phases and their required artifacts, state fields, sub-step gates (25 enforced + 43 deferred per T4), and `advances_to` transitions. New top-level fields: `_comment` (doc note) + `deferred_gates[]` (gates instrumented under follow-up sprint `harness-verify-instrumentation-v1`).
+- **`scripts/lib/phase-manifest.schema.json`** — JSON-Schema for the manifest, validated at every `sprint-advance-phase.sh` invocation.
+- **`scripts/lib/phase-predicates.sh`** — 9 predicate evaluators (`file_exists`, `file_min_bytes`, `file_contains_heading`, `json_path_present`, `json_path_equals`, `json_path_in`, `state_field_min_length`, `state_field_all_values_in`, `sub_step_recorded`).
+- **`scripts/lib/sub-step.sh`** — `record_sub_step <slug> <gate> <pass|fail> [evidence-path]`. Writes atomic, append-only `state.sub_steps[]` entries. Path-canonicalizes evidence + rejects `..` traversal. Warns on unknown gate names.
+- **`scripts/sprint-advance-phase.sh`** — canonical phase mutator. ONLY sanctioned writer of `state.phase`. Validates predicates, walks every `required_sub_step_gates`, supports `--from <expected-current>` invariant. TOCTOU-safe jq filter wraps the phase write in an `if .phase == $current` check.
+- **`scripts/sprint-replay-validator.mjs`** — replays `gate_history[]` against the manifest after sprint close. Asserts monotonic transitions + per-phase coverage + doc-vs-manifest drift. `--report-file <path>` writes markdown artifact for CI.
+- **`scripts/lib/validate-phase-manifest.mjs`** — startup-time schema check.
+- **`scripts/lib/gate-names.json`** — generated constants file (68 gates) for cross-tool rename safety.
+
+### Added — Hook chokepoint at write-time
+
+- **`lib/templates/.claude/helpers/sprint-hook.cjs`** PreToolUse blocks:
+  - `JQ_PHASE_WRITE` — `jq … .phase = …` and `jq … .["phase"] = …` (broad anchor, depth-3 ppid walk to allow sanctioned advance-phase delegates).
+  - `SED_OR_REDIRECT_TO_STATE_JSON` — `sed -i … state.json` and `>> state.json` redirects.
+  - `INTERPRETER_WRITE_TO_STATE_JSON` — `jq -f`, `python -c`, `node -e`, `awk`, `perl -i`, `ruby` writing to `state.json`.
+  - `RM_OR_MV_STATE_JSON` — `rm`/`mv`/`trash`/`unlink` targeting `state.json`.
+  - `parentIsAdvancePhase()` — depth-3 ppid ancestor walk; only sanctioned writes pass.
+
+### Added — Single bypass UX
+
+- `SPRINT_BYPASS_GATE=<gate-name>` + `SPRINT_BYPASS_WHY=<≥10 chars rationale>` is now the **only** bypass surface. Rationales pass through `sprint-pii-redact.sh` before landing in `state.gate_bypasses[]` (no plaintext emails/JWTs/API keys in git history).
+- Deprecation shims: 7 legacy `SPRINT_*_BYPASS` envs (`DRIFT`, `DUP`, `SKIP_REUSE_AUDIT`, `NO_REVIEW_GATE`, `DESIGN_LOCK`, `PREDEPLOY`, `HIVE_MIND`) auto-translate + emit stderr warning. **Removal targeted for v0.8.0.**
+- 9 sprint-`*`.sh scripts migrated: `sprint-cleanup-launch.sh`, `sprint-checkin.sh`, `sprint-end.sh`, `sprint-design-lock.sh`, `sprint-predeploy-gate.sh`, `sprint-amend-spec.sh`, `sprint-pause.sh`, `sprint-resume.sh`, `sprint-status.sh`. All sub-step records flow through canonical mutator.
+
+### Added — Tier 1-4 audit closure
+
+After post-implementation audit caught 5 ACs as `Broken-with-followup`, a fix-up pass landed:
+
+- **T1.1-T1.7** — re-baselined docs (USAGE.md `## Phase enforcement`, DEVELOPER.md write-ordering rules, `_guides/bypass-cheatsheet.md`, `_guides/sub-step-coverage.md`, parent retro completeness).
+- **T2.1-T2.13** — hook regex broadening, 9-script audit (1 false-pass risk filed v0.7.1), 4 untested predicate evaluators smoke-tested, strict-mode end-to-end, `--from` invariant smoke, retro completeness instrumentation verified.
+- **T3.1-T3.4** — replay validator monotonic gate history + doc-drift regex + pre-v0.7 implicit skip + `--quiet` mode.
+- **T4** — `deferred_gates[]` top-level manifest field marks the 43 unwired gates as `[DEFERRED]` not `[FAIL]`.
+
+### Security improvements (vs v0.6.0)
+
+- TOCTOU race in atomic phase writes — closed by expected-current check.
+- Evidence path traversal (`record_sub_step ... ../../etc/passwd`) — rejected at function entry.
+- PII in bypass rationale — redacted via `sprint-pii-redact.sh`.
+- `rm`/`mv` state.json escape — blocked by hook.
+- Hook regex bypass via `jq -f`/`python -c`/`awk`/`perl -i` — blocked.
+
+### Breaking changes
+
+None for v0.6.x consumers — all legacy bypass envs continue to work with deprecation warnings. Removal scheduled for v0.8.0; migrate to single-bypass UX before then.
+
+### Files mirrored from lifeos (24 files)
+
+Scripts: `sprint-advance-phase.sh`, `sprint-replay-validator.mjs`, `sprint-spec-wizard.mjs`, `sprint-system-test.sh` + 9 modified phase-writers. Lib: `phase-manifest.json`, `phase-manifest.schema.json`, `phase-predicates.sh`, `sub-step.sh`, `bypass.sh`, `validate-phase-manifest.mjs`, `gate-names.json`. Templates: `.claude/helpers/sprint-hook.cjs`, `skills/sprint-orchestrator/SKILL.md`, `skills/sprint-spec-wizard/sections/J-risks.md`, `sprints/USAGE.md`, `sprints/DEVELOPER.md`, `sprints/_guides/bypass-cheatsheet.md`, `sprints/_guides/sub-step-coverage.md`, `github/workflows/test.yml` (brand-stripped).
+
+---
+
 ## [0.6.0] — 2026-05-19
 
 ### Added — Workers → sprint-protocol on-demand integration

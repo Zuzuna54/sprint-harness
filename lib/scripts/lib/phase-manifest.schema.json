@@ -5,18 +5,26 @@
   "type": "object",
   "required": ["version", "phases"],
   "properties": {
-    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
     "_comment": {
       "type": "string",
       "description": "L18 (closure Wave C): optional human-readable note. Tolerated by strict consumers."
     },
     "deferred_gates": {
       "type": "array",
-      "items": { "type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9-]+$" }
+      "items": {
+        "type": "string",
+        "pattern": "^[a-zA-Z0-9][a-zA-Z0-9-]+$"
+      }
     },
     "phases": {
       "type": "object",
-      "additionalProperties": { "$ref": "#/definitions/Phase" },
+      "additionalProperties": {
+        "$ref": "#/definitions/Phase"
+      },
       "propertyNames": {
         "enum": [
           "spec-wizard",
@@ -26,6 +34,8 @@
           "day-5-checkin",
           "cleaning",
           "verifying",
+          "audit-resolution",
+          "review-resolution",
           "pre-deploy",
           "deploying",
           "done",
@@ -46,22 +56,39 @@
       "properties": {
         "advances_to": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
         },
-        "required_artifacts": { "type": "array", "items": { "$ref": "#/definitions/Predicate" } },
+        "required_artifacts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Predicate"
+          }
+        },
         "required_state_fields": {
           "type": "array",
-          "items": { "$ref": "#/definitions/Predicate" }
+          "items": {
+            "$ref": "#/definitions/Predicate"
+          }
         },
         "required_sub_step_gates": {
           "type": "array",
-          "items": { "type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9-]+$" }
+          "items": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9-]+$"
+          }
         },
         "strict_only_sub_step_gates": {
           "type": "array",
-          "items": { "type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9-]+$" }
+          "items": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9-]+$"
+          }
         },
-        "comment": { "type": "string" }
+        "comment": {
+          "type": "string"
+        }
       }
     },
     "Predicate": {
@@ -78,18 +105,39 @@
             "json_path_in",
             "state_field_min_length",
             "state_field_all_values_in",
-            "sub_step_recorded"
+            "sub_step_recorded",
+            "audit_resolution_complete",
+            "review_resolution_complete"
           ]
         },
-        "path": { "type": "string" },
-        "json_path": { "type": "string" },
-        "min_bytes": { "type": "integer", "minimum": 0 },
-        "min_length": { "type": "integer", "minimum": 0 },
-        "min_chars_under": { "type": "integer", "minimum": 0 },
-        "heading": { "type": "string" },
+        "path": {
+          "type": "string"
+        },
+        "json_path": {
+          "type": "string"
+        },
+        "min_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "min_length": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "min_chars_under": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "heading": {
+          "type": "string"
+        },
         "equals": {},
-        "in": { "type": "array" },
-        "applies_to": { "type": "string" }
+        "in": {
+          "type": "array"
+        },
+        "applies_to": {
+          "type": "string"
+        }
       }
     }
   }

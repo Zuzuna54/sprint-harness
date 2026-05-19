@@ -1,6 +1,6 @@
 {
   "name": "@ordex/sprint-harness",
-  "version": "0.7.0",
+  "version": "0.7.3",
   "description": "Shape Up + SPARC sprint harness with drift control, inject-violation-catch-restore methodology, multi-sprint parallel support, and full Claude Code + ruflo integration.",
   "license": "MIT",
   "type": "module",

@@ -38,7 +38,18 @@ if [ ! -f "$SPEC_FILE" ]; then
   exit 1
 fi
 
-# ── Pre-flight: ruflo daemon ───────────────────────────────────────────────
+# ── Follow-up #2 (post harness-review-resolution-v1): default to deterministic
+# 5-vote heuristic; ruflo path is opt-in via RUFLO_CONSENSUS_USE_BROKEN_CLI=1.
+# Reason: per memory feedback_hive_mind_consensus_decorative, the upstream
+# ruflo CLI returns empty for `consensus -a status` after `consensus -a propose`,
+# so the polling loop just times out and emits OUTCOME=pending every time —
+# decorative, not load-bearing. The deterministic replacement is fast (<1s),
+# reproducible, and exercises real heuristic checks on the spec.
+if [ "${RUFLO_CONSENSUS_USE_BROKEN_CLI:-0}" != "1" ]; then
+  exec bash "$(dirname "$0")/sprint-consensus-deterministic.sh" "$SLUG"
+fi
+
+# ── Pre-flight: ruflo daemon (legacy path; only when RUFLO_CONSENSUS_USE_BROKEN_CLI=1) ───────────────────────────────────────────────
 if ! command -v ruflo >/dev/null 2>&1; then
   echo "[!] ruflo CLI not installed — cannot run hive-mind." >&2
   [ "${SPRINT_HIVE_MIND_BYPASS:-0}" = "1" ] && { echo "[i] BYPASS=1 — skipping"; exit 0; }
@@ -79,12 +90,32 @@ echo "[3/4] Spawning tactical queen + 4 workers (AC testability review)..."
 ruflo hive-mind spawn -n 4 -r specialist --objective "ac-testability:$SLUG" 2>&1 | tail -3 | sed 's/^/    /' || true
 
 # ── 3. Submit consensus proposal ───────────────────────────────────────────
-PROPOSAL_ID="spec-lock-${SLUG}-${NOW_ISO}"
+# WORKAROUND for ruflo CLI bugs (2026-05-19 audit):
+#   - `consensus -a propose -p <id>` IGNORES the -p flag (auto-generates IDs)
+#   - The output literally prints "Proposal created: undefined" instead of the ID
+#   - `consensus -a status -p <pid>` returns empty output (can't query state)
+# Workaround: diff `consensus -a list` before/after to derive the auto-generated
+# PID, then use `consensus -a vote` (which DOES work) to drive consensus.
+INTENT_ID="spec-lock-${SLUG}-${NOW_ISO}"
 echo "[4/4] Submitting consensus proposal on spec SHA $SPEC_HASH..."
-ruflo hive-mind consensus -a propose -p "$PROPOSAL_ID" -t spec-lock \
-  --value "$SPEC_HASH" 2>&1 | tail -3 | sed 's/^/    /' || true
+BEFORE_LIST="$(ruflo hive-mind consensus -a list 2>&1 | grep -oE 'proposal-[a-zA-Z0-9-]+' | sort -u)"
+ruflo hive-mind consensus -a propose -t spec-lock --value "$SPEC_HASH" 2>&1 | tail -3 | sed 's/^/    /' || true
+sleep 2
+AFTER_LIST="$(ruflo hive-mind consensus -a list 2>&1 | grep -oE 'proposal-[a-zA-Z0-9-]+' | sort -u)"
+# Derive the new proposal ID (set difference)
+PROPOSAL_ID="$(comm -13 <(echo "$BEFORE_LIST") <(echo "$AFTER_LIST") | head -1)"
+if [ -z "$PROPOSAL_ID" ]; then
+  PROPOSAL_ID="$INTENT_ID"
+  echo "    [!] Could not derive auto-generated proposal ID — ruflo CLI bug; using intent ID for record-keeping" >&2
+  CLI_BUG_DETECTED=1
+else
+  echo "    Derived PID: $PROPOSAL_ID (ruflo auto-generated; intent ID was $INTENT_ID)"
+  CLI_BUG_DETECTED=0
+fi
 
 # Poll for terminal state up to HIVE_POLL_TIMEOUT seconds (default 60).
+# NOTE: even with the derived PID, `consensus -a status -p <pid>` returns empty
+# output as of 2026-05-19. We still poll in case ruflo fixes this upstream.
 HIVE_POLL_TIMEOUT="${HIVE_POLL_TIMEOUT:-60}"
 DEADLINE=$(($(date +%s) + HIVE_POLL_TIMEOUT))
 OUTCOME="pending"
@@ -97,7 +128,7 @@ while [ $(date +%s) -lt $DEADLINE ]; do
   fi
   sleep 2
 done
-[ "$OUTCOME" = "pending" ] && echo "  [i] consensus polling timed out after ${HIVE_POLL_TIMEOUT}s — staying pending"
+[ "$OUTCOME" = "pending" ] && echo "  [i] consensus polling timed out after ${HIVE_POLL_TIMEOUT}s — staying pending (ruflo consensus status returns empty as of 2026-05-19)"
 
 echo ""
 echo "  Consensus outcome: $OUTCOME"
@@ -132,6 +163,7 @@ if command -v jq >/dev/null 2>&1; then
   cat > "$CONSENSUS_FILE" <<JSON
 {
   "proposal_id": "$PROPOSAL_ID",
+  "intent_proposal_id": "$INTENT_ID",
   "proposal_sha": "$SPEC_HASH",
   "hive_id": "$HIVE_ID",
   "outcome": "$OUTCOME",
@@ -140,6 +172,15 @@ if command -v jq >/dev/null 2>&1; then
   "workers_per_queen": 4,
   "poll_timeout_seconds": ${HIVE_POLL_TIMEOUT},
   "polling_strategy": "bounded-loop-2s-backoff",
+  "ruflo_cli_bugs_in_effect": {
+    "propose_ignores_proposal_id_flag": true,
+    "propose_returns_undefined_in_output": true,
+    "status_returns_empty_output": true,
+    "vote_works": true,
+    "audit_date": "2026-05-19",
+    "workaround": "diff consensus -a list before/after to derive auto-generated PID; rely on vote action which works"
+  },
+  "cli_bug_detected_this_run": ${CLI_BUG_DETECTED:-0},
   "raw_status_output": $(printf '%s' "${RESULT:-}" | jq -Rs .)
 }
 JSON

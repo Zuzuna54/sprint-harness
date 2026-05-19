@@ -6,6 +6,48 @@ This project follows [Semantic Versioning](https://semver.org/) and the
 
 ---
 
+## [0.7.3] — 2026-05-19
+
+### Added — Review-resolution phase (supersedes audit-resolution as superset)
+
+- **New `review-resolution` phase** in `lib/scripts/lib/phase-manifest.json` (manifest version 1.2.0). Walks audit + knip + sonar findings under one phase with global `HAR-N` namespace. Legacy `audit-resolution` phase retained as alias for sprints that locked spec under v0.7.2.
+- **New `review_resolution_complete` predicate** in `lib/scripts/lib/phase-predicates.sh`. Sums findings across producers AND transparently consumes legacy `audit_findings_*` fields via union jq view — v0.7.2 sprints walk through the new predicate without amending spec.json.
+- **New `lib/scripts/sprint-review-resolve.sh`** — multi-producer interactive walker. Reads `worker-output/{audit,knip,sonar}.json` on first invocation, aggregates into `state.review_findings[]`. Modes: `--status` (per-producer breakdown), `--finding HAR-N {fix|defer|accept}` (programmatic). Inherits C5 PII-redact + C7 slug-regex validation from v0.7.2 audit-resolve.
+- **New `lib/scripts/sprint-review-rerun.sh`** — per-producer baseline diff. Fires each producer, fingerprints `(severity, file, line)`, classifies FIXED / REGRESSION / UNCHANGED. Tracks `state.review_rerun_regression_streak.<producer>` per producer; twice-consecutive regression on any producer records a block gate.
+- **`lib/scripts/sprint-deadcode-delete.mjs` `--check --json` producer mode** — short-circuits after knip parse + sprint-scope filter, emits the unified review_findings producer schema (`producer: "knip"`, `schema_version: 1`, `findings[]`). Files in `state.files_touched[]` excluded.
+- **`lib/scripts/sprint-sonar-parse.mjs` `--json` producer mode** — flattens findings across all configured Sonar projects; vacuous PASS when `SONAR_TOKEN` absent.
+- **New `lib/templates/sprints/_templates/review-resolutions.md`** — 4 KB template with per-producer H3 sections + triage protocol + programmatic invocation examples.
+
+### Added — sprint-advance-phase mutex + worker bypass
+
+- **Per-slug lockfile** `docs/sprints/<slug>/.advance.lock` acquired at `sprint-advance-phase.sh` entry. flock when available (Linux), portable `set -C` noclobber + 30s stale-reclaim fallback (macOS, since macOS doesn't ship flock by default — mirrors atomic-state.sh pattern). Prevents two parallel advances from racing each other's daemon-worker fires + atomic_update_state writes.
+- **`SPRINT_BYPASS_GATE` now accepts worker names** from `lib/scripts/lib/phase-workers.json` in addition to manifest sub-step gate names. Matches the stderr recovery hint at sprint-advance-phase.sh:232 that has been documented since v0.7.2 but was never wired. Workers bypassed this way record to `state.worker_runs[]` with `status: "bypassed"`.
+
+### Added — Deterministic spec-lock consensus (replaces broken ruflo hive-mind CLI)
+
+- **New `lib/scripts/sprint-consensus-deterministic.sh`** — 5-vote heuristic check against spec.md (AC-N reference count, §H integration points, no TODO/FIXME/TBD markers, §J risks section ≥100 chars, ≥2 verification mentions). Tally: ≥4/5 = pass, 3/5 = pass-with-notes, ≤2/5 = dissent. Emits `consensus-spec.json` with the same `{verdict, outcome}` shape the phase-manifest predicate expects. Runs in <1s, no daemon dependency.
+- **`lib/scripts/sprint-hive-mind-spec-lock.sh`** now defaults to the deterministic path; `RUFLO_CONSENSUS_USE_BROKEN_CLI=1` escape-hatches to the legacy ruflo CLI path. Reason: per upstream-bug tracking, `ruflo hive-mind consensus -a status` returns empty after `-a propose` ignores its -p flag, so the polling loop timed out and emitted `OUTCOME=pending` on every sprint — decorative, not load-bearing.
+
+### Added — Wizard state-sync to state.json
+
+- **`lib/scripts/sprint-spec-wizard.mjs`** now syncs `partial.sections_status` + `partial.current_section` into `state.wizard_state.sections_status` + `.current_section` via `atomic_update_state` (4 call-sites: `cmdSkip` + `cmdCompleteSection` + 2 nextSection advance blocks). Closes the gap where `state.wizard_state` stayed at all-"pending" from sprint-start, accidentally passing the manifest's `state_field_all_values_in` predicate only because "pending" is in the allowed set.
+
+### Changed
+
+- **Phase count: 12 → 13** (`review-resolution` added between `verifying` and `pre-deploy`).
+- **Sub-step gate count: 70 → 72** (`review-resolution-fired` + `review-findings-exit-predicate`).
+- **Manifest version: 1.1.0 → 1.2.0**.
+- **`lib/templates/sprints/USAGE.md` §1 Day 12–13 row** updated to describe `review-resolution` as the canonical phase; `audit-resolution` documented as legacy alias.
+- **`lib/templates/sprints/QUICKSTART.md` v0.7.0 callout** gained a v0.7.3 addition block; 7-step happy-path row 6.5 updated.
+- **`lib/templates/sprints/DEVELOPER.md` Terminology Contract** updated for 13-phase state machine + new predicate kind.
+- **`lib/templates/sprints/SCRIPTS.md`** marked `sprint-audit-resolve.sh` + `sprint-audit-rerun.sh` as legacy aliases; added rows for `sprint-review-resolve.sh` + `sprint-review-rerun.sh` + `sprint-consensus-deterministic.sh`.
+
+### Dogfood
+
+- **`harness-review-resolution-v1` sprint** walked the full 13-phase manifest (spec-wizard → spec-locked → design-locked → building → cleaning → verifying → review-resolution → pre-deploy → deploying → done). 7/7 ACs production. Audit worker fired live during verifying: 4 advisory findings, all `.claude/helpers/github-safe.js`, all out-of-scope per scope-bounding (exactly the v0.7.2 pattern, now extended to multi-producer). Knip + sonar vacuously PASSed. `review_findings_total = 0` → exit predicate trivially satisfied.
+
+---
+
 ## [0.7.0] — 2026-05-19
 
 ### Added — Deterministic phase enforcement

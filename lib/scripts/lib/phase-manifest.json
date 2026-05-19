@@ -1,58 +1,22 @@
 {
   "$schema": "./phase-manifest.schema.json",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "_comment": "deferred_gates[] (T4 from harness-deterministic-phases-v1): gate names listed in some phase's required_sub_step_gates[] but NOT yet instrumented by record_sub_step. Predicate engine treats missing-and-no-bypass for these as [DEFERRED] (counts separately, doesn't block phase advance). Follow-up sprint harness-verify-instrumentation-v1 wires the instrumentation; gates get removed from deferred_gates[] as they land. See docs/sprints/_guides/sub-step-coverage.md.",
-  "deferred_gates": [
-    "wizard-section-A",
-    "wizard-section-B",
-    "wizard-section-C",
-    "wizard-section-D",
-    "wizard-section-E",
-    "wizard-section-F",
-    "wizard-section-G",
-    "wizard-section-H",
-    "wizard-section-I",
-    "wizard-section-J",
-    "wizard-coherence-after-C",
-    "wizard-coherence-after-F",
-    "wizard-coherence-after-I",
-    "wizard-assemble",
-    "spec-lock-solution-sketches",
-    "spec-lock-architect-review",
-    "spec-lock-security-review",
-    "spec-lock-hive-mind-consensus",
-    "verify-typecheck",
-    "verify-lint",
-    "verify-tests",
-    "verify-api-contract",
-    "verify-debug-rls",
-    "verify-module-status",
-    "verify-perf-profile",
-    "verify-aidefence-scan",
-    "verify-sonar",
-    "verify-knip",
-    "verify-cycle-check",
-    "verify-audit-deps",
-    "verify-bundle-budget",
-    "verify-coverage-delta",
-    "verify-migration-check",
-    "verify-worker-audit",
-    "verify-worker-testgaps",
-    "verify-worker-optimize",
-    "verify-worker-map-refreshed",
-    "verify-worker-consolidate-refreshed",
-    "deploy-pulumi-preview-captured",
-    "deploy-human-gate-approved",
-    "deploy-pulumi-up",
-    "deploy-smoke",
-    "deploy-vercel"
-  ],
+  "deferred_gates": [],
   "phases": {
     "spec-wizard": {
       "advances_to": ["spec-locked", "paused"],
       "required_artifacts": [
-        { "kind": "file_min_bytes", "path": "spec.md", "min_bytes": 500 },
-        { "kind": "file_min_bytes", "path": "wizard-transcript.md", "min_bytes": 100 },
+        {
+          "kind": "file_min_bytes",
+          "path": "spec.md",
+          "min_bytes": 500
+        },
+        {
+          "kind": "file_min_bytes",
+          "path": "wizard-transcript.md",
+          "min_bytes": 100
+        },
         {
           "kind": "json_path_in",
           "path": "spec.partial.json",
@@ -87,19 +51,38 @@
     "spec-locked": {
       "advances_to": ["design-locked", "paused"],
       "required_artifacts": [
-        { "kind": "file_min_bytes", "path": "solution-sketches.md", "min_bytes": 200 },
-        { "kind": "file_min_bytes", "path": "architect-review.md", "min_bytes": 200 },
-        { "kind": "file_min_bytes", "path": "security-review.md", "min_bytes": 200 },
+        {
+          "kind": "file_min_bytes",
+          "path": "solution-sketches.md",
+          "min_bytes": 200
+        },
+        {
+          "kind": "file_min_bytes",
+          "path": "architect-review.md",
+          "min_bytes": 200
+        },
+        {
+          "kind": "file_min_bytes",
+          "path": "security-review.md",
+          "min_bytes": 200
+        },
         {
           "kind": "json_path_in",
           "path": "consensus-spec.json",
           "json_path": ".verdict",
           "in": ["pass", "pass-with-notes"]
         },
-        { "kind": "file_exists", "path": ".baseline-embedding.json" }
+        {
+          "kind": "file_exists",
+          "path": ".baseline-embedding.json"
+        }
       ],
       "required_state_fields": [
-        { "kind": "state_field_min_length", "json_path": ".files_touched", "min_length": 1 },
+        {
+          "kind": "state_field_min_length",
+          "json_path": ".files_touched",
+          "min_length": 1
+        },
         {
           "kind": "json_path_in",
           "path": "state.json",
@@ -117,9 +100,19 @@
     },
     "design-locked": {
       "advances_to": ["building", "paused"],
-      "required_artifacts": [{ "kind": "file_min_bytes", "path": "design.md", "min_bytes": 300 }],
+      "required_artifacts": [
+        {
+          "kind": "file_min_bytes",
+          "path": "design.md",
+          "min_bytes": 300
+        }
+      ],
       "required_state_fields": [
-        { "kind": "json_path_present", "path": "state.json", "json_path": ".design_locked_at" }
+        {
+          "kind": "json_path_present",
+          "path": "state.json",
+          "json_path": ".design_locked_at"
+        }
       ],
       "required_sub_step_gates": [
         "design-sparc-spec-pseudocode",
@@ -182,10 +175,14 @@
       ]
     },
     "verifying": {
-      "advances_to": ["pre-deploy", "building", "paused"],
+      "advances_to": ["audit-resolution", "building", "paused", "pre-deploy", "review-resolution"],
       "required_artifacts": [],
       "required_state_fields": [
-        { "kind": "state_field_min_length", "json_path": ".verify_runs", "min_length": 1 }
+        {
+          "kind": "state_field_min_length",
+          "json_path": ".verify_runs",
+          "min_length": 1
+        }
       ],
       "required_sub_step_gates": [
         "verify-typecheck",
@@ -216,10 +213,18 @@
     "pre-deploy": {
       "advances_to": ["deploying", "paused"],
       "required_artifacts": [
-        { "kind": "file_min_bytes", "path": "pre-deploy-review.md", "min_bytes": 200 }
+        {
+          "kind": "file_min_bytes",
+          "path": "pre-deploy-review.md",
+          "min_bytes": 200
+        }
       ],
       "required_state_fields": [
-        { "kind": "json_path_present", "path": "state.json", "json_path": ".predeploy_at" }
+        {
+          "kind": "json_path_present",
+          "path": "state.json",
+          "json_path": ".predeploy_at"
+        }
       ],
       "required_sub_step_gates": ["pre-deploy-reviewer-agent", "pre-deploy-security-architect"]
     },
@@ -274,11 +279,21 @@
           "heading": "## Open follow-ups",
           "min_chars_under": 10
         },
-        { "kind": "file_exists", "path": "metrics.json" },
-        { "kind": "file_exists", "path": "dashboard.html" }
+        {
+          "kind": "file_exists",
+          "path": "metrics.json"
+        },
+        {
+          "kind": "file_exists",
+          "path": "dashboard.html"
+        }
       ],
       "required_state_fields": [
-        { "kind": "json_path_present", "path": "state.json", "json_path": ".closed_at" }
+        {
+          "kind": "json_path_present",
+          "path": "state.json",
+          "json_path": ".closed_at"
+        }
       ],
       "required_sub_step_gates": [
         "retro-worked",
@@ -308,10 +323,60 @@
       ],
       "required_artifacts": [],
       "required_state_fields": [
-        { "kind": "json_path_present", "path": "state.json", "json_path": ".prev_phase" }
+        {
+          "kind": "json_path_present",
+          "path": "state.json",
+          "json_path": ".prev_phase"
+        }
       ],
       "required_sub_step_gates": [],
       "comment": "Resume restores prev_phase; no new sub-step gates required"
+    },
+    "audit-resolution": {
+      "advances_to": ["pre-deploy", "verifying", "paused"],
+      "required_artifacts": [
+        {
+          "kind": "file_min_bytes",
+          "path": "audit-resolutions.md",
+          "min_bytes": 1024
+        }
+      ],
+      "required_state_fields": [
+        {
+          "kind": "json_path_present",
+          "path": "state.json",
+          "json_path": ".audit_findings_total"
+        },
+        {
+          "kind": "json_path_present",
+          "path": "state.json",
+          "json_path": ".audit_findings_resolved_count"
+        },
+        {
+          "kind": "audit_resolution_complete",
+          "path": "state.json"
+        }
+      ],
+      "required_sub_step_gates": ["audit-resolution-fired", "audit-findings-exit-predicate"],
+      "comment": "W2 (harness-audit-resolution-and-scope-v1, AC-5): explicit 4-day fix capacity between verifying + pre-deploy. Exit predicate (audit_resolution_complete kind, new in phase-predicates.sh) asserts resolved_count + deferred[].length + accepted[].length == audit_findings_total AND every deferred entry has non-empty deferred_to_sprint + ac_id."
+    },
+    "review-resolution": {
+      "advances_to": ["pre-deploy", "verifying", "paused"],
+      "required_artifacts": [
+        {
+          "kind": "file_min_bytes",
+          "path": "review-resolutions.md",
+          "min_bytes": 1024
+        }
+      ],
+      "required_state_fields": [
+        {
+          "kind": "review_resolution_complete",
+          "path": "state.json"
+        }
+      ],
+      "required_sub_step_gates": ["review-resolution-fired", "review-findings-exit-predicate"],
+      "comment": "W1 (harness-review-resolution-v1, AC-1): superset of audit-resolution. Aggregates audit + knip + sonar findings under unified review_findings[]. audit-resolution stays as legacy alias."
     }
   }
 }

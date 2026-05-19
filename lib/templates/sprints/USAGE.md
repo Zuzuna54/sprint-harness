@@ -1,831 +1,696 @@
 # Sprint System — Usage Guide
 
-> **For:** anyone building LifeOS features
-> **What this is:** the practical "how to use it" guide. Pairs with [`README.md`](./README.md) (architecture overview) and [`hazy-gathering-kettle.md`](../../../.claude/plans/hazy-gathering-kettle.md) (full design plan, in `~/.claude/plans/`).
-> **Audience:** solo dev who's never seen this system before. Or a future dev joining the team.
+> **For:** anyone driving a sprint (operator, Claude session, sub-agent).
+> **Pairs with:** [`QUICKSTART.md`](./QUICKSTART.md) (5-minute on-ramp), [`DEVELOPER.md`](./DEVELOPER.md) (internals, terminology contract, extension recipes), [`README.md`](./README.md) (architecture overview).
+> **Audience:** someone who has read QUICKSTART and now needs the full mechanical reference.
+
+This guide has **five sections**, in this order:
+
+1. **The 14-day flow** — day-by-day reference: scripts/skills/agents that fire, files that appear, phase transitions.
+2. **Phase enforcement (v0.7.0)** — `phase-manifest.json`, `sprint-advance-phase.sh`, sub-step gates, predicate evaluators, replay validator.
+3. **Worker architecture** — the three concepts (daemon workers, task sub-agents, autopilot side-cars) and how they differ.
+4. **Bypass cheatsheet** — canonical `SPRINT_BYPASS_GATE` / `SPRINT_BYPASS_WHY`; deprecated legacy envs.
+5. **Troubleshooting** — symptom-indexed lookup with fix commands.
+
+Terminology used below (phase, sub-step gate, worker, sub-agent, autopilot side-car, predicate, bypass, gate-history, drift) is defined once in [`DEVELOPER.md` §"Terminology contract"](./DEVELOPER.md#terminology-contract). Every other reference in this doc links there.
 
 ---
 
-## TL;DR (30 seconds)
+## §1 — The 14-day flow
 
-You're building features in 2-week chunks. Every chunk is a "sprint." Each sprint follows the same shape: **spec → design → build → verify → deploy → retro**. Claude (me) drives it; you make decisions at 5 gates.
+A normal sprint runs 14 days through 13 phases (v0.7.2+ added `audit-resolution` between `verifying` and `pre-deploy`; **v0.7.3+** added `review-resolution` as the unified superset that walks audit + knip + sonar findings under one phase — `audit-resolution` stays as a legacy alias for sprints that shipped under v0.7.2). The table below is the canonical day-by-day reference. Each row names:
 
-**Harness depth (as of 2026-05-17):** 71 capabilities across 14 groups, all proven via inject-violation-catch-restore. Production verdict requires real-injection evidence — file presence is not enough. See [README.md §"Harness capabilities"](./README.md) for the catalog.
+- **Phase / day** — the manifest phase the sprint is in
+- **Operator action** — what you (or Claude) trigger
+- **Scripts/skills/agents that fire** — what runs under the hood
+- **Files that appear in `docs/sprints/<slug>/`** — observable artifacts
+- **Phase transition** — what `sprint-advance-phase.sh` moves to next
 
-**One command to start:**
+### Day 0 — Sprint start → `spec-wizard`
 
-```bash
-bash scripts/sprint-start.sh <slug>
-```
+| Field                                                | Value                                                                                                  |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Operator action                                      | `bash scripts/sprint-start.sh <slug>`                                                                  |
+| Scripts                                              | `sprint-start.sh` → `sprint-precheck.sh --mode start --strict` (AC-33 systems-health gate)             |
+| Skills                                               | (after start) `sprint-orchestrator` skill auto-loads via `.claude/skills/sprint-orchestrator/SKILL.md` |
+| [Daemon worker](./DEVELOPER.md#terminology-contract) | `map` (local, free) — refreshes codebase context, advisory                                             |
+| Files                                                | `state.json`, `spec.partial.json`, `.gitkeep`, optional `worker-output/map.json`                       |
+| Phase                                                | `null` → `spec-wizard` (initial write by `sprint-start.sh` via `sprint-advance-phase.sh`)              |
 
-Then tell me: `"start the spec wizard"` and I'll walk you through 10 sections of product discovery (15-45 adaptive questions). By the end, you have a complete spec, drift control is armed, and we can start building.
+### Day 0 — Wizard → `spec-wizard` (in-progress)
+
+| Field                                                          | Value                                                                                                                  |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Operator action                                                | Tell Claude `"start the spec wizard"`                                                                                  |
+| Skills                                                         | `sprint-spec-wizard` skill — drives 10 sections (A–J) per `.claude/skills/sprint-spec-wizard/sections/*.md`            |
+| Scripts                                                        | `sprint-spec-wizard.mjs answer/section/status`, `sprint-wizard-context.mjs`, `sprint-wizard-coherence.mjs`             |
+| [Sub-step gates](./DEVELOPER.md#terminology-contract) recorded | `wizard-section-A` … `wizard-section-J` (10), `wizard-coherence-after-C/F/I` (3), `wizard-assemble` (1) — **14 total** |
+| Files                                                          | `wizard-transcript.md`, `spec.partial.json` (grows section by section), `recalled-patterns.json`                       |
+| Phase                                                          | stays in `spec-wizard` until §J + assemble complete                                                                    |
+
+### Day ½ — Spec-lock 4-way review → `spec-locked`
+
+| Field                                                                          | Value                                                                                                                                                                      |
+| ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Operator action                                                                | Tell Claude `"do the spec-lock review chain"`; then `bash scripts/sprint-amend-spec.sh --lock`                                                                             |
+| [Task sub-agents](./DEVELOPER.md#terminology-contract) spawned via `Task` tool | `architect` → `architect-review.md`; `security-architect` → `security-review.md`                                                                                           |
+| Skills                                                                         | `sprint-orchestrator` produces `solution-sketches.md` directly                                                                                                             |
+| Scripts                                                                        | `sprint-hive-mind-spec-lock.sh` → `consensus-spec.json`; `sprint-amend-spec.sh --lock` → `.baseline-embedding.json` + phase advance                                        |
+| Sub-step gates recorded                                                        | `spec-lock-solution-sketches`, `spec-lock-architect-review`, `spec-lock-security-review`, `spec-lock-hive-mind-consensus`, `spec-lock-baseline-written` — **4 + baseline** |
+| Files                                                                          | `solution-sketches.md`, `architect-review.md`, `security-review.md`, `consensus-spec.json`, `.baseline-embedding.json`                                                     |
+| Phase                                                                          | `spec-wizard` → `spec-locked`                                                                                                                                              |
+
+> From this transition forward, drift control is armed: `.husky/pre-commit` runs `sprint-drift-check.sh` on every commit, `.claude/helpers/sprint-hook.cjs` blocks out-of-scope file edits and forbidden bash patterns (`git push`, `pulumi up`, `rm -rf /`, `DROP TABLE`, etc.).
+
+### Days 1–2 — SPARC design → `design-locked`
+
+| Field           | Value                                                                                                                                 |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Operator action | Tell Claude `"do the SPARC design phase"`; sign off → Claude calls `sprint-advance-phase.sh design-locked`                            |
+| Skills          | SPARC chain (`/sparc:spec-pseudocode`, `/sparc:architect`)                                                                            |
+| Daemon workers  | `ultralearn` (opus) IFF `§B.flags.architecture == true`; `deepdive` (opus) IFF any AC has complexity keyword (auth/RLS/migration/JWT) |
+| Sub-step gates  | `design-sparc-spec-pseudocode`, `design-sparc-architect`, `design-locked`                                                             |
+| Files           | `design.md` ≥300B                                                                                                                     |
+| Phase           | `spec-locked` → `design-locked`                                                                                                       |
+
+### Days 3–4 — Build kickoff → `building`
+
+| Field                                                      | Value                                                                                                                         |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Operator action                                            | `bash scripts/sprint-build-launch.sh`                                                                                         |
+| Workflows                                                  | `docs/workflows/lifeos-sprint-build.yaml` — `swarm_init` (8 agents) → claims × 7 → autopilot side-cars × 3 → trajectory-start |
+| [Autopilot side-cars](./DEVELOPER.md#terminology-contract) | `lint-fix`, `test-backfill`, `doc-sweep` (configs in `.claude-flow/autopilot/*.json`)                                         |
+| Daemon workers per wave kickoff                            | `predict` (haiku) — fires from `bash scripts/sprint-wave-start.sh <wave>`                                                     |
+| Sub-step gate                                              | `build-launched`                                                                                                              |
+| Phase                                                      | `design-locked` → `building`                                                                                                  |
+
+### Days 3–11 — Build (in-progress)
+
+| Field        | Value                                                                                                                                                                |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hooks active | `.husky/pre-commit` (drift + jscpd dup BLOCK at >50% AC-17), `.husky/post-commit` (reuse audit AC-5, pair-mode advisory AC-7), `.husky/pre-push` (review gate AC-13) |
+| Per-commit   | `sprint-drift-check.sh` computes cosine similarity vs `.baseline-embedding.json`; <0.75 pauses commit with 3-option prompt                                           |
+| Pair mode    | Auto-trigger when AC has complexity keyword (auth/RLS/payment/migration/JWT/secret/delete/password/hash/encrypt)                                                     |
+| Phase        | stays `building`                                                                                                                                                     |
+
+### Day 5 — Mid-cycle check-in → `day-5-checkin`
+
+| Field           | Value                                                                                             |
+| --------------- | ------------------------------------------------------------------------------------------------- |
+| Operator action | `bash scripts/sprint-checkin.sh`; then tell Claude `"walk me through the day-5 check-in"`         |
+| Daemon workers  | `consolidate` (local, free) — memory dedup                                                        |
+| Scripts         | `sprint-hillchart.mjs --refresh`, `sprint-checkin.sh`                                             |
+| Sub-step gates  | `day-5-question-cut`, `day-5-question-push`, `day-5-question-pivot`, `day-5-hill-chart-refreshed` |
+| Files           | `check-in-day5.md` (each of `### Cut` / `### Push` / `### Pivot` ≥30 chars), `hill-chart.md`      |
+| Phase           | `building` ↔ `day-5-checkin` (auto-returns to `building` after check-in)                          |
+
+### Day 11 — Cleanup → `cleaning`
+
+| Field           | Value                                                                                       |
+| --------------- | ------------------------------------------------------------------------------------------- |
+| Operator action | `bash scripts/sprint-cleanup-launch.sh <slug>` (add `--commit-deadcode` to actually delete) |
+| Daemon workers  | `refactor` (sonnet) IFF spec mentions "refactor"                                            |
+| Scripts         | `sprint-deadcode-delete.mjs`, `sprint-test-hardening.mjs`, `sprint-claude-md-upgrade.mjs`   |
+| Sub-step gates  | `cleanup-deadcode-delete`, `cleanup-lint-fix`, `cleanup-claude-md-clean`                    |
+| Files           | `deadcode-deletions.json`, `test-hardening.csv` + `.json`, `claude-md-proposed-diff.patch`  |
+| Phase           | `building` → `cleaning` → `verifying`                                                       |
+
+### Days 11–12 — Verify → `verifying`
+
+| Field                                                                    | Value                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Operator action                                                          | `bash scripts/sprint-verify.sh` OR tell Claude `"verify the sprint"`                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Daemon workers (BLOCKING)                                                | `audit` (sonnet, zero-tolerance on findings), `testgaps` (sonnet, blocks on any route in `## Files touched` with zero coverage)                                                                                                                                                                                                                                                                                                                                                                           |
+| Daemon workers (advisory)                                                | `optimize` (sonnet)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Daemon workers (strict tier only, when `state.worker_rigor == "strict"`) | `map`, `consolidate`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Sub-step gates                                                           | `verify-typecheck`, `verify-lint`, `verify-tests`, `verify-api-contract`, `verify-debug-rls`, `verify-module-status`, `verify-perf-profile`, `verify-aidefence-scan`, `verify-sonar`, `verify-knip`, `verify-cycle-check`, `verify-audit-deps`, `verify-bundle-budget`, `verify-coverage-delta`, `verify-migration-check`, `verify-worker-audit`, `verify-worker-testgaps`, `verify-worker-optimize` (+ `verify-worker-map-refreshed`, `verify-worker-consolidate-refreshed` in strict) — **18–20 total** |
+| Files                                                                    | `worker-output/audit.json`, `worker-output/testgaps.json`, `worker-output/optimize.json`, `verify-runs/<timestamp>.log`                                                                                                                                                                                                                                                                                                                                                                                   |
+| Phase                                                                    | `cleaning` → `verifying` → `pre-deploy`                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+
+### Day 12–13 — Review-resolution → `review-resolution` _(v0.7.3+; supersedes `audit-resolution`)_
+
+| Field                | Value                                                                                                                                                                                                                                                                                                                                                                                                       |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Operator action      | `bash scripts/sprint-review-resolve.sh` (interactive walker across audit + knip + sonar findings) OR programmatic `bash scripts/sprint-review-resolve.sh --finding HAR-N fix\|defer\|accept`                                                                                                                                                                                                                |
+| Scripts              | `scripts/sprint-review-resolve.sh` (interactive triage; reads `worker-output/{audit,knip,sonar}.json` and aggregates into `state.review_findings[]`), `scripts/sprint-review-rerun.sh` (per-producer baseline diff with FIXED/REGRESSION/UNCHANGED + per-producer regression streak counter)                                                                                                                |
+| Sub-step gates       | `review-resolution-fired`, `review-findings-exit-predicate` + per-finding `review-finding-HAR-N-{resolved,deferred,accepted}` (HAR-N is **globally** namespaced across producers within the sprint; AUDIT-1 + KNIP-1 + SONAR-1 collapse into HAR-1/HAR-2/HAR-3 etc.)                                                                                                                                        |
+| Predicate kind (NEW) | `review_resolution_complete` — asserts `state.review_findings_resolved_count + review_findings_deferred[].length + review_findings_accepted[].length == review_findings_total` AND every deferred entry has non-empty `deferred_to_sprint` + `ac_id`. Falls back to legacy `audit_findings_*` fields when present (back-compat union view for sprints shipped on v0.7.2)                                    |
+| Producers            | **audit** (`ruflo daemon trigger -w audit` → `worker-output/audit.json` — security + correctness, in-scope per `## Files touched`), **knip** (`node scripts/sprint-deadcode-delete.mjs --check --json` → `worker-output/knip.json` — dead-code), **sonar** (`node scripts/sprint-sonar-parse.mjs --json` → `worker-output/sonar.json` — code quality; vacuous PASS when token absent or server unreachable) |
+| Files                | `review-resolutions.md` (seeded from `docs/sprints/_templates/review-resolutions.md` on phase entry; per-producer H3 sections with FIXED / DEFERRED / ACCEPTED subsections)                                                                                                                                                                                                                                 |
+| Phase                | `verifying → review-resolution → pre-deploy`                                                                                                                                                                                                                                                                                                                                                                |
+
+> **Legacy alias.** `audit-resolution` phase + `sprint-audit-resolve.sh` + `sprint-audit-rerun.sh` + `_templates/audit-resolutions.md` remain valid for sprints that locked spec under v0.7.2. The `review_resolution_complete` predicate transparently consumes the legacy `audit_findings_*` fields when the new `review_findings_*` fields are absent. New sprints should write to the unified `review_findings_*` schema.
+
+> **NOTE — vacuous PASS when audit produced 0 findings.** If `state.audit_findings_total == 0` at phase entry, the exit predicate passes immediately and the operator can advance to `pre-deploy` with no triage step. When findings exist, the operator MUST triage each via Fix / Defer / Accept before advancing — Defer requires an explicit follow-up sprint slug + AC ID (no anonymous deferrals). Resume-safe: every decision is atomically persisted, so Ctrl-C mid-walk is recoverable. See [`DEVELOPER.md` §"Audit-driven fix days"](./DEVELOPER.md#audit-driven-fix-days) for the full design + C-condition coverage.
+>
+> The 14-day appetite now allocates Days 12–13 as audit-resolution capacity. The "Day 13 — Deploy" row below shifts to Day 14 when audit-resolution actually consumes both days; if findings resolve same-day, deploy still fires on Day 13.
+
+### Day 13 — Pre-deploy review → `pre-deploy`
+
+| Field           | Value                                                                   |
+| --------------- | ----------------------------------------------------------------------- |
+| Operator action | Tell Claude `"pre-deploy review"`                                       |
+| Task sub-agents | `reviewer` → full-diff review; `security-architect` → RLS/auth re-check |
+| Sub-step gates  | `pre-deploy-reviewer-agent`, `pre-deploy-security-architect`            |
+| Files           | `pre-deploy-review.md` ≥200B                                            |
+| Phase           | `audit-resolution` → `pre-deploy`                                       |
+
+### Day 13–14 — Deploy → `deploying`
+
+| Field           | Value                                                                                                                                                                          |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Operator action | `bash scripts/sprint-deploy.sh` (or `ruflo workflow execute lifeos-deploy`)                                                                                                    |
+| Daemon workers  | `predict` (haiku) — pre-deploy forecast, advisory                                                                                                                              |
+| Sub-step gates  | `deploy-pulumi-preview-captured`, `deploy-human-gate-approved`, `deploy-pulumi-up`, `deploy-smoke`, `deploy-vercel`                                                            |
+| Files           | `deploy/pulumi-preview.txt`, `deploy/pulumi-up.txt`, `deploy/smoke.json`, `deploy/vercel.txt` (artifact paths only; never Pulumi stack contents or secrets — see condition C6) |
+| Phase           | `pre-deploy` → `deploying`                                                                                                                                                     |
+
+> Deploy pauses at `pulumi preview` for human gate. You type `proceed` to continue to `pulumi up`. `git push --force` and direct `pulumi up` outside this workflow are hook-blocked.
+
+### Day 14 — Retro → `done`
+
+| Field           | Value                                                                                                                                                                                                             |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Operator action | `bash scripts/sprint-end.sh <slug>`; then tell Claude `"walk me through the retro"`                                                                                                                               |
+| Daemon workers  | `ultralearn` (opus, advisory) → extracts patterns; `consolidate` (local) → memory dedup; `document` (sonnet) → CLAUDE.md proposals                                                                                |
+| Scripts         | `sprint-velocity.mjs`, `sprint-daa-feedback.sh`, `sprint-train.sh` (gated at ≥20 trajectories), `sprint-dashboard.mjs`                                                                                            |
+| Sub-step gates  | `retro-worked`, `retro-didnt`, `retro-surprised`, `retro-pattern-1`, `retro-pattern-2`, `retro-pattern-3`, `retro-claude-md`, `retro-followups`, `daa-feedback-batched`, `trajectory-closed`, `velocity-computed` |
+| Files           | `retro.md` (6 required H2 sections + ≥3 `### Pattern N: <name>`), `metrics.json`, `dashboard.html`, `daa-feedback.json`                                                                                           |
+| Phase           | `deploying` → `done`                                                                                                                                                                                              |
+
+### Anywhere — Pause / resume → `paused`
+
+| Field           | Value                                                                     |
+| --------------- | ------------------------------------------------------------------------- |
+| Operator action | `bash scripts/sprint-pause.sh "reason"` → `bash scripts/sprint-resume.sh` |
+| Sub-step gates  | —                                                                         |
+| Files           | `state.prev_phase` set                                                    |
+| Phase           | `<any>` → `paused`; resume restores `prev_phase`                          |
 
 ---
 
-## What this tool does for you
+## §2 — Phase enforcement (v0.7.0)
 
-| Without sprint system                         | With sprint system                                   |
-| --------------------------------------------- | ---------------------------------------------------- |
-| "Hey Claude, build X" → ad-hoc work           | Structured 14-day cycle with deterministic phases    |
-| Scope drifts during build                     | Drift score on every commit; hard pause below 0.75   |
-| Claude edits files outside the intended scope | PreToolUse hook blocks out-of-scope edits            |
-| Forgetting a spec detail                      | Wizard captures it; spec.md is the source of truth   |
-| No record of why a decision was made          | Wizard transcript + recalled patterns + retro        |
-| Building the same thing twice in 3 months     | Memory recall surfaces prior patterns at spec time   |
-| Push to main by accident                      | Husky hook blocks `git push` during sprint           |
-| Lost track of what's done                     | Hill chart + dashboard + GitHub PR auto-fill         |
-| Patterns never re-used                        | Retro extracts 3-5 patterns → stored to ruflo memory |
+> **Why this section is §2, not buried later.** Phase enforcement is the load-bearing change that makes everything else trustworthy. Read this before the worker architecture section — sub-step gates and bypasses are concepts referenced everywhere downstream.
 
----
+### `phase-manifest.json` — the source of truth
 
-## Two ways to interact
+`scripts/lib/phase-manifest.json` declares, for every phase, the required artifacts + state fields + sub-step gate names + predicate evaluators. As of v0.7.1 the manifest covers:
 
-### Way 1 — Talk to Claude
+- **13 phases (v0.7.3+):** `spec-wizard`, `spec-locked`, `design-locked`, `building`, `day-5-checkin`, `cleaning`, `verifying`, `audit-resolution`, `review-resolution`, `pre-deploy`, `deploying`, `done`, `paused`
+- **72 sub-step gates total** (v0.7.3 manifest `1.2.0`): 25 enforced from day one of v0.7.0 + 43 wired in v0.7.1 + 2 added by v0.7.2's `audit-resolution` phase + 2 added by v0.7.3's `review-resolution` phase (`review-resolution-fired`, `review-findings-exit-predicate`)
+- **`deferred_gates[]` is EMPTY** post-W4 — every gate name in the manifest has at least one `record_sub_step` call-site in the script tree (verified by `scripts/check-sub-step-coverage.sh`)
 
-Easiest. Tell me what you want, I run the right scripts.
-
-| You say                                     | I do                                                                                      |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| "start a sprint for supplements compliance" | `bash scripts/sprint-start.sh supplements-compliance` → invoke `sprint-spec-wizard` skill |
-| "continue the wizard" / "next section"      | Read current state, ask next question per `sprint-spec-wizard/sections/<X>.md`            |
-| "show me the spec so far"                   | `node scripts/sprint-wizard-assemble.mjs <slug> --partial --dry-run`                      |
-| "redo §C"                                   | Clear `sections_answers.C`, re-enter §C                                                   |
-| "what's the sprint status?"                 | `bash scripts/sprint-status.sh`                                                           |
-| "pause the sprint"                          | `bash scripts/sprint-pause.sh`                                                            |
-| "resume"                                    | `bash scripts/sprint-resume.sh`                                                           |
-| "amend the spec"                            | `bash scripts/sprint-amend-spec.sh`                                                       |
-| "do the day-5 check-in"                     | `bash scripts/sprint-checkin.sh` + walk through 3 questions                               |
-| "verify the sprint"                         | Execute lifeos-sprint-verify workflow                                                     |
-| "deploy"                                    | Execute lifeos-deploy workflow (will pause for your approval)                             |
-| "end the sprint"                            | `bash scripts/sprint-end.sh <slug>` + walk through retro                                  |
-
-### Way 2 — Run scripts directly
-
-Useful for scripting/CI. Less context — you drive instead of me.
+Validate any manifest edit before committing:
 
 ```bash
-bash scripts/sprint-start.sh <slug>            # create sprint dir, branch, issue
-bash scripts/sprint-status.sh                  # current phase
-bash scripts/sprint-status.sh --slug-only      # active slug (programmatic)
-bash scripts/sprint-status.sh --json           # full state JSON
-
-node scripts/sprint-spec-wizard.mjs status <slug>            # wizard progress
-node scripts/sprint-spec-wizard.mjs section <slug> A         # emit section A context
-node scripts/sprint-spec-wizard.mjs answer <slug> A A1 '"<text>"'  # record answer
-node scripts/sprint-spec-wizard.mjs assemble <slug>          # render spec.md
-
-bash scripts/sprint-amend-spec.sh              # edit spec (re-baselines drift)
-bash scripts/sprint-amend-spec.sh --lock       # spec-lock gate
-bash scripts/sprint-amend-spec.sh --cut AC-3,AC-5   # scope reduction
-bash scripts/sprint-amend-spec.sh --add-file <path> # widen scope
-
-bash scripts/sprint-rebaseline.sh              # re-embed spec.md for drift
-
-bash scripts/sprint-pause.sh "reason"          # pause
-bash scripts/sprint-resume.sh                  # resume
-
-bash scripts/sprint-checkin.sh                 # day-5 hill chart
-
-node scripts/sprint-hillchart.mjs <slug>       # print hill chart
-node scripts/sprint-hillchart.mjs <slug> --refresh   # write to hill-chart.md
-node scripts/sprint-pair-check.mjs <slug>      # which ACs need pair-mode
-
-bash scripts/sprint-build-launch.sh            # Phase 3 kickoff
-
-node scripts/sprint-standup.mjs <slug>         # generate today's standup
-node scripts/sprint-pr-body.mjs <slug>         # generate PR body (stdout)
-node scripts/sprint-pr-body.mjs <slug> --pr 42 # update PR #42
-node scripts/sprint-dashboard.mjs <slug>       # write dashboard.html
-node scripts/sprint-dashboard.mjs <slug> --open  # also open in browser
-
-bash scripts/sprint-gh-project-sync.sh         # sync GH Project board
-bash scripts/sprint-train.sh                   # gated neural training check
-bash scripts/sprint-train.sh --force           # force-run training
-bash scripts/sprint-daa-feedback.sh            # feed DAA reviewer
-
-node scripts/sprint-velocity.mjs <slug>        # compute metrics.json
-node scripts/sprint-velocity.mjs <slug> --json # JSON output
-
-bash scripts/sprint-end.sh <slug>              # retro + close
-
-# Sprint-system-100 additions (51 scripts total)
-bash scripts/sprint-precheck.sh <slug> --mode start --strict    # AC-33 health gate
-bash scripts/sprint-system-test.sh <slug>      # AC-16/closeout: 99-test smoke
-bash scripts/sprint-smoke-validate.sh <slug>   # AC-16 quick file-presence audit
-bash scripts/sprint-hive-mind-spec-lock.sh <slug>  # AC-12 two-queen consensus
-bash scripts/sprint-pre-merge-gate.sh          # AC-13 pre-push gate logic
-node scripts/sprint-claude-md-upgrade.mjs <slug>   # AC-8 CLAUDE.md auto-diff
-node scripts/sprint-changelog.mjs <slug>       # AC-30 CHANGELOG + index regen
-node scripts/sprint-research-cache.mjs list    # AC-10 WebSearch cache
-node scripts/sprint-research-cache.mjs save <slug> '<query>' '<sources-json>'
-node scripts/sprint-research-cache.mjs get <slug>
-node scripts/sprint-deadcode-delete.mjs <slug>          # AC-18 dry-run
-node scripts/sprint-deadcode-delete.mjs <slug> --commit # AC-18 + git rm + revert-on-fail
-node scripts/sprint-test-hardening.mjs <slug>  # AC-19 route-coverage CSV
-node scripts/sprint-gh-mirror.mjs check        # AC-32 GH diag
-node scripts/sprint-gh-mirror.mjs init <slug>  # AC-32 Epic + sub-issues
-node scripts/sprint-gh-mirror.mjs close-ac <slug> <AC-N>
-node scripts/sprint-gh-mirror.mjs close <slug>
-bash scripts/sprint-cleanup-launch.sh <slug>   # AC-24 day 11-12 cleanup phase
-bash scripts/sprint-cleanup-launch.sh <slug> --commit-deadcode  # actually delete
-node scripts/sprint-spec-wizard.mjs recall-backfill <slug>  # AC-27 auto-recall
-node scripts/sprint-spec-wizard.mjs set-mode <slug> autopilot # AC-1 wizard mode
-bash scripts/launchd/install-memory-decay.sh   # AC-6 install nightly cron
-
-# Harness-full-coverage additions (2026-05-17) — 71-AC proof tooling
-bash scripts/sprint-inject-violation.sh <fixture> "<gate-command>"  # inject-catch-restore helper
-bash scripts/run-workflow.sh <yaml> [slug=<slug>]   # minimal YAML workflow runner (ruflo #1916 shim)
-bash scripts/sprint-lint-check.sh [paths...]        # ESLint shim (bypasses interactive next lint)
-bash scripts/sprint-pii-redact.sh "<text>"          # strip email/UUID/JWT/API-key/password/dburl
-bash scripts/sprint-pii-redacted-search.sh "<query>"  # redact-then-search wrapper
-node scripts/sprint-harness-readiness.mjs <slug>    # aggregate proof/AC-N.md → harness-readiness.md
+node scripts/lib/validate-phase-manifest.mjs
+# expected: [OK] manifest valid: 12 phases, 70 unique sub-step gates (v0.7.2+; pre-v0.7.2: 11 phases, 68 gates)
 ```
 
-## Env vars (cross-section quick reference)
-
-| Var                                                                                     | Default       | Effect                                              |
-| --------------------------------------------------------------------------------------- | ------------- | --------------------------------------------------- |
-| `SPRINT_DRIFT_THRESHOLD`                                                                | `0.75`        | Cosine threshold for pre-commit drift block         |
-| `SPRINT_DRIFT_BYPASS`                                                                   | unset         | Skip drift + scope-hook (logs to retro)             |
-| `SPRINT_DUP_THRESHOLD`                                                                  | `50`          | jscpd similarity % that blocks                      |
-| `SPRINT_DUP_BYPASS`                                                                     | unset         | Skip AC-17 jscpd block (logs `gate_bypasses[]`)     |
-| `SPRINT_DUP_REPO_SCAN`                                                                  | unset         | Single-file commits also trigger repo-wide jscpd    |
-| `SPRINT_SKIP_REUSE_AUDIT`                                                               | unset         | Skip post-commit AC-5 reuse audit entirely          |
-| `SPRINT_NO_REVIEW_GATE`                                                                 | unset         | Skip AC-13 pre-push review gate (logs bypass)       |
-| `SPRINT_PRECHECK_BYPASS`                                                                | unset         | Skip AC-33 systems-health blocking precheck         |
-| `SPRINT_HIVE_MIND_BYPASS`                                                               | unset         | Skip AC-12 daemon requirement                       |
-| `SPRINT_GH_BYPASS`                                                                      | unset         | Skip every GH API call in mirror script (offline)   |
-| `SPRINT_SKIP_GRAPHIFY`                                                                  | unset         | Skip verify-workflow graphify-rebuild step          |
-| `SPRINT_DEADCODE_COMMIT`                                                                | unset         | Cleanup phase actually deletes (vs dry-run)         |
-| `AMEND_WHY` / `AMEND_INTENT`                                                            | required      | AC-31 strict — empty = exit 1                       |
-| `AMEND_ALLOW_EMPTY`                                                                     | unset         | AC-31 bypass (logged)                               |
-| `AMEND_NONINTERACTIVE`                                                                  | unset         | Skip TTY prompts in amend script                    |
-| `AMEND_SCOPE_IMPACT` / `AMEND_ACS_AFFECTED` / `AMEND_ALTERNATIVES` / `AMEND_DECIDED_BY` | optional      | Structured amendment fields                         |
-| `SPRINT_WIZARD_MODE`                                                                    | `interactive` | Set to `autopilot` for tooling-only sprints         |
-| `SPRINT_BASE_BRANCH`                                                                    | `main`        | Coverage-delta + merge-base reference               |
-| `REPO_ROOT`                                                                             | computed      | Launchd-safe override for `sprint-memory-decay.mjs` |
-
-See [`_guides/bypass-cheatsheet.md`](./_guides/bypass-cheatsheet.md) for deeper rationale per env var.
-
----
-
-## The 14-day flow (with worked example)
-
-Let's walk through a real sprint: **"supplements compliance widget"**.
-
-### Day 0 — Start
-
-```bash
-$ bash scripts/sprint-start.sh supplements-compliance
-
-╔══════════════════════════════════════════════════════════════════════╗
-║  Sprint started: supplements-compliance
-╚══════════════════════════════════════════════════════════════════════╝
-
-  Sprint dir: docs/sprints/supplements-compliance/
-  State:      docs/sprints/supplements-compliance/state.json
-  Branch:     sprint/supplements-compliance
-
-  Next step: Claude will now invoke the sprint-spec-wizard skill.
-  The wizard runs through 10 discovery sections (A-J) adaptively.
-  Estimated time: 20-40 minutes.
-
-  Ask Claude: "start the spec wizard" or "continue with §A".
-```
-
-Now ask me: _"start the spec wizard"_.
-
-### Day 0 — Wizard (the most important part)
-
-I'll do 4 things at the start of each section:
-
-1. **Recall augmentation** — search memory for patterns relevant to your problem
-2. **Codebase grep** — find existing files that might apply
-3. **Ask questions** — adaptive to your prior answers
-4. **Free-form refinement** — at the end of each section
-
-Example exchange for §A:
-
-```
-Me: Starting §A — Problem & Vision.
-
-I recalled 2 LifeOS patterns relevant to "supplements compliance":
-  - lifeos-build-context (score 0.71): full MVP build status snapshot
-  - lifeos-mvp-build-complete (score 0.58): MVP completion snapshot
-
-Want me to apply these as defaults during §A, or skip and revisit per-question?
-
-You: Apply them.
-
-Me: A1 — In your own words, what's broken or missing today? Don't say
-    "we should improve X" — say what specifically goes wrong, when, and
-    for whom.
-
-You: Users don't have a way to check off supplements they've taken today.
-     They set up their stack at onboarding but never get reminded or see
-     compliance %. We have the data model but no UI surface.
-
-Me: A2 — Who suffers from this? Pick 1-2 personas: founder, early-user,
-    onboarding-user, returning-user. For each, describe HOW this problem
-    hits them in their day.
-
-You: Mostly early users post-onboarding. They configured 5 supplements,
-     forgot to take them on day 2, and we have no record because we never
-     prompted them.
-
-Me: A3 — Why now? What changed?
-
-You: Zefyra noticed she stopped taking her stack after day 4 and that
-     hurts the founding-user trust signal. Plus we have data infra in
-     place; just need UI.
-
-[... A4 through A5 ...]
-
-Me: A6 (auto-injected because A1 mentioned an existing module):
-    I see we have 8 LifeOS patterns about supplements — review and
-    confirm any apply? Top 3 most relevant:
-      - lifeos-rls-4-policy-template (will apply at §C)
-      - frontend-hook-pattern (will apply at §E)
-      - lifeos-soft-delete-pattern (will apply at §C)
-
-You: All three.
-
-Me: Refinement — anything else for §A? Edge cases, vision, tradeoffs?
-
-You: We should also think about partial completion (took 3 of 5) — is
-     that "compliant" or not?
-
-Me: [records to sections_answers.A.refinement]
-    Moving to §B — Business Logic.
-```
-
-After 3 sections (A → B → C), I'll run a **coherence check**:
-
-```
-Me: Coherence check after §C:
-
-    You said in §A "we have the data model but no UI surface"
-    but in §C you proposed a new `supplements_compliance_logs` table.
-
-    Reconcile: do we have the data model already, or do we need new
-    storage? (Options: (a) clarify here, (b) edit §A or §C, (c) accept
-    apparent contradiction with rationale)
-
-You: Edit §C — we have user_supplements table but compliance is
-     computed on-the-fly from supplement_logs. No new table needed.
-
-Me: [updates §C to "no schema change", re-evaluates skip conditions]
-```
-
-The wizard continues like this through §J. Total time: 20-40 min.
-
-### Day ½ — Spec lock (4-way review)
-
-After the wizard completes, I generate 4 outputs:
-
-1. **Solution sketches** — 2-3 alternatives with tradeoffs (`solution-sketches.md`)
-2. **Architect review** — separate agent reviews boundaries (`architect-review.md`)
-3. **Security review** — separate agent reviews RLS/auth (`security-review.md`)
-4. **Hive-mind consensus** — 5 workers vote "is this coherent?" (`consensus-spec.json`)
-
-You read all 4, edit `spec.md` if needed, then:
-
-```bash
-$ bash scripts/sprint-amend-spec.sh --lock
-[+] Spec locked. Drift baseline written.
-```
-
-From this moment forward:
-
-- Every commit gets a drift score
-- Every file edit is checked against `## Files touched`
-- `git push` and `pulumi up` are forbidden until you finish the sprint
-
-### Day 1-2 — SPARC design
-
-Tell me: _"do the SPARC design phase"_. I'll run:
-
-- `/sparc:spec-pseudocode` — Specification + Pseudocode → `design.md`
-- `/sparc:architect` — Architecture + diagrams → `design.md`
-
-You sign off → design lock.
-
-### Day 3-11 — Build
-
-This is where the swarm + autopilot side-cars do real work.
-
-```bash
-$ bash scripts/sprint-build-launch.sh
-```
-
-The `lifeos-sprint-build.yaml` workflow:
-
-1. Initializes 8-agent `hierarchical-mesh` swarm
-2. Grants claims (backend, frontend, database, types, tests, review, security, infra)
-3. Spawns 3 autopilot side-cars (lint-fix, test-backfill, doc-sweep)
-4. Opens ReasoningBank trajectory
-
-I then execute per AC in `§I`:
-
-- **Simple AC** → swarm TDD: red → green → refactor → review → commit
-- **Complex AC** (auth/RLS/migration/JWT keyword) → automatic pair-programming DRIVER mode
-
-Every commit runs `scripts/sprint-drift-check.sh`. If drift drops below 0.75:
-
-```
-╔══════════════════════════════════════════════════════════════════════╗
-║  DRIFT DETECTED — sprint paused                                      ║
-╚══════════════════════════════════════════════════════════════════════╝
-
-  Sprint:    supplements-compliance
-  Threshold: 0.75
-  Score:     0.61   ← below threshold
-
-  Commit message:
-    refactor unrelated mealprep stage logic
-
-  This commit semantically diverges from the spec's intent. Options:
-
-  (a) AMEND SPEC to include this work
-       bash scripts/sprint-amend-spec.sh
-
-  (b) DISCARD this commit (drift was unintentional)
-       git reset HEAD~ --soft
-
-  (c) OVERRIDE ONCE (will be logged in retro)
-       SPRINT_DRIFT_BYPASS=1 git commit
-```
-
-You pick one. The system logs the decision for retro.
-
-### Day 5 — Mid-cycle check-in
-
-```bash
-$ bash scripts/sprint-checkin.sh
-
-╔══════════════════════════════════════════════════════════════════════╗
-║  Day-5 check-in: supplements-compliance
-╚══════════════════════════════════════════════════════════════════════╝
-
-  Hill chart: docs/sprints/supplements-compliance/hill-chart.md
-  Check-in:   docs/sprints/supplements-compliance/check-in-day5.md
-```
-
-Tell me: _"walk me through the day-5 check-in"_. I update the hill chart from current AC states and ask:
-
-1. Which ACs are over the hill (building, downhill)?
-2. Which are stuck under the hill (still figuring out)?
-3. Cut, push, or pivot?
-
-If you cut: `bash scripts/sprint-amend-spec.sh --cut AC-3,AC-5`.
-
-### Day 11-12 — Verify
-
-```bash
-$ ruflo workflow execute lifeos-sprint-verify \
-    --input spec=docs/sprints/supplements-compliance/spec.md \
-    --input slug=supplements-compliance
-```
-
-Chains: typecheck → lint → tests → `/api-contract-validation` → `/debug-rls` → `/module-status` → `performance_profile` → `aidefence_scan`.
-
-Any failure pauses. Fix, re-run.
-
-### Day 12 — Pre-deploy review
-
-I spawn `reviewer` + `security-architect` agents for full diff review. You read, edit if needed, sign off.
-
-### Day 13 — Deploy
-
-```bash
-$ ruflo workflow execute lifeos-deploy \
-    --input branch=sprint/supplements-compliance \
-    --input slug=supplements-compliance
-```
-
-The workflow runs until:
-
-```
-Step: pulumi-preview
-  ✓ pulumi preview --stack Zuzuna54/dev
-
-HUMAN GATE — review preview output, approve pulumi up
-
-  [pulumi preview output above]
-
-  Type 'proceed' to continue to `pulumi up`.
-  Type 'abort' to halt the deploy.
-```
-
-You type `proceed`. Workflow continues: `pulumi up` → smoke test → `vercel deploy --prod`.
-
-### Day 14 — Retro
-
-```bash
-$ bash scripts/sprint-end.sh supplements-compliance
-```
-
-Tell me: _"walk me through the retro"_. I:
-
-1. Fill `retro.md` with worked/didn't/surprised based on session logs
-2. Propose 3-5 reusable patterns; you approve each, I store via `ruflo memory store`
-3. Propose CLAUDE.md updates if a new convention emerged
-4. Batch DAA reviewer feedback (`scripts/sprint-daa-feedback.sh`)
-5. Close trajectory
-6. Compute velocity metrics (`scripts/sprint-velocity.mjs`)
-
-```
-Sprint velocity: supplements-compliance
-
-Timing:
-  Elapsed:                   13.2d (94% of appetite)
-  Time to spec-lock:         8h
-  Time to design-lock:       18h
-
-ACs:
-  Total:                     5
-  Closed:                    5 (100%)
-  Complex (pair-mode):       2
-
-Drift:
-  Total events:              12
-  Below 0.75 (paused):       2
-  Pause events:              2
-
-Scope:
-  Amendments:                1
-  Files touched:             14
-
-Success criteria (4 of 4):
-  ✓ all_acs_closed
-  ✓ within_appetite_14d
-  ✓ low_drift_events
-  ✓ time_to_design_lock_under_2d
-
-Overall: ✓ SUCCESS
-```
-
----
-
-## Phase enforcement (v0.7.0+)
-
-> **Why this section exists.** Before v0.7.0, the 14-day protocol was documented in this file but the model could skip sub-steps (wizard sections, day-5 questions, retro patterns, verify-chain commands) and the sprint would still close. v0.7.0 introduced **mechanical phase gating**: every USAGE.md step is now either a required predicate in `phase-manifest.json` or an explicit `SPRINT_BYPASS_GATE` audit entry.
-
-### The canonical phase mutator
-
-`scripts/sprint-advance-phase.sh <next-phase>` is the **only** sanctioned writer of `state.phase`. Every other phase-writer (`sprint-amend-spec.sh --lock`, `sprint-design-lock.sh`, `sprint-build-launch.sh`, `sprint-checkin.sh`, `sprint-cleanup-launch.sh`, `sprint-verify.sh`, `sprint-predeploy-gate.sh`, `sprint-end.sh`, `sprint-pause.sh`, `sprint-resume.sh`) delegates the actual phase write to this script after running its own artifact validation.
+### `sprint-advance-phase.sh` — the sole sanctioned writer of `state.phase`
+
+`scripts/sprint-advance-phase.sh <next-phase>` is the **only** sanctioned writer of `state.phase`. Every other phase-writer delegates:
+
+- `sprint-amend-spec.sh --lock` → advances to `spec-locked`
+- `sprint-build-launch.sh` → advances to `building`
+- `sprint-checkin.sh` → advances to `day-5-checkin` then back to `building`
+- `sprint-cleanup-launch.sh` → advances to `cleaning`
+- `sprint-verify.sh` → advances to `verifying`
+- `sprint-audit-resolve.sh` → advances to `audit-resolution` (v0.7.2+) when the operator completes triage; vacuous PASS path also advances when audit produced 0 findings
+- `sprint-predeploy-gate.sh` → advances to `pre-deploy`
+- `sprint-deploy.sh` → advances to `deploying`
+- `sprint-end.sh` → advances to `done`
+- `sprint-pause.sh` / `sprint-resume.sh` → advances to `paused` / back to `prev_phase`
 
 The PreToolUse hook (`.claude/helpers/sprint-hook.cjs`) blocks every other path:
 
 - Inline `jq '.phase = "X"' state.json` from any Bash command → exit 2 (unless caller is `sprint-advance-phase.sh` AND `SPRINT_ADVANCE_PHASE_RUNNING=1` AND `ps -o command= -p $PPID` resolves to `sprint-advance-phase.sh`).
 - Direct Write/Edit on `docs/sprints/*/state.json` → exit 2 (no env exemption).
 
-### Phase manifest (source of truth)
+### Sub-step gates — recording, predicates, evaluators
 
-`scripts/lib/phase-manifest.json` declares, for every phase, the required artifacts + state fields + sub-step gate names. The advance-phase script refuses to move forward until every predicate passes (or has an explicit bypass).
-
-| Phase           | Required artifacts                                                                                                                                                                                               | Required sub-step gates                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `spec-wizard`   | `spec.md` ≥500B, `wizard-transcript.md` ≥100B, `spec.partial.json.current_section ∈ {complete, J}`                                                                                                               | `wizard-section-A`..`-J` (10), `wizard-coherence-after-C`, `wizard-coherence-after-F`, `wizard-coherence-after-I`, `wizard-assemble`                                                                                                                                                                                                                                                                                                                                                                     |
-| `spec-locked`   | `solution-sketches.md` ≥200B, `architect-review.md` ≥200B, `security-review.md` ≥200B, `consensus-spec.json.verdict ∈ {pass, pass-with-notes}`, `.baseline-embedding.json`, `state.worker_rigor ∈ {lax, strict}` | `spec-lock-solution-sketches`, `spec-lock-architect-review`, `spec-lock-security-review`, `spec-lock-hive-mind-consensus`, `spec-lock-baseline-written`                                                                                                                                                                                                                                                                                                                                                  |
-| `design-locked` | `design.md` ≥300B, `state.design_locked_at` set                                                                                                                                                                  | `design-sparc-spec-pseudocode`, `design-sparc-architect`, `design-locked`                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `building`      | —                                                                                                                                                                                                                | `build-launched`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `day-5-checkin` | `check-in-day5.md` with `### Cut` / `### Push` / `### Pivot` each ≥30 chars of content                                                                                                                           | `day-5-question-cut`, `day-5-question-push`, `day-5-question-pivot`, `day-5-hill-chart-refreshed`                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `cleaning`      | —                                                                                                                                                                                                                | `cleanup-deadcode-delete`, `cleanup-lint-fix`, `cleanup-claude-md-clean`                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `verifying`     | `state.verify_runs[]` len ≥1                                                                                                                                                                                     | `verify-typecheck`, `verify-lint`, `verify-tests`, `verify-api-contract`, `verify-debug-rls`, `verify-module-status`, `verify-perf-profile`, `verify-aidefence-scan`, `verify-sonar`, `verify-knip`, `verify-cycle-check`, `verify-audit-deps`, `verify-bundle-budget`, `verify-coverage-delta`, `verify-migration-check`, `verify-worker-audit`, `verify-worker-testgaps`, `verify-worker-optimize` (+ `verify-worker-map-refreshed`, `verify-worker-consolidate-refreshed` when `worker_rigor=strict`) |
-| `pre-deploy`    | `pre-deploy-review.md` ≥200B, `state.predeploy_at` set                                                                                                                                                           | `pre-deploy-reviewer-agent`, `pre-deploy-security-architect`                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `deploying`     | —                                                                                                                                                                                                                | `deploy-pulumi-preview-captured`, `deploy-human-gate-approved`, `deploy-pulumi-up`, `deploy-smoke`, `deploy-vercel`                                                                                                                                                                                                                                                                                                                                                                                      |
-| `done`          | `retro.md` with 6 required H2 sections + 3+ `### Pattern N: <name>` sub-headings, `metrics.json`, `dashboard.html`, `state.closed_at` set                                                                        | `retro-worked`, `retro-didnt`, `retro-surprised`, `retro-pattern-1`, `retro-pattern-2`, `retro-pattern-3`, `retro-claude-md`, `retro-followups`, `daa-feedback-batched`, `trajectory-closed`, `velocity-computed`                                                                                                                                                                                                                                                                                        |
-| `paused`        | `state.prev_phase` set                                                                                                                                                                                           | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-
-### Bypass procedure
-
-If you genuinely need to skip a predicate (e.g., a verify command's tool is unavailable):
+A **sub-step gate** is "a step within a phase that must complete before the phase can advance." Examples: `wizard-section-A`, `verify-typecheck`, `retro-pattern-1`. They are recorded by call-sites via:
 
 ```bash
-SPRINT_BYPASS_GATE=verify-sonar \
-SPRINT_BYPASS_WHY='Sonar container down — escalated to infra; verify rerun scheduled within 24h' \
-  bash scripts/sprint-advance-phase.sh pre-deploy
+source "$(dirname "$0")/lib/sub-step.sh"
+record_sub_step "$SLUG" "verify-typecheck" passed "$EVIDENCE_LOG"
 ```
 
-Requirements:
+`record_sub_step` (in `scripts/lib/sub-step.sh`) appends to `state.sub_steps[]` using the W2 schema `{gate, status, at, evidence_path?, elapsed_s?}`. Long-running gates use the hybrid START+END pattern from ADR-004:
 
-- `SPRINT_BYPASS_GATE` matches one gate name from the failing manifest predicate.
-- `SPRINT_BYPASS_WHY` is ≥10 chars of real rationale.
-- Multi-gate bypass: comma-separated (`SPRINT_BYPASS_GATE='gate1,gate2,gate3'`), single WHY applies to all.
+```bash
+record_sub_step "$SLUG" verify-typecheck --start
+# … run typecheck …
+record_sub_step "$SLUG" verify-typecheck --end passed --evidence "$LOG" --elapsed-s 42
+```
 
-Every bypass appends a record to `state.gate_bypasses[]` with the gate, why, ISO timestamp, and caller script name. Surfaces in `dashboard.html` + retro.md + velocity-script "high-bypass" flag (>3 bypasses per sprint).
+`--start` writes `status: "running"`. `--end` overwrites with `passed` or `failed`. The predicate engine treats `running` as NOT PASSED — crashed runs are visible.
 
-Legacy per-script bypass envs (`SPRINT_DRIFT_BYPASS=1`, `SPRINT_DESIGN_LOCK_BYPASS=1`, etc) emit a deprecation warning + auto-synthesize new bypass envs for v0.7.x compat. Removal scheduled for v0.8.0.
+**Predicate evaluators** live in `scripts/lib/phase-predicates.sh`. Today's kinds:
 
-### CI replay validator
+| Kind                        | Evaluator                            | Fails when                                  |
+| --------------------------- | ------------------------------------ | ------------------------------------------- |
+| `file_exists`               | `_pp_pred_file_exists`               | path missing                                |
+| `file_min_bytes`            | `_pp_pred_file_min_bytes`            | file under threshold                        |
+| `file_contains_heading`     | `_pp_pred_file_contains_heading`     | regex match absent                          |
+| `json_path_present`         | `_pp_pred_json_path_present`         | jq path returns null                        |
+| `json_path_equals`          | `_pp_pred_json_path_equals`          | jq path != value                            |
+| `json_path_in`              | `_pp_pred_json_path_in`              | jq path ∉ allowed set                       |
+| `state_field_min_length`    | `_pp_pred_state_field_min_length`    | array shorter than min                      |
+| `state_field_all_values_in` | `_pp_pred_state_field_all_values_in` | any value outside whitelist                 |
+| `sub_step_recorded`         | `_pp_pred_sub_step_recorded`         | gate not in `state.sub_steps[]` as `passed` |
 
-`bash scripts/sprint-system-test.sh --replay-gate-history` (delegates to `scripts/sprint-replay-validator.mjs`) walks every closed sprint and asserts:
+### PII redaction in evidence
+
+`sub-step.sh` invokes `scripts/sprint-pii-redact.sh` on evidence files with extensions `.log`, `.txt`, `.out` (and stores a `.sha256` sidecar for over-redaction recovery). Patterns redacted: email, UUID, JWT (`eyJ`), API keys (`AIza`, `sk-`), passwords (`password=…`), connection strings (`postgresql://…`).
+
+Evidence paths are canonicalized against `docs/sprints/<slug>/` — any `../` in the resolved path returns `ERR_TRAVERSAL` and the record is rejected.
+
+### Replay validator (CI gate)
+
+`scripts/sprint-replay-validator.mjs` (also invokable via `bash scripts/sprint-system-test.sh --replay-gate-history`) walks every closed sprint and asserts:
 
 1. `gate_history[]` is monotonic by `at`.
 2. Every required sub-step gate per phase walked through is in `gates_passed[]` ∪ `gate_bypasses[]`.
 3. Bypasses have `why` ≥10 chars + `gate` matches manifest.
-4. Doc-vs-manifest drift: every gate name in this "## Phase enforcement" section exists in `phase-manifest.json`.
+4. Doc-vs-manifest drift: every gate name in this guide's §1 + §3 tables exists in `phase-manifest.json`.
 
-Wired into `.github/workflows/test.yml` as a PR gate. Default `--ignore-pre 2026-05-19T00:00:00Z` skips pre-v0.7.0 closures.
+Wired into `.github/workflows/test.yml` as a PR gate. Default `--ignore-pre 2026-05-19T00:00:00Z` skips pre-v0.7.0 closures. `doc_drift == 0` is required.
+
+### Single bypass UX
+
+The only sanctioned way to skip a predicate (with `≥10 chars` rationale):
+
+```bash
+SPRINT_BYPASS_GATE=<gate-name> SPRINT_BYPASS_WHY='<≥10 chars rationale>' \
+  bash scripts/sprint-advance-phase.sh <next-phase>
+```
+
+See [§4 — Bypass cheatsheet](#4--bypass-cheatsheet) for full syntax, multi-gate form, path-shaped gates, and the deprecated legacy envs.
 
 ---
 
-## What the system enforces automatically
+## §3 — Worker architecture
 
-### Pre-commit (husky)
+> **This section is the fix for the two-surface confusion.** Previously USAGE.md, QUICKSTART.md, and DEVELOPER.md described "workers" in three subtly different ways. There are actually **three distinct concepts**. They have different triggers, different output paths, and different state fields. Don't conflate them.
 
-Every `git commit` during an active sprint runs `scripts/sprint-drift-check.sh`:
+### The three concepts
 
-1. Reads the spec's baseline embedding (set at spec-lock)
-2. Embeds the commit's message + diff stat + sample of changed lines
-3. Computes cosine similarity
-4. **≥ 0.75** → logs score, commit proceeds
-5. **< 0.75** → blocks commit, prompts you with 3 options (amend / discard / override)
+```mermaid
+flowchart LR
+  subgraph Trig["Trigger surface"]
+    ADV["sprint-advance-phase.sh<br/>(phase entry)"]
+    TASK["Task tool<br/>(orchestrator skill)"]
+    HOOK["Build hooks<br/>(per-commit / per-AC)"]
+  end
 
-Bypass: `SPRINT_DRIFT_BYPASS=1 git commit`.
+  subgraph DW["Daemon workers"]
+    DAUDIT[audit]
+    DTG[testgaps]
+    DOPT[optimize]
+    DMAP[map]
+    DCON[consolidate]
+    DETC[…predict, deepdive, ultralearn, document, refactor]
+  end
 
-### Pre-tool-use (Claude Code hooks)
+  subgraph TSA["Task sub-agents"]
+    ARCH[architect]
+    SECA[security-architect]
+    REV[reviewer]
+    DD[deepdive]
+  end
 
-Every Bash command I run is checked by `.claude/helpers/sprint-hook.cjs`:
+  subgraph AS["Autopilot side-cars"]
+    LF[lint-fix]
+    TB[test-backfill]
+    DS[doc-sweep]
+  end
 
-- Blocked patterns: `git push`, `pulumi up`, `pulumi destroy`, `rm -rf /`, `DROP TABLE`, `DELETE FROM` (non-test)
-- Bypass: `SPRINT_DRIFT_BYPASS=1`
+  subgraph OUT["Output locations"]
+    METRICS[".claude-flow/metrics/&lt;w&gt;.json<br/>(gitignored)"]
+    WOUT["docs/sprints/&lt;slug&gt;/worker-output/&lt;w&gt;.json<br/>(committed)"]
+    REVMD["docs/sprints/&lt;slug&gt;/&lt;review&gt;.md<br/>(committed)"]
+    APOUT[".claude-flow/autopilot/&lt;name&gt;/<br/>(per-script outputs)"]
+  end
 
-Every Write/Edit/MultiEdit I do is checked:
+  ADV --> DW
+  TASK --> TSA
+  HOOK --> AS
+  DW --> METRICS --> WOUT
+  TSA --> REVMD
+  AS --> APOUT
+```
 
-- Path matched against spec's `## Files touched` list
-- Always allowed: docs/, test files, CLAUDE.md, the sprint dir itself
-- Out of scope → I have to ask you to amend spec or skip the edit
+### Concept 1 — Daemon workers (ruflo daemon)
 
-### GitHub PR opening
+**What.** Long-running, LLM-backed processes managed by the ruflo daemon (`ruflo daemon`). Each shells out to `claude --print` (uses the operator's Claude Code OAuth, not a separate API key). 10 worker types: `map`, `predict`, `audit`, `testgaps`, `optimize`, `consolidate`, `document`, `refactor`, `deepdive`, `ultralearn`.
 
-When you `gh pr create` on a `sprint/*` branch, `.github/workflows/sprint-pr-body.yml` fires and auto-fills the PR body with:
+**Trigger.** Fire on **phase entry** per `scripts/lib/phase-workers.json` (NEW in v0.7.1). The trigger is hard-coded: `sprint-advance-phase.sh` is the **sole entry point**. After a successful state write, it reads the phase-workers map, picks the entries for the entering phase (filtered by `state.worker_rigor ∈ {lax, strict}`), and calls `scripts/lib/worker-trigger.sh::trigger_workers_parallel`.
 
-- Problem statement (from spec §A)
-- Success vision (from spec §A)
-- AC checklist with closed/open status
-- Files in PR vs files in spec scope (warnings if drift)
-- DoD checklist (LifeOS standard)
-- Drift events summary
+**Output.** Each worker writes JSON to `.claude-flow/metrics/<worker>.json` (gitignored; ruflo daemon's native location), then `worker-trigger.sh` copies the file to `docs/sprints/<slug>/worker-output/<worker>.json` (**committed; audit trail**). The output is validated against `scripts/lib/worker-output.schema.json` — it must contain the per-worker `expects` structural fields from `phase-workers.json` (e.g., `audit` must have `findings`, `testgaps` must have `gaps`). Predicates assert on those fields, never on a free-form `verdict:"pass"` string.
 
-Reviewers know exactly what the sprint was supposed to do.
+**State recording.** Two state fields, kept in sync:
 
-### Daemon side-cars during build phase
+- `state.worker_runs[]` — W2 schema: `{worker, at, status, phase, blocking}` — the canonical post-W2 record
+- `state.worker_invocations[]` — legacy schema (pre-W2): `{worker, at, elapsed_s, output, by}` — preserved for back-compat with older sprints and tooling; `by` must equal `"sprint-advance-phase.sh"` per invariant I-2
 
-Three autopilot loops run alongside your work:
+**Graceful degrade.** If the ruflo daemon is down at fire time and the worker is `required: true`, the run is recorded as a structured bypass (`gate: phase-worker-<name>`, `why: daemon-unavailable`) in `state.gate_bypasses[]` AND `state.worker_invocations[].status = "skipped-required-bypass"`. If `required: false`, it's a silent advisory skip (`status: "skipped-advisory"`).
 
-| Loop            | Trigger                              | What it does                                                 |
-| --------------- | ------------------------------------ | ------------------------------------------------------------ |
-| `lint-fix`      | manual / per AC commit               | Runs `pnpm lint:fix` on changed files, max 5 iterations      |
-| `test-backfill` | paired with `testgaps` daemon worker | Generates Vitest/Supertest tests for uncovered Lambda routes |
-| `doc-sweep`     | 5+ commits in same area within 2h    | Proposes (not auto-commits) CLAUDE.md + JSDoc updates        |
+**Scope source-of-truth (v0.7.2+).** Scope-bound workers (today: `audit`, `testgaps`) read `state.files_touched[]` at gate-eval time. `state.files_touched[]` is the canonical source — set by `sprint-amend-spec.sh --lock` from spec.md §H1 and updated by `sprint-amend-spec.sh --add-file`. The spec.md `## Files touched` section is parsed only as a fallback for legacy / pre-spec-lock sprints whose `state.json` lacks the field. See [§3 — Worker scope](#worker-scope-v072) above.
 
-All 3 have `forbidden: [git push, pulumi up/destroy, rm -rf, DROP/DELETE]` and `permittedDomains` globs.
+### Concept 2 — Task sub-agents (Claude Task tool)
+
+**What.** Sub-agents spawned via the Claude Task tool by the `sprint-orchestrator` skill. They are LLM-backed reviewers, not daemon processes. Four types in active use: `architect`, `security-architect`, `reviewer`, `deepdive`.
+
+**Trigger.** Two checkpoints:
+
+- **Spec-lock (Day ½):** orchestrator spawns `architect` + `security-architect` after the wizard produces `spec.md`.
+- **Pre-deploy (Day 12):** orchestrator spawns `reviewer` + `security-architect` for full-diff review.
+
+**Output.** Sub-agents write **directly** to the sprint dir: `docs/sprints/<slug>/architect-review.md`, `.../security-review.md`, `.../pre-deploy-review.md`. **NOT** to the daemon-worker pipeline. **NOT** to `worker-output/`.
+
+**State recording.** Recorded as sub-step gates (`spec-lock-architect-review`, `spec-lock-security-review`, `pre-deploy-reviewer-agent`, `pre-deploy-security-architect`) via `record_sub_step` at the orchestrator skill's call-site after the markdown file is written. They do NOT appear in `state.worker_runs[]` or `state.worker_invocations[]`.
+
+### Concept 3 — Autopilot side-cars
+
+**What.** Background side-effect helpers configured in `.claude-flow/autopilot/*.json`. Three in use: `lint-fix`, `test-backfill`, `doc-sweep`. They are NOT LLM-backed in the same sense — they wrap deterministic tools (`pnpm lint:fix`, vitest generators, JSDoc proposals).
+
+**Trigger.** Configured triggers in their JSON (manual / per-AC commit / paired with daemon worker / N commits in same area). They run **during the build phase**, paused outside it.
+
+**Output.** Per-script outputs into `.claude-flow/autopilot/<name>/` and direct edits to source files where authorized. `doc-sweep` PROPOSES (never auto-commits) into `claude-md-proposed-diff.patch`.
+
+**State recording.** Recorded under `state.autopilot_log[]` (not `worker_runs[]`, not `sub_steps[]`).
+
+### The cheat-sheet
+
+| Concept                | Trigger                                         | Triggered by                                      | Output path                                          | State field                              |
+| ---------------------- | ----------------------------------------------- | ------------------------------------------------- | ---------------------------------------------------- | ---------------------------------------- |
+| **Daemon worker**      | Phase entry (declarative map)                   | `sprint-advance-phase.sh` via `worker-trigger.sh` | `worker-output/<w>.json` (committed)                 | `worker_runs[]` + `worker_invocations[]` |
+| **Task sub-agent**     | Orchestrator decision at spec-lock / pre-deploy | `sprint-orchestrator` skill via `Task` tool       | `<review>.md` directly (e.g., `architect-review.md`) | `sub_steps[]` (as the relevant gate)     |
+| **Autopilot side-car** | Build-phase background trigger                  | `.claude-flow/autopilot/*.json` config            | `.claude-flow/autopilot/<name>/` + proposed diffs    | `autopilot_log[]`                        |
+
+### Worker scope (v0.7.2+)
+
+> **What changed.** Prior to v0.7.2, `audit` and `optimize` daemon workers scanned the entire repo and reported every finding — producing 10+ pre-existing findings on every sprint regardless of which files the sprint touched. Operators desensitized to real audit signal; the canonical pattern became "bypass-with-rationale-and-ship". v0.7.2 retrofits `gate_audit_blocks` with the **scope-bounding pattern** already proven in `gate_testgaps_blocks` (`scripts/lib/worker-gates.sh:58-106` — the canonical reference implementation).
+
+`scripts/lib/phase-workers.json` (`version: 1.1.0`) now declares a `worker_scope` map per phase, per worker. Three scope strategies:
+
+| `scope`         | Meaning                                                                                                  | `scope_mode`                                                       |
+| --------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `files-touched` | Worker output post-filtered against `state.files_touched[]` at gate-eval time (Sketch A, locked default) | `post-filter` (only mode implemented in v0.7.2)                    |
+| `repo`          | Worker scans the whole repo; gate sees all findings                                                      | `none`                                                             |
+| `spec-h1`       | Reserved for future env-var or prompt-inject delivery at worker invocation                               | `env-var` / `prompt-inject` (placeholder — not implemented in 0.7) |
+
+**Default per-worker (back-compat):** `{scope: "repo", scope_mode: "none"}`. A phase entry without a `worker_scope` block keeps prior behavior.
+
+**Current `verifying` phase declarations** (after AC-4):
+
+```json
+"worker_scope": {
+  "audit":    { "scope": "files-touched", "scope_mode": "post-filter" },
+  "testgaps": { "scope": "files-touched", "scope_mode": "post-filter" },
+  "optimize": { "scope": "repo",          "scope_mode": "none" }
+}
+```
+
+**Concrete example — prior sprint's noise dataset.** `harness-truthful-docs-and-wiring-v1` produced 10 audit findings, all in `.claude/helpers/{github-safe,memory,session,statusline}.js` — none of which were in that sprint's `state.files_touched[]`. With scope-bounding:
+
+```
+[gate-audit] scope=0 in-scope + 10 out-of-scope (noise ratio: 100% out-of-scope)
+[gate-audit] advisory (out-of-scope findings — not blocking):
+  [OUT/high] .claude/helpers/github-safe.js:45 — Command injection risk...
+  …
+exit code: 0   # PASS — 0 in-scope blockers
+```
+
+All 10 findings logged as advisory `[OUT/<severity>]` lines on stderr; the gate passes. Real in-scope findings still block (zero-tolerance preserved within scope). Out-of-scope findings remain visible so they can be filed as follow-up sprint scope.
+
+**Scope source-of-truth.** `state.files_touched[]` (populated by `sprint-amend-spec.sh --lock` from spec.md §H1 + later `--add-file` amendments) is read at gate-eval time. The spec.md `## Files touched` section is a fallback awk-parse for legacy / pre-spec-lock sprints. Inside the scope filter, an audit-finding path matches if it has any string-suffix overlap with a `files_touched[]` entry.
+
+**Reference**: `gate_testgaps_blocks` (`scripts/lib/worker-gates.sh:58-106`) is the canonical scope-bounded gate pattern — `gate_audit_blocks` was retrofitted in W1 of `harness-audit-resolution-and-scope-v1` to mirror it. Sprint authors extending a new blocking worker should copy this pattern.
+
+### Per-phase worker map
+
+`scripts/lib/phase-workers.json` (validated against `phase-workers.schema.json`) maps each phase to two tiers of daemon-worker entries:
+
+```json
+{
+  "phases": {
+    "verifying": {
+      "always": [
+        { "worker": "audit", "required": true, "timeout_s": 600, "expects": ["findings"] },
+        { "worker": "testgaps", "required": true, "timeout_s": 600, "expects": ["gaps"] },
+        {
+          "worker": "optimize",
+          "required": false,
+          "timeout_s": 300,
+          "expects": ["recommendations"]
+        }
+      ],
+      "strict_only": [
+        { "worker": "map", "required": true, "timeout_s": 120, "expects": ["nodes", "edges"] },
+        { "worker": "consolidate", "required": true, "timeout_s": 120, "expects": ["summary"] }
+      ]
+    },
+    "pre-deploy": {
+      "always": [
+        { "worker": "predict", "required": true, "timeout_s": 300, "expects": ["forecast"] }
+      ],
+      "strict_only": []
+    },
+    "implementing": {
+      "always": [
+        { "worker": "deepdive", "required": false, "timeout_s": 600, "expects": ["report"] }
+      ],
+      "strict_only": []
+    },
+    "done": {
+      "always": [
+        { "worker": "ultralearn", "required": false, "timeout_s": 300, "expects": ["patterns"] }
+      ],
+      "strict_only": []
+    }
+  }
+}
+```
+
+`state.worker_rigor` (set at spec-lock) decides whether `strict_only[]` workers fire. `lax` skips them; `strict` includes them.
+
+### Cost model
+
+Per 14-day sprint, typical fan-out:
+
+- Day 0: `map` (local, free)
+- Days 1–2: `deepdive` or `ultralearn` only on complex sprints (~10–15 min opus)
+- Build waves: `predict` per wave (~20s haiku each × ~5 waves)
+- Day 5: `consolidate` (local, free)
+- Day 11: `refactor` only on refactor-flagged sprints (~5 min sonnet)
+- Days 11–12: `audit` + `testgaps` + `optimize` (~30 min sonnet total)
+- Day 14: `document` + `consolidate` + `ultralearn` (~5 min sonnet + opus)
+
+**Total: ~50 min Sonnet per sprint** — >99% reduction vs the pre-v0.7.0 scheduled-worker model (which fired every 10–30 min regardless of usefulness).
+
+### Daemon state during a sprint
+
+```bash
+ruflo daemon status
+# Expect: RUNNING (background); Workers Enabled: 0
+# The daemon stays warm so `ruflo daemon trigger -w <worker>` is fast;
+# no worker fires on its own schedule.
+```
+
+To re-enable a scheduled worker (NOT recommended): `ruflo daemon enable -w <worker>`. To disable one: `ruflo daemon enable -w <worker> --disable`.
 
 ---
 
-## Common workflows
+## §4 — Bypass cheatsheet
 
-### "I want to start working — what do I do?"
+> Long-form rationale + anti-patterns live in [`_guides/bypass-cheatsheet.md`](./_guides/bypass-cheatsheet.md). This section is the operational reference.
 
-```bash
-bash scripts/sprint-start.sh <slug>
-# Then tell me: "start the spec wizard"
-```
-
-### "I'm halfway through the wizard and need to step away"
-
-The wizard saves state after every answer. Just leave. When you come back:
+### Primary syntax (v0.7.0+)
 
 ```bash
-node scripts/sprint-spec-wizard.mjs status <slug>
-# Then tell me: "continue the wizard from §<X>"
+SPRINT_BYPASS_GATE=<gate-name> \
+SPRINT_BYPASS_WHY='<≥10 chars rationale>' \
+  bash scripts/sprint-advance-phase.sh <next-phase>
 ```
 
-### "I changed my mind about a wizard answer"
+- `SPRINT_BYPASS_GATE` — required. Matches a sub-step gate name from `phase-manifest.json` OR a path-shaped predicate (string containing `.` or `/`, e.g., `design.md`).
+- `SPRINT_BYPASS_WHY` — required, **≥10 characters**. `bypass.sh::check_bypass` exits 1 if missing or too short.
+- Multi-gate: `SPRINT_BYPASS_GATE='gate1,gate2,gate3'` (comma-separated). Single `WHY` applies to all.
 
-Tell me: `"redo §C"` — I clear that section and regenerate questions with current context (other answers + new memory).
+Every accepted bypass appends to `state.gate_bypasses[]`:
 
-### "I want to see what the spec looks like so far"
+```json
+{
+  "gate": "verify-sonar",
+  "why": "Sonar container down — escalated to infra; rerun scheduled within 24h",
+  "at": "2026-05-19T12:00:00Z",
+  "caller": "sprint-advance-phase.sh"
+}
+```
+
+Surfaces in `dashboard.html`, retro.md, and `sprint-velocity.mjs.metrics.json.flags.high_bypass = true` when >3 bypasses in one sprint.
+
+### Examples
 
 ```bash
-node scripts/sprint-wizard-assemble.mjs <slug> --partial --dry-run
+# Single gate
+SPRINT_BYPASS_GATE=verify-sonar \
+SPRINT_BYPASS_WHY='Sonar container down — escalated to infra; rerun scheduled within 24h' \
+  bash scripts/sprint-advance-phase.sh pre-deploy
+
+# Multi-gate (pre-existing failure unrelated to this sprint)
+SPRINT_BYPASS_GATE='verify-typecheck,verify-tests' \
+SPRINT_BYPASS_WHY='Pre-existing @lifeos/db failure unrelated to this sprint; tracked in #1234' \
+  bash scripts/sprint-advance-phase.sh pre-deploy
+
+# Path-shaped (artifact predicate)
+SPRINT_BYPASS_GATE=design.md \
+SPRINT_BYPASS_WHY='Design rationale captured inline in spec.md §B + §D; design.md not separately required for this sprint shape' \
+  bash scripts/sprint-advance-phase.sh building
 ```
 
-Or tell me: `"show me the spec so far"`.
+### Deprecated legacy envs (v0.7.x compat only, removal v0.8.0)
 
-### "The drift check just blocked my commit but it was a legitimate change"
+These all still work — they auto-translate to the canonical UX, emit a stderr deprecation warning, and synthesize `SPRINT_BYPASS_GATE` + `SPRINT_BYPASS_WHY` entries:
+
+| Legacy env                    | Auto-translates to gate         |
+| ----------------------------- | ------------------------------- |
+| `SPRINT_DRIFT_BYPASS=1`       | `drift-check`                   |
+| `SPRINT_DESIGN_LOCK_BYPASS=1` | `design-locked`                 |
+| `SPRINT_HIVE_MIND_BYPASS=1`   | `spec-lock-hive-mind-consensus` |
+| `SPRINT_DUP_BYPASS=1`         | `pre-commit-duplication`        |
+| `SPRINT_SKIP_REUSE_AUDIT=1`   | `post-commit-reuse-audit`       |
+| `SPRINT_NO_REVIEW_GATE=1`     | `pre-merge-review`              |
+| `SPRINT_PRECHECK_BYPASS=1`    | `sprint-precheck`               |
+| `SPRINT_GH_BYPASS=1`          | `gh-mirror-sync`                |
+| `SPRINT_SKIP_GRAPHIFY=1`      | `verify-graphify-rebuild`       |
+
+> **Removal scheduled v0.8.0.** Migrate to the canonical UX now. The stderr warning includes the exact translated command so you can copy-paste it.
+
+### When bypass is appropriate
+
+- **External service down** (Sonar, ruflo daemon, GitHub API rate-limit).
+- **Pre-existing failure unrelated to this sprint** (typecheck error in `@lifeos/db/seed/` predating sprint-start).
+- **Not-applicable predicate** (harness-itself sprint with no Lambdas → no `verify-debug-rls`).
+- **Operator judgment override** with rationale + scheduled follow-up.
+
+### When bypass is NOT appropriate
+
+- **Real drift.** Amend spec instead — `bash scripts/sprint-amend-spec.sh --add-file <path>` records `scope_amendments[]`, not `gate_bypasses[]`. Different signal.
+- **Failing tests.** Always fix or remove the test.
+- **Missing retro patterns.** Three patterns is a small ask. If you can't extract three, the sprint probably had unobserved drift.
+- **Real audit findings in scope.** Use `bash scripts/sprint-audit-resolve.sh --finding HAR-N defer --to-sprint <slug> --ac-id AC-N --rationale '<≥10 chars>'` to defer with an explicit follow-up; this records to `state.audit_findings_deferred[]`, not `gate_bypasses[]`. Different signal — bypass means "skipped a check", deferral means "filed the finding to a named successor". For genuinely accepted risk, use `--finding HAR-N accept --owner <name> --rationale '<…>'` which lands in `state.audit_findings_accepted[]`. Both are PII-redacted via `sprint-pii-redact.sh` before persistence (per C5).
+
+### Security — don't put secrets in `SPRINT_BYPASS_WHY`
+
+`state.json` is git-committed. The `why` string lives in git history forever. Do NOT include passwords, API keys, tokens, PII, internal hostnames, or IP addresses. The redactor only runs on evidence files attached to sub-step records, NOT on the bypass `why` field.
+
+---
+
+## §5 — Troubleshooting
+
+Symptom-indexed. Each entry has the fix command inline; longer explanations link to [`_guides/troubleshooting.md`](./_guides/troubleshooting.md) or [`DEVELOPER.md`](./DEVELOPER.md).
+
+### "git commit hangs for 30+ seconds"
+
+Post-commit `pnpm dlx jscpd` cold-cache download (~50 MB).
+
+```bash
+pnpm dlx jscpd --version                          # pre-warm cache
+# or skip once:
+SPRINT_BYPASS_GATE=post-commit-reuse-audit SPRINT_BYPASS_WHY='Cold dlx cache; pre-warming separately' git commit ...
+```
+
+Full diagnosis: [`_guides/troubleshooting.md` §"git commit hangs"](./_guides/troubleshooting.md).
+
+### "state.json corrupted (orphan `},` or invalid JSON)"
+
+Pre-W1 (before this sprint), two callers wrote to disjoint lockfile paths and races corrupted state.json under concurrent commit hooks. Fixed in W1: all callers source `scripts/lib/atomic-state.sh::atomic_update_state`. If you see corruption on a v0.7.1+ sprint:
+
+```bash
+# 1. Inspect:
+jq . docs/sprints/<slug>/state.json
+
+# 2. Stress-test the lockfile (W1 proof harness):
+bash scripts/test/stress-state-lock.sh <slug> 20
+
+# 3. Recover from .bak:
+source scripts/lib/atomic-state.sh
+recover_state_from_bak <slug>
+```
+
+Full recipe: [`DEVELOPER.md` §"State.json race recipe"](./DEVELOPER.md#state-json-race-recipe), [`_guides/state-json-recovery.md`](./_guides/state-json-recovery.md).
+
+### "Drift check blocks a legitimate commit"
 
 Three options:
 
-1. **Amend spec** — the work IS in scope but spec didn't mention it: `bash scripts/sprint-amend-spec.sh` (opens editor, re-baselines drift on save)
-2. **Discard commit** — the diff isn't what you wanted: `git reset HEAD~ --soft` (commit undone, changes still staged)
-3. **Override once** — you have a good reason: `SPRINT_DRIFT_BYPASS=1 git commit` (logged for retro)
+```bash
+# 1. Amend spec (work is in scope; spec didn't mention it)
+AMEND_WHY='...' AMEND_INTENT='...' bash scripts/sprint-amend-spec.sh --add-file <path>
 
-### "I need to touch a file outside the spec's scope"
+# 2. Discard commit
+git reset HEAD~ --soft
 
-Tell me, I'll run: `bash scripts/sprint-amend-spec.sh --add-file apps/web/hooks/useSomething.ts`. This adds the file to `## Files touched` + re-baselines drift.
+# 3. Canonical bypass
+SPRINT_BYPASS_GATE=drift-check SPRINT_BYPASS_WHY='<rationale ≥10 chars>' git commit ...
+```
 
-### "Sprint is going off the rails — I want to abort cleanly"
+### "Hook blocks `git push` outside any sprint"
+
+Hooks only fire when an active sprint has `phase != "done"` and `phase != "paused"`. If a stale sprint is stuck mid-phase:
 
 ```bash
-bash scripts/sprint-pause.sh "going to revisit scope"
-# come back later
-bash scripts/sprint-resume.sh
+bash scripts/sprint-status.sh            # identify the active sprint
+bash scripts/sprint-end.sh <slug>        # close it
+# or
+bash scripts/sprint-pause.sh "reason"    # suspend enforcement
 ```
 
-Or to fully abandon:
+### "Worker output missing — `worker-output/audit.json` not present after verify"
+
+Three causes, in order of likelihood:
+
+1. **Worker fired manually** (not via `sprint-advance-phase.sh`). Check `state.worker_invocations[].by` — every entry must equal `"sprint-advance-phase.sh"` (invariant I-2). If you see `null` or another caller, the worker was triggered directly and the output didn't land in the right place. Re-run via:
+   ```bash
+   bash scripts/sprint-advance-phase.sh verifying    # re-enters the phase; refires required workers
+   ```
+2. **Daemon down.** Check `state.gate_bypasses[]` for `gate: phase-worker-audit` with `why: daemon-unavailable`. Restart:
+   ```bash
+   ruflo daemon start --workspace .
+   ```
+3. **Structural-field predicate failed.** The worker wrote `{"verdict": "pass"}` but the `expects: ["findings"]` predicate rejected it. Inspect `.claude-flow/metrics/audit.json` directly.
+
+### "I can't get past spec-lock — hive-mind consensus dissented"
+
+Read `docs/sprints/<slug>/consensus-spec.json` for the dissent reasoning. Either:
 
 ```bash
-bash scripts/sprint-end.sh <slug>
-# In retro, note "aborted at day N for reason Y"
-git checkout main  # leave the sprint branch behind
-```
-
-### "I'm stuck on a hard piece — invoke pair mode"
-
-Tell me: `"engage pair-programming DRIVER mode for AC-3"`. I switch into pair mode (verification on every commit, truth score ≥0.95).
-
-Or it triggers automatically when an AC has complexity keywords (auth/RLS/payment/migration/JWT/secret/delete/password/hash/encrypt).
-
-### "I want to see the live dashboard"
-
-```bash
-node scripts/sprint-dashboard.mjs <slug> --open
-```
-
-Opens HTML at `docs/sprints/<slug>/dashboard.html` with hill chart, AC checklist, drift timeline, phase progression. Auto-refreshes every 60s.
-
-### "I want a daily standup in my standup.md"
-
-```bash
-node scripts/sprint-standup.mjs
-```
-
-Appends today's entry: yesterday's commits, today's next AC, blockers (open questions + recent drift events). Or set up daemon's `document` worker to call this daily.
-
-### "I want metrics on how my sprints are trending"
-
-After each sprint:
-
-```bash
-node scripts/sprint-velocity.mjs <slug>
-```
-
-Look across `docs/sprints/*/metrics.json` for trends.
-
----
-
-## File map — what lives where
-
-```
-docs/sprints/                              ← all sprint state
-├── README.md                              ← architecture overview
-├── USAGE.md                               ← this file
-├── _template/spec.md                      ← canonical spec template
-└── <slug>/                                ← per-sprint dir
-    ├── spec.md                            ← THE source of truth
-    ├── spec.partial.json                  ← wizard state (resumable)
-    ├── wizard-transcript.md               ← full Q&A log
-    ├── recalled-patterns.json             ← memory recalls + acceptance
-    ├── .baseline-embedding.json           ← drift baseline
-    ├── state.json                         ← phase, gates, drift, ACs
-    ├── hill-chart.md                      ← Shape Up hill chart
-    ├── check-in-day5.md                   ← mid-cycle check-in
-    ├── design.md                          ← SPARC output
-    ├── solution-sketches.md               ← Phase 1 alternatives
-    ├── architect-review.md                ← Phase 1 architect agent
-    ├── security-review.md                 ← Phase 1 security agent
-    ├── consensus-spec.json                ← Phase 1 hive-mind result
-    ├── standup.md                         ← daily auto-summary
-    ├── retro.md                           ← end-of-sprint retro
-    ├── metrics.json                       ← velocity + success criteria
-    ├── daa-feedback.json                  ← DAA reviewer batched feedback
-    └── dashboard.html                     ← local sprint dashboard
-
-scripts/sprint-*.{sh,mjs}                  ← 18 scripts
-.claude/skills/sprint-orchestrator/        ← protocol skill (the brain)
-.claude/skills/sprint-spec-wizard/         ← wizard skill
-.claude/skills/sprint-spec-wizard/sections/ ← 10 section fragments (A-J)
-.claude/helpers/sprint-hook.cjs            ← PreToolUse enforcement
-.claude/helpers/statusline-sprint.cjs     ← statusline fragment
-.claude-flow/autopilot/*.json              ← 3 autopilot configs
-docs/workflows/lifeos-*.yaml               ← 4 sprint workflows
-.github/workflows/sprint-pr-body.yml       ← PR body auto-fill
-.husky/pre-commit                          ← drift check wired here
-```
-
----
-
-## Configuration & environment
-
-### Environment variables
-
-```bash
-# Sprint behavior
-SPRINT_DRIFT_THRESHOLD=0.75    # default; lower = looser
-SPRINT_DRIFT_BYPASS=1          # bypass drift check + scope check (emergency)
-
-# Ruflo (per LifeOS conventions)
-AWS_PROFILE=lifeos             # NOT default; LifeOS account is 816975651861
-CLAUDE_FLOW_ENCRYPTION_KEY=<see .env.local>
-```
-
-### Adjusting the drift threshold
-
-Default is 0.75 (industry baseline for paraphrase acceptance per 2026 research).
-
-If you find false positives: try `SPRINT_DRIFT_THRESHOLD=0.65` (looser).
-If you want stricter: `SPRINT_DRIFT_THRESHOLD=0.82` (paraphrase-tight).
-
-Tune over the first 3 sprints based on actual drift event count.
-
-### Adjusting complexity keywords (pair-mode trigger)
-
-Edit `.claude/skills/sprint-spec-wizard/sections/I-acceptance.md` "Complex AC auto-detection" list. Currently:
-
-```
-auth, authentication, authorization, payment, billing, charge, RLS,
-row-level, policy, migration, schema change, drop table, JWT, token,
-secret, credential, key, delete, password, hash, encrypt, decrypt
-```
-
-### Daemon workers during sprint
-
-Auto-paused at sprint-start (drift risk): `refactor`, `document`.
-Auto-re-enabled at sprint-end.
-
-Always-on: `audit`, `optimize`, `consolidate`, `testgaps`, `predict`, `map`.
-
----
-
-## Troubleshooting
-
-### "`timeout` command not found" on macOS
-
-macOS doesn't ship the GNU `timeout` command. If you're wrapping our scripts with `timeout`, install `coreutils` (`brew install coreutils`) and use `gtimeout`, OR drop the wrapper — our scripts already have per-tool timeouts internally.
-
-### "sprint-status.sh shows nothing but I started a sprint"
-
-State file might be missing/corrupt. Check:
-
-```bash
-ls docs/sprints/<slug>/state.json
-node -e "JSON.parse(require('fs').readFileSync('docs/sprints/<slug>/state.json'))"
-```
-
-If JSON is broken, fix it manually or:
-
-```bash
-rm -rf docs/sprints/<slug>
-bash scripts/sprint-start.sh <slug>
-```
-
-### "Drift check fails with 'could not compute score'"
-
-`sprint-drift-score.mjs` exits 2 on configuration error and the husky hook allows the commit. Check:
-
-```bash
-test -f docs/sprints/<slug>/.baseline-embedding.json
-# If missing, you're pre-spec-lock — drift check skips correctly
-# If present, check:
-node scripts/sprint-drift-score.mjs docs/sprints/<slug>/.baseline-embedding.json /tmp/some-text-file
-```
-
-### "Hook blocks a legitimate `git push` outside any sprint"
-
-Hooks only fire when `docs/sprints/<slug>/state.json` has `phase != "done"` and `phase != "paused"`. If no sprint is active, the hook returns 0 immediately.
-
-If you're seeing a false-positive block, an old sprint may be stuck mid-phase. Run:
-
-```bash
-bash scripts/sprint-status.sh
-# Identifies the active sprint
-# Either: bash scripts/sprint-end.sh <slug>  # to close it
-# Or:     bash scripts/sprint-pause.sh       # to suspend enforcement
+# Address dissent in spec.md, then re-lock:
+$EDITOR docs/sprints/<slug>/spec.md
+bash scripts/sprint-amend-spec.sh --lock
+# or canonical bypass with rationale:
+SPRINT_BYPASS_GATE=spec-lock-hive-mind-consensus \
+SPRINT_BYPASS_WHY='Hive-mind dissent on §I scope is advisory; solo-dev judgement override per §J' \
+  bash scripts/sprint-amend-spec.sh --lock
 ```
 
 ### "Wizard skipped a section I wanted answered"
 
-Skip rules come from `sections_answers.A.flags`. If those flags got set wrong, edit `spec.partial.json`:
+Skip rules come from `sections_answers.A.flags`. Edit the partial state directly:
 
 ```bash
-# Open partial state
 $EDITOR docs/sprints/<slug>/spec.partial.json
-# Edit sections_answers.A.flags
-# Then re-emit the section:
+# Edit sections_answers.A.flags, then re-emit the section:
 node scripts/sprint-spec-wizard.mjs section <slug> <X>
 ```
 
 ### "PR body auto-fill didn't run"
 
-`.github/workflows/sprint-pr-body.yml` only runs when:
-
-- Branch matches `sprint/*`
-- `docs/sprints/<slug>/spec.md` exists
-
-Check GH Actions tab. If workflow is disabled, enable it. Manual:
+`.github/workflows/sprint-pr-body.yml` only runs when the branch matches `sprint/*` AND `docs/sprints/<slug>/spec.md` exists. Manual:
 
 ```bash
 node scripts/sprint-pr-body.mjs <slug> --pr <number>
@@ -834,390 +699,27 @@ node scripts/sprint-pr-body.mjs <slug> --pr <number>
 ### "Daemon workers not running"
 
 ```bash
-ruflo daemon status
-# If "Stopped":
-ruflo daemon start --workspace .
+ruflo daemon status                       # expect RUNNING; Workers Enabled: 0 by design
+ruflo daemon start --workspace .          # if Stopped
 ```
 
-Currently 7 of 12 documented workers actually implement in v3.7.0-alpha.42 (build limitation). The rest fall back to manual invocation.
+7 of 12 documented workers actually implement in v3.7.0-alpha.42 (build limitation). The rest fall back to manual invocation. See [`DEVELOPER.md` §"Known limitations"](./DEVELOPER.md#known-limitations).
 
-### "I can't get past spec-lock"
+### "`timeout` command not found" on macOS
 
-Hive-mind consensus may have failed. Check `docs/sprints/<slug>/consensus-spec.json`. If dissenting reasoning is there, address it and re-run:
+macOS doesn't ship GNU `timeout`. Either `brew install coreutils` and use `gtimeout`, OR drop the wrapper — internal scripts already have per-tool timeouts.
+
+### "node process count > 40 / RAM > 5 GB"
+
+Concurrent reuse audits stacking up:
 
 ```bash
-# Edit spec.md based on dissent
-# Then:
-bash scripts/sprint-amend-spec.sh --lock
+ps -axo pid,ppid,pmem,rss,etime,command | grep node | sort -k4 -rn | head -10
+pkill -9 -f jscpd
+pkill -9 -f sprint-reuse-audit
 ```
 
-Or bypass the hive-mind step (less safe — solo dev judgment):
-
-```bash
-bash scripts/sprint-amend-spec.sh --lock
-```
-
-(`--lock` writes baseline + advances phase regardless of hive-mind state.)
-
----
-
-## Multiple sprints in one workdir (parallel single-operator)
-
-The original design assumed one sprint per machine. **2026-05-17 update:** the harness supports multiple parallel sprints in the same working directory.
-
-**How it works (default 2026-05-17+):** `sprint-start.sh` stays on the current git branch. Multiple sprints can co-exist on the same branch. Sprint context is selected explicitly via `--slug` or `SPRINT_SLUG_OVERRIDE` env var. Branch-aware lookup is still available as a fallback for the legacy `sprint/<slug>` workflow.
-
-**Parallel workflow (single branch — preferred):**
-
-```bash
-git switch main   # or whatever working branch
-bash scripts/sprint-start.sh feature-a    # creates docs/sprints/feature-a, stays on branch
-bash scripts/sprint-start.sh feature-b    # creates docs/sprints/feature-b, stays on branch
-
-# Pick sprint context per command via --slug or env:
-bash scripts/sprint-status.sh --slug feature-a
-SPRINT_SLUG_OVERRIDE=feature-b bash scripts/sprint-amend-spec.sh --add-file <path>
-
-# Per-terminal context (no branch switching needed):
-# Terminal 1:  export SPRINT_SLUG_OVERRIDE=feature-a
-# Terminal 2:  export SPRINT_SLUG_OVERRIDE=feature-b
-# Each terminal's hooks now fire against its sprint
-```
-
-**Legacy workflow (branch-per-sprint — opt-in via `--with-branch`):**
-
-```bash
-bash scripts/sprint-start.sh feature-a --with-branch    # creates + checks out sprint/feature-a
-git switch sprint/feature-b                              # if it exists
-```
-
-**Resolution order** (in `sprint-status.sh` + `.claude/helpers/sprint-hook.cjs`):
-
-1. `--slug <name>` CLI arg (explicit, no fallback to session-file)
-2. `SPRINT_SLUG_OVERRIDE=<slug>` env var (audit-logged to retro.json with ppid + tty + timestamp)
-3. `~/.claude/sessions/<session-id>/sprint-slug` file — stale if `phase === "done"` → auto-cleaned + fall-through to step 4
-4. Current git branch matches `sprint/<slug>` → use `<slug>` (legacy fallback)
-5. **RETURN NULL** — no mtime fallback. Callers decide fallback behavior. This is by design (AC-2).
-
-### Technical contracts (parallel-safety v2)
-
-**atomic-state.sh** (`scripts/lib/atomic-state.sh`):
-
-```bash
-source scripts/lib/atomic-state.sh
-atomic_update_state <slug> '<jq-filter-expression>'
-```
-
-Contract: acquires per-slug flock (10s timeout) → mktemp in same dir as state.json → jq filter → validate → atomic rename. Returns 0 on success, 1 on timeout/jq-error. Recovery: if state.json missing, `recover_state_from_bak <slug>` restores from `state.json.bak`.
-
-**Lock directory** (`scripts/lib/lock-dir.sh`):
-
-```bash
-export LOCK_DIR="${XDG_RUNTIME_DIR:-$HOME/.cache/lifeos/locks}"
-mkdir -p "$LOCK_DIR"  # 0700, umask 077
-```
-
-Git operations are serialized via `$LOCK_DIR/git-index.lock`. Per-slug state locks use `$LOCK_DIR/state-<slug>.lock`.
-
-**session-file.sh** (`scripts/lib/session-file.sh`):
-
-```bash
-source scripts/lib/session-file.sh
-write_session_slug <session-id> <slug>   # atomic mkdir + write
-rm_session_slug <session-id>             # cleanup on sprint end/done
-get_session_slug <session-id>             # read, returns empty if absent
-```
-
-Pattern: `~/.claude/sessions/<session-id>/sprint-slug`. Atomic (no partial writes on concurrent reads).
-
-**Migration claims** (`scripts/lib/session-file.sh`):
-
-```bash
-claim_migration <slug> <nnnn>            # mkdir .claims/<NNNN> atomically
-release_migration <slug> <nnnn>          # rmdir .claims/<NNNN>
-list_migrations <slug>                   # list held claims
-```
-
-Claim dirs: `docs/sprints/<slug>/.claims/<NNNN>`. Created atomically with `mkdir -p` (which is idempotent/atomic on POSIX). Used by build orchestrator to assign AC ranges to agents without collision.
-
-**flock pattern** for git operations:
-
-```bash
-LOCK_DIR="${XDG_RUNTIME_DIR:-$HOME/.cache/lifeos/locks}"
-mkdir -p "$LOCK_DIR"  # 0700, umask 077
-exec 9>"$LOCK_DIR/git-index.lock"
-flock -w 30 9 || { echo "git lock timeout"; exit 1; }
-# ... git operations ...
-flock -u 9
-```
-
-**List all active sprints:**
-
-```bash
-$ bash scripts/sprint-status.sh --list
-  feature-a    phase=building    branch=main
-  feature-b    phase=spec-wizard branch=main
-```
-
-**Caveats:**
-
-- Default behavior is stay-on-branch; use `--with-branch` for the legacy sprint/<slug> mode
-- Daemon workers fire globally — outputs are per-sprint via slug argument
-- Drift baseline + scope hook resolve via SPRINT_SLUG_OVERRIDE or current branch
-- The "another sprint is active" hard block is removed; only "sprint with this slug already exists" still blocks
-- Each sprint commit on the shared branch should reference the sprint slug in the message so retro can attribute correctly
-
----
-
-## Inject-violation-catch-restore methodology
-
-After sprint-system-100 over-claimed at 99/99 file-presence tests, every gate this directory ships is proven by injecting a known violation and observing the gate catch it. Use `scripts/sprint-inject-violation.sh` to run the standard pattern:
-
-```bash
-PROOF_FILE=docs/sprints/<slug>/proof/AC-N.md \
-AC_ID=AC-N \
-GATE_NAME="<gate name>" \
-ASSERT_PATTERN="<output substring to match for caught>" \
-  bash scripts/sprint-inject-violation.sh <fixture> "<gate command>"
-```
-
-Fixtures live in `scripts/violation-fixtures/`. The helper does:
-
-1. Run gate on clean main (baseline)
-2. `git apply` the fixture
-3. Re-run gate, assert catch
-4. `git apply -R` to restore
-5. Write proof file
-
-Exit 0 = gate caught the injection. Exit 1 = real bug in the gate.
-
-**Two-verdict policy:** Production or Broken-with-followup-AC. No "Scaffolded" middle bucket. "File exists + script runs" is not Production.
-
-## Real production findings caught by gates (2026-05-17 harness-full-coverage)
-
-These survived as next-sprint TODOs because gates caught them on real code (not injected):
-
-- **AC-11 bundle-budget**: ai-scheduler 5.20MB + auth 7.99MB over 5MB budget
-- **AC-10 audit-deps**: 25 high + 1 critical CVE in transitive deps (after parser fix)
-- **AC-62 deadcode-delete**: 34 knip-flagged unused files
-- **AC-62 claude-md-check**: 9 stale CLAUDE.md references
-- **AC-67 cross-pattern audit**: 7 memory patterns never recalled
-- **AC-69 sprint-system-test**: 2 syntactic-test failures
-
-## Worker integration (on-demand, sprint-protocol-driven)
-
-> **Updated 2026-05-19.** ruflo daemon workers used to fire on hardcoded 10–30 min intervals (`worker-daemon.js` `DEFAULT_WORKERS`), burning ~9 h Sonnet/day silently against the operator's Claude Code OAuth subscription. Reports rotted in `.claude-flow/metrics/`; nothing read them. Now workers fire ONLY at known sprint-protocol checkpoints where their output is consumed by a gate or surfaced in a deliverable.
-
-### How workers authenticate
-
-Workers shell out to `claude --print` (line 862 of `headless-worker-executor.js`), which uses the operator's Claude Code OAuth session — NOT a separate API key. Every fire consumes the same Pro/Max subscription quota Claude Code uses for interactive work. In CI without OAuth, worker gates **hard-fail** with a clear message; sprint-verify must run locally before pushing.
-
-### Mapping — worker × sprint stage
-
-| Sprint stage                        | Worker(s)                                                                                                                                             | Trigger                                    | Gate                                                                    |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------- |
-| Day 0 — `sprint-start.sh`           | `map` (local, free)                                                                                                                                   | automatic at sprint start                  | advisory                                                                |
-| Day 1–2 — `sprint-design-lock.sh`   | `ultralearn` (opus) IFF `spec.partial.json §B.flags.architecture==true`; `deepdive` (opus) IFF any AC has complexity keyword (auth/RLS/migration/JWT) | automatic at design-lock                   | advisory; feeds design.md                                               |
-| Per-wave kickoff during build       | `predict` (haiku)                                                                                                                                     | `bash scripts/sprint-wave-start.sh <wave>` | advisory; preload hints                                                 |
-| Day 5 — `sprint-checkin.sh`         | `consolidate` (local, free)                                                                                                                           | automatic at check-in                      | free; memory dedup                                                      |
-| Day 11 — `sprint-cleanup-launch.sh` | `refactor` (sonnet) IFF spec mentions "refactor"                                                                                                      | automatic during cleanup                   | advisory                                                                |
-| Day 11–12 — `sprint-verify.sh`      | `audit` (sonnet, **BLOCKING any finding**) + `testgaps` (sonnet, **BLOCKING files-touched untested**) + `optimize` (sonnet, advisory)                 | `bash scripts/sprint-verify.sh`            | audit + testgaps fail the gate                                          |
-| Day 14 — `sprint-end.sh`            | `document` (sonnet) + `consolidate` (local)                                                                                                           | automatic at sprint-end                    | document proposals appended to `retro.md §"CLAUDE.md updates proposed"` |
-
-### Per-sprint outputs
-
-Each worker writes to `docs/sprints/<slug>/worker-output/<worker>.{json,md}` (committed to git per Q7 — audit trail). The default `.claude-flow/metrics/<basename>.json` location is also written but git-ignored.
-
-### Verify gate behavior (Day 11–12)
-
-Run `bash scripts/sprint-verify.sh` from the sprint dir. It:
-
-1. Runs the existing `typecheck → lint → tests` chain (skippable via `--workers-only`).
-2. Fires `audit + testgaps + optimize` in parallel.
-3. Polls `.claude-flow/metrics/*.json` for output (10 min timeout per worker).
-4. Copies outputs to `docs/sprints/<slug>/worker-output/`.
-5. Runs gates: **audit blocks on ANY finding** (zero-tolerance per spec audit Q2); **testgaps blocks on any route in `## Files touched` with zero coverage**; **optimize advisory only**.
-6. Records the run to `state.json.verify_runs[]`.
-
-Local sprint-test-hardening.mjs still runs as a free, deterministic file-scan supplement — testgaps is the LLM-backed gate on top of it.
-
-### Worker invocation cost model
-
-Per 14-day sprint:
-
-- Day 0: map (local, free)
-- Day 1–2: deepdive/ultralearn only on complex sprints (~10–15 min opus)
-- Build waves: predict per wave (~20 s haiku each × ~5 waves)
-- Day 5: consolidate (local, free)
-- Day 11: refactor only on refactor-flagged sprints (~5 min sonnet)
-- Day 11–12: audit + testgaps + optimize (~30 min sonnet total)
-- Day 14: document + consolidate (~5 min sonnet)
-
-**Total: ~50 min Sonnet per sprint** vs the previous ~126 h Sonnet over 14 days of scheduled workers — **>99 % reduction**.
-
-### Daemon state
-
-Run `ruflo daemon status` — expect `RUNNING (background)` with `Workers Enabled: 0`. The daemon stays warm so `ruflo daemon trigger -w <worker>` is fast; no worker fires on its own schedule.
-
-To re-enable a scheduled worker (NOT recommended): `ruflo daemon enable -w <worker>`. To disable one: `ruflo daemon enable -w <worker> --disable`.
-
-### 2026-05-19 audit fixes — ruflo CLI drift caught
-
-| Fix                          | File:line                                                               | Bug                                                                                                                                            |
-| ---------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Variadic atomic_update_state | `scripts/lib/atomic-state.sh:55`                                        | Didn't forward `--arg`/`--argjson` to jq → broke 11+ callers (drift-check, amend-spec, hive-mind, pre-merge-gate, start, cleanup-launch, etc.) |
-| hive-mind consensus action   | `scripts/sprint-hive-mind-spec-lock.sh:84`                              | `-a submit` invalid (CLI errors with "Must be one of: propose, vote, status, list") → `-a propose`                                             |
-| embeddings subcommand        | `scripts/sprint-drift-score.mjs:46` + `scripts/sprint-rebaseline.sh:99` | `embeddings encode --text` doesn't exist → `embeddings generate -t -o json`                                                                    |
-| neural train flag echo       | `scripts/sprint-end.sh:307`                                             | Echoed `neural train --type coordination --epochs 50` (wrong flags) → `-p coordination -e 50`                                                  |
-
-Reported-as-broken items that were actually already-working:
-
-- `hive-mind spawn`: file uses `-n 4 -r specialist` (already migrated off deprecated `--queen X --workers N`)
-- `sprint-daa-feedback.sh:37`: uses valid `ruflo agent list --all -t reviewer` (not deprecated `daa list`)
-- `sprint-train.sh:72`: uses valid `neural train -p coordination -e 50 --learning-rate 0.001`
-- `run-workflow.sh:115`: `ruflo swarm init --topology hierarchical-mesh --max-agents 8` IS still valid (swarm namespace not removed)
-
-Methodology: every ruflo call validated against `ruflo <cmd> --help` actual output; behavior-audit agent invoked top-20 scripts against the paused harness-parallel-safety-v2 sprint to verify against docstring claims.
-
----
-
-## What this system does NOT do
-
-Honest scope limits:
-
-- **Does not write LifeOS code itself.** During build phase, Claude delegates to coder/tester/architect agents. The orchestrator is the protocol; agents do the work.
-- **Does not deploy without your approval.** Even when fully automated, the deploy workflow ALWAYS pauses at `pulumi preview` for human review.
-- **Does not push to main.** PR flow only. `git push` is hook-blocked during sprint.
-- **Does not run during sprint:** daemon's `refactor` and `document` workers (drift risk). They're paused at sprint-start, re-enabled at sprint-end.
-- **Does not auto-update CLAUDE.md.** Doc-sweep autopilot PROPOSES changes; you approve before commit.
-- **Does not enforce drift during wizard phase.** Drift baseline doesn't exist until spec-lock.
-- **Does not work without git.** Sprint branches + state.json are git-tracked. Bare directory won't work.
-- **Does not work offline forever.** Memory recall + DAA + neural training need ruflo daemon running.
-
----
-
-## Maintenance habits
-
-### After every sprint
-
-- Review retro.md, ensure 3-5 patterns extracted to memory
-- Check CLAUDE.md proposals; commit if pattern is repo-wide
-- Look at metrics.json — any criterion failing? what changed?
-
-### Weekly (Sundays, ~10 min)
-
-- `ruflo memory` — review consolidation suggestions
-- `cat .claude-flow/security/*.json | jq .` — check audit findings
-- `ruflo verify` — supply-chain integrity
-
-### Monthly
-
-- Review `docs/sprints/*/metrics.json` for trends (drift count over time, time-to-design-lock trending?)
-- Prune stale memory entries via `mcp__claude-flow__agentdb_hierarchical-delete`
-- If you've done 20+ sprints: `bash scripts/sprint-train.sh --force`
-
-### When something's wrong
-
-- Re-read `docs/sprints/README.md` for architecture
-- Re-read this file (USAGE.md) for procedure
-- Check `~/.claude/plans/hazy-gathering-kettle.md` for the design rationale
-- Read individual SKILL.md files for what each component does
-
----
-
-## Mini cookbook — copy-paste recipes
-
-### Recipe: First sprint, never used the system before
-
-```bash
-# 1. Verify install
-bash scripts/setup-ruflo.sh
-
-# 2. Make sure daemon is up
-ruflo daemon status   # if stopped: ruflo daemon start --workspace .
-
-# 3. Start sprint
-bash scripts/sprint-start.sh first-sprint-test
-
-# 4. Tell Claude: "start the spec wizard"
-#    Pick a SMALL real feature (e.g., "add typing indicator to chat")
-#    Run through wizard fully (~20-40 min)
-
-# 5. After wizard, tell Claude: "do the spec-lock review chain"
-#    Review the 4 outputs
-
-# 6. Sign off, then:
-bash scripts/sprint-amend-spec.sh --lock
-
-# 7. Tell Claude: "do the SPARC design phase"
-
-# 8. After design lock:
-bash scripts/sprint-build-launch.sh
-
-# 9. ... build happens, you intervene at drift pauses ...
-
-# 10. Day 5:
-bash scripts/sprint-checkin.sh
-
-# 11. Day 11-12: tell Claude "verify the sprint"
-
-# 12. Day 12: tell Claude "pre-deploy review"
-
-# 13. Day 13: tell Claude "deploy"
-#     Workflow pauses at pulumi preview; you say "proceed"
-
-# 14. Day 14:
-bash scripts/sprint-end.sh first-sprint-test
-#     Tell Claude "walk me through the retro"
-```
-
-### Recipe: Resume a sprint after a few days off
-
-```bash
-bash scripts/sprint-status.sh
-# Reports current phase
-
-node scripts/sprint-dashboard.mjs <slug> --open
-# Visual catch-up: hill chart, ACs, drift events
-
-cat docs/sprints/<slug>/standup.md | tail -50
-# Recent days' standup entries
-
-# Then tell Claude:
-#   "give me a 2-minute brief on where we are with <slug>"
-```
-
-### Recipe: Quick sprint (backend-only refactor, 3 days, not 14)
-
-```bash
-# Start as usual
-bash scripts/sprint-start.sh backend-refactor
-
-# Tell Claude: "start the spec wizard. This is a backend-only refactor,
-#               no UI change, no schema change, just internal cleanup.
-#               Appetite 3 days."
-
-# Wizard will skip §C (no schema), §E §F §G (no UI), and ask shorter
-# question sets per section. ~10-15 minutes total.
-
-# Proceed normally through the rest. The protocol doesn't change shape,
-# just compresses.
-```
-
-### Recipe: Multiple concurrent attempts (worktree per sprint)
-
-```bash
-# Sprint A in main worktree
-bash scripts/sprint-start.sh feature-a
-
-# Sprint B in a worktree (no enforcement collision)
-git worktree add ../lifeos-b sprint/feature-b
-cd ../lifeos-b
-bash scripts/sprint-start.sh feature-b --no-branch  # branch already exists
-
-# Note: the sprint system currently assumes ONE active sprint per worktree.
-# Each worktree's docs/sprints/<slug>/state.json is independent.
-```
+Full diagnosis: [`_guides/troubleshooting.md` §"node process count"](./_guides/troubleshooting.md).
 
 ---
 
@@ -1228,7 +730,7 @@ START         bash scripts/sprint-start.sh <slug>
 STATUS        bash scripts/sprint-status.sh
 PAUSE         bash scripts/sprint-pause.sh "reason"
 RESUME        bash scripts/sprint-resume.sh
-AMEND         bash scripts/sprint-amend-spec.sh
+AMEND         AMEND_WHY='...' AMEND_INTENT='...' bash scripts/sprint-amend-spec.sh
               bash scripts/sprint-amend-spec.sh --lock          # spec-lock gate
               bash scripts/sprint-amend-spec.sh --cut AC-3      # cut AC
               bash scripts/sprint-amend-spec.sh --add-file <p>  # widen scope
@@ -1240,25 +742,21 @@ WIZARD        node scripts/sprint-spec-wizard.mjs status <slug>
               node scripts/sprint-spec-wizard.mjs assemble <slug>
 
 HILL CHART    node scripts/sprint-hillchart.mjs <slug> --refresh
-PAIR CHECK    node scripts/sprint-pair-check.mjs <slug>
 DASHBOARD     node scripts/sprint-dashboard.mjs <slug> --open
 STANDUP       node scripts/sprint-standup.mjs <slug>
 PR BODY       node scripts/sprint-pr-body.mjs <slug>
 VELOCITY      node scripts/sprint-velocity.mjs <slug>
-GH PROJECT    bash scripts/sprint-gh-project-sync.sh
 
-NEURAL        bash scripts/sprint-train.sh                 # gated
-              bash scripts/sprint-train.sh --force         # force
-DAA           bash scripts/sprint-daa-feedback.sh
-
-BYPASS DRIFT  SPRINT_DRIFT_BYPASS=1 git commit ...
+PHASE ADVANCE bash scripts/sprint-advance-phase.sh <next-phase>
+BYPASS        SPRINT_BYPASS_GATE=<gate> SPRINT_BYPASS_WHY='<≥10 chars>' \
+                bash scripts/sprint-advance-phase.sh <phase>
 
 TALK TO ME    "start a sprint for <X>"
               "show me the spec so far"
               "redo §C"
               "walk me through the day-5 check-in"
               "engage pair mode for AC-3"
-              "deploy"
+              "verify the sprint"
               "walk me through the retro"
 ```
 
@@ -1266,16 +764,17 @@ TALK TO ME    "start a sprint for <X>"
 
 ## Where to go next
 
-- [`README.md`](./README.md) — architecture overview, dir layout
-- [`_template/spec.md`](./_template/spec.md) — the canonical spec template
-- [`../../.claude/skills/sprint-orchestrator/SKILL.md`](../../.claude/skills/sprint-orchestrator/SKILL.md) — the 14-day protocol Claude follows
-- [`../../.claude/skills/sprint-spec-wizard/SKILL.md`](../../.claude/skills/sprint-spec-wizard/SKILL.md) — the adaptive wizard
-- [`../../.claude/skills/sprint-spec-wizard/sections/`](../../.claude/skills/sprint-spec-wizard/sections/) — per-section question banks
-- [`../ruflo-sessions/ruflo-for-lifeos.md`](../ruflo-sessions/ruflo-for-lifeos.md) — full ruflo feature map
-- [`~/.claude/plans/hazy-gathering-kettle.md`](file:///Users/gio/.claude/plans/hazy-gathering-kettle.md) — original design plan with 36 captured decisions
+- [`QUICKSTART.md`](./QUICKSTART.md) — 5-minute on-ramp
+- [`SCRIPTS.md`](./SCRIPTS.md) — canonical inventory of every harness script (90+ files, categorized by role)
+- [`DEVELOPER.md`](./DEVELOPER.md) — internals, terminology contract, extension recipes, state.json schema
+- [`README.md`](./README.md) — architecture overview
+- [`_guides/bypass-cheatsheet.md`](./_guides/bypass-cheatsheet.md) — long-form bypass rationale
+- [`_guides/sub-step-coverage.md`](./_guides/sub-step-coverage.md) — sub-step gate coverage map + hybrid START+END semantics
+- [`_guides/troubleshooting.md`](./_guides/troubleshooting.md) — long-form troubleshooting recipes
+- [`_template/spec.md`](./_template/spec.md) — canonical spec template
+- [`../../.claude/skills/sprint-orchestrator/SKILL.md`](../../.claude/skills/sprint-orchestrator/SKILL.md) — 14-day protocol Claude follows
+- `~/.claude/plans/hazy-gathering-kettle.md` — original design plan with 36 captured decisions
 
 ---
 
-**Last refreshed:** 2026-05-17
-
-If something in this guide is wrong, the source of truth is the SKILL.md files and the plan doc. PRs welcome.
+**Last refreshed:** 2026-05-19 (sprint `harness-truthful-docs-and-wiring-v1` Wave 3).

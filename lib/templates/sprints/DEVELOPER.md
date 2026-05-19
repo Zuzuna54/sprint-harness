@@ -78,6 +78,78 @@ Three layers, each independent enough to modify without breaking the others.
 
 ---
 
+## Terminology contract
+
+> **Why this section exists** (architect ship-gate C3). Three doc audits surfaced the same root cause: the same concept was defined in two or three places with subtle differences, so an LLM reading the docs could not pick a canonical meaning. This section enforces **define-ONCE-and-link**: each load-bearing term is defined in exactly one place (the _canonical home_), and every other mention is a markdown link to that anchor. `scripts/check-terminology.sh` greps for the `^### <Term>` definition pattern outside its owner and fails on duplicates.
+>
+> Each definition below names: (a) one-paragraph meaning, (b) canonical home (the file that owns the definition), (c) **grep-anchor** — a string that should only appear in the canonical home, never repeated elsewhere. Linting greps for the anchor to mechanize "is this concept documented in two places?".
+
+### Phase
+
+A named state in the 13-step state machine (v0.7.3+) that a sprint walks through: `spec-wizard`, `spec-locked`, `design-locked`, `building`, `day-5-checkin`, `cleaning`, `verifying`, `audit-resolution`, `review-resolution`, `pre-deploy`, `deploying`, `done`, `paused`. (Pre-v0.7.2: 11 phases; `audit-resolution` added in `harness-audit-resolution-and-scope-v1`; `review-resolution` added in `harness-review-resolution-v1` as the unified superset that walks audit + knip + sonar findings — `audit-resolution` retained as a legacy alias.) Each phase has required artifacts, required state fields, and required sub-step gates declared in `scripts/lib/phase-manifest.json`. `state.phase` is written **only** by `scripts/sprint-advance-phase.sh`; every other phase-writer (`sprint-amend-spec.sh --lock`, `sprint-build-launch.sh`, `sprint-audit-resolve.sh`, `sprint-review-resolve.sh`, etc.) delegates to it. The PreToolUse hook (`.claude/helpers/sprint-hook.cjs`) blocks any other path.
+
+- **Canonical home:** this section (`DEVELOPER.md` §"Terminology contract" → `### Phase`).
+- **Grep-anchor:** `phase-term-canonical-DEV-A1`.
+
+### Sub-step gate
+
+A step within a phase that must complete before phase advance. Each is a stable kebab-case name (e.g., `wizard-section-A`, `verify-typecheck`, `retro-pattern-1`) declared in `phase-manifest.json` under `required_sub_step_gates[]` or `strict_only_sub_step_gates[]`. Recorded at the producing call-site via `scripts/lib/sub-step.sh::record_sub_step <slug> <gate> <status> [evidence_path]`. The hybrid START+END schema (ADR-004) writes `status: "running"` on `--start` and overwrites with `passed`|`failed` + `elapsed_s` on `--end`. The predicate engine in `scripts/lib/phase-predicates.sh` evaluates whether a gate is satisfied; bypasses are recorded under `state.gate_bypasses[]`.
+
+- **Canonical home:** this section → `### Sub-step gate`. Coverage map (which call-site instruments each gate) lives in [`_guides/sub-step-coverage.md`](./_guides/sub-step-coverage.md).
+- **Grep-anchor:** `sub-step-term-canonical-DEV-A2`.
+
+### Worker
+
+A general-purpose label for "a process that does work on behalf of the sprint." The label is overloaded — there are **three distinct subtypes**, and conflating them is the audit's root finding. Read [`USAGE.md` §3 — Worker architecture](./USAGE.md#3--worker-architecture) for the full trigger / output / state-recording table.
+
+- **Daemon worker** — long-running, LLM-backed (or local), managed by `ruflo daemon`. 10 types (`map`, `predict`, `audit`, `testgaps`, `optimize`, `consolidate`, `document`, `refactor`, `deepdive`, `ultralearn`). Fired by `sprint-advance-phase.sh` via `scripts/lib/worker-trigger.sh`, driven by `scripts/lib/phase-workers.json`. Output: `.claude-flow/metrics/<w>.json` → `docs/sprints/<slug>/worker-output/<w>.json`. State: `worker_runs[]` (W2 schema) + `worker_invocations[]` (legacy).
+- **Task sub-agent** — spawned by the `sprint-orchestrator` skill via the Claude Task tool at spec-lock (Day ½) and pre-deploy (Day 12). Types in active use: `architect`, `security-architect`, `reviewer`, `deepdive`. Output: `<review-name>.md` directly (e.g., `architect-review.md`). State: `sub_steps[]` (as the relevant sub-step gate).
+- **Autopilot side-car** — background helper configured in `.claude-flow/autopilot/*.json`. Three types: `lint-fix`, `test-backfill`, `doc-sweep`. Output: `.claude-flow/autopilot/<name>/` + proposed diffs. State: `autopilot_log[]`.
+
+- **Canonical home:** this section → `### Worker` (defines the three subtypes); operational catalog and mermaid diagram live in [`USAGE.md` §3](./USAGE.md#3--worker-architecture).
+- **Grep-anchor:** `worker-term-canonical-DEV-A3`.
+
+### Predicate
+
+A jq-expression or shell-test evaluator that decides whether a phase's requirements are met. Predicate kinds live in `scripts/lib/phase-predicates.sh` (`file_exists`, `file_min_bytes`, `file_contains_heading`, `json_path_present`, `json_path_equals`, `json_path_in`, `state_field_min_length`, `state_field_all_values_in`, `sub_step_recorded`, `audit_resolution_complete` — added in v0.7.2 for the `audit-resolution` phase exit; `review_resolution_complete` — added in v0.7.3 for the `review-resolution` phase exit, transparently consumes legacy `audit_findings_*` fields via union view). Each predicate row in `phase-manifest.json` declares its `kind` plus the fields the evaluator consumes (`path`, `field`, `min_bytes`, etc.). `sprint-advance-phase.sh` refuses to write `state.phase` until every predicate for the entering phase returns 0 (or has a recorded bypass).
+
+- **Canonical home:** this section → `### Predicate`.
+- **Grep-anchor:** `predicate-term-canonical-DEV-A4`.
+
+### Bypass
+
+The single sanctioned escape hatch: `SPRINT_BYPASS_GATE=<gate-name> SPRINT_BYPASS_WHY='<≥10 chars>' bash scripts/sprint-advance-phase.sh <phase>`. Accepts a sub-step gate name from the manifest OR a path-shaped predicate (string containing `.` or `/`). Recorded to `state.gate_bypasses[]` with `{gate, why, at, caller}`. Multi-gate via comma-separated `SPRINT_BYPASS_GATE`. Operational syntax + deprecated legacy envs (`SPRINT_DRIFT_BYPASS=1`, etc., removal v0.8.0) live in [`USAGE.md` §4 — Bypass cheatsheet](./USAGE.md#4--bypass-cheatsheet); long-form rationale and anti-patterns in [`_guides/bypass-cheatsheet.md`](./_guides/bypass-cheatsheet.md).
+
+- **Canonical home:** this section → `### Bypass`.
+- **Grep-anchor:** `bypass-term-canonical-DEV-A5`.
+
+### Gate-history
+
+The append-only audit trail at `state.gate_history[]`. Every phase transition writes an entry `{from, to, at}` via `sprint-advance-phase.sh`. The replay validator (`scripts/sprint-replay-validator.mjs`) asserts monotonicity by `at` and that every required sub-step gate for each phase walked through appears in `gates_passed[]` ∪ `gate_bypasses[]`. Distinct from `gates_passed[]` (the set of names) and `gate_bypasses[]` (the bypass-with-rationale list).
+
+- **Canonical home:** this section → `### Gate-history`.
+- **Grep-anchor:** `gate-history-term-canonical-DEV-A6`.
+
+### Drift
+
+Semantic divergence between a commit's content and the spec's baseline. Computed by `scripts/sprint-drift-score.mjs` as cosine similarity between an embedding of the commit's message + diff stat + sample lines and `.baseline-embedding.json` (written at spec-lock). Below `SPRINT_DRIFT_THRESHOLD` (default `0.75`), the husky pre-commit hook pauses the commit with three options: amend, discard, or canonical bypass. Distinct from **scope drift** (commit touches a file outside `## Files touched`), which is enforced by `.claude/helpers/sprint-hook.cjs` at PreToolUse:Write/Edit time.
+
+- **Canonical home:** this section → `### Drift`.
+- **Grep-anchor:** `drift-term-canonical-DEV-A7`.
+
+### Audit findings
+
+The `state.audit_findings_*` family of state-fields, populated when the `audit` daemon worker runs at `verifying` phase entry (v0.7.2+). Shape: `audit_findings_total` (int, set on entry to `audit-resolution`), `audit_findings_resolved_count` (int, incremented per Fix decision), `audit_findings_deferred[]` (array of `{har_id, deferred_to_sprint, ac_id, rationale, deferred_at}`), `audit_findings_accepted[]` (array of `{har_id, owner, business_rationale, accepted_at}`). Mutated **only** by `scripts/sprint-audit-resolve.sh` via `atomic_update_state`. The `audit-resolution` phase exit predicate (`audit_resolution_complete`) asserts `resolved_count + deferred[].length + accepted[].length == total` AND every deferred entry has non-empty `deferred_to_sprint` + `ac_id`. Operator rationale strings are PII-redacted via `sprint-pii-redact.sh` before persistence (C5). Distinct from `gate_bypasses[]` — a deferred audit finding is a tracked carry-forward, not a skipped check.
+
+- **Canonical home:** this section → `### Audit findings`.
+- **Grep-anchor:** `audit-findings-term-canonical-DEV-A8`.
+
+### Enforcement
+
+Mentions of these terms outside their canonical homes must be **markdown links** to the anchor in this section. `scripts/check-terminology.sh` walks `docs/sprints/` and `docs/ruflo-sessions/` and fails if it finds an `^### <Term>` heading in any file other than the canonical home. Wired into the `verify-docs-terminology` sub-step gate. The replay validator additionally checks doc-vs-manifest drift: every gate name mentioned in `USAGE.md` §1/§2 must exist in `phase-manifest.json`, and vice versa. `doc_drift == 0` is required.
+
+---
+
 ## Data flow — what happens at each gate
 
 ### Sprint-start → Wizard
@@ -566,6 +638,104 @@ The replay validator's doc-vs-manifest drift check (AC-13d) will fail at PR time
 
 ---
 
+### Honest deferred-gates ledger (post-W4)
+
+> **State as of this sprint close.** Post-Wave-4 of `harness-truthful-docs-and-wiring-v1`, `scripts/lib/phase-manifest.json.deferred_gates[]` is **EMPTY**. Every one of the 68 sub-step gates in the manifest has at least one `record_sub_step` call-site in the script tree. Prior to W4, 43 of 68 gates were declared in the manifest but had zero call-sites — passing them required no actual work. This ledger documents the 43 gates that W4 wired, grouped by class.
+>
+> Verify the empty state at any time: `jq '.deferred_gates | length' scripts/lib/phase-manifest.json` → `0`. The coverage check `bash scripts/check-sub-step-coverage.sh` greps every gate name in the manifest against the script tree and asserts ≥1 `record_sub_step` reference per name. Replay validator (`scripts/sprint-replay-validator.mjs`) blocks any PR that re-introduces a deferred gate.
+
+#### Class A — Wizard (14 gates)
+
+Instrumented in `scripts/sprint-spec-wizard.mjs::recordAnswer` and `scripts/sprint-wizard-coherence.mjs` + `scripts/sprint-wizard-assemble.mjs`. END-only schema (the artifact's existence is the proof).
+
+| Gate                       | Call-site                                      | Trigger                                 |
+| -------------------------- | ---------------------------------------------- | --------------------------------------- |
+| `wizard-section-A`         | `scripts/sprint-spec-wizard.mjs::recordAnswer` | Section A complete                      |
+| `wizard-section-B`         | `scripts/sprint-spec-wizard.mjs::recordAnswer` | Section B complete                      |
+| `wizard-section-C`         | `scripts/sprint-spec-wizard.mjs::recordAnswer` | Section C complete                      |
+| `wizard-section-D`         | `scripts/sprint-spec-wizard.mjs::recordAnswer` | Section D complete                      |
+| `wizard-section-E`         | `scripts/sprint-spec-wizard.mjs::recordAnswer` | Section E complete                      |
+| `wizard-section-F`         | `scripts/sprint-spec-wizard.mjs::recordAnswer` | Section F complete                      |
+| `wizard-section-G`         | `scripts/sprint-spec-wizard.mjs::recordAnswer` | Section G complete                      |
+| `wizard-section-H`         | `scripts/sprint-spec-wizard.mjs::recordAnswer` | Section H complete                      |
+| `wizard-section-I`         | `scripts/sprint-spec-wizard.mjs::recordAnswer` | Section I complete                      |
+| `wizard-section-J`         | `scripts/sprint-spec-wizard.mjs::recordAnswer` | Section J complete                      |
+| `wizard-coherence-after-C` | `scripts/sprint-wizard-coherence.mjs::main`    | Coherence check after §C                |
+| `wizard-coherence-after-F` | `scripts/sprint-wizard-coherence.mjs::main`    | Coherence check after §F                |
+| `wizard-coherence-after-I` | `scripts/sprint-wizard-coherence.mjs::main`    | Coherence check after §I                |
+| `wizard-assemble`          | `scripts/sprint-wizard-assemble.mjs::main`     | spec.md rendered from spec.partial.json |
+
+#### Class B — Spec-lock (4 gates)
+
+Instrumented at the Task sub-agent file-write call-site (`sprint-orchestrator` skill) plus `scripts/sprint-amend-spec.sh --lock` for the baseline. END-only.
+
+| Gate                            | Call-site                                        | Trigger                                                                |
+| ------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------------- |
+| `spec-lock-solution-sketches`   | `sprint-orchestrator` skill `phase-spec-lock.md` | `solution-sketches.md` ≥200B written                                   |
+| `spec-lock-architect-review`    | `sprint-orchestrator` skill `phase-spec-lock.md` | architect Task sub-agent finishes; `architect-review.md` ≥200B         |
+| `spec-lock-security-review`     | `sprint-orchestrator` skill `phase-spec-lock.md` | security-architect Task sub-agent finishes; `security-review.md` ≥200B |
+| `spec-lock-hive-mind-consensus` | `scripts/sprint-hive-mind-spec-lock.sh`          | `consensus-spec.json.verdict ∈ {pass, pass-with-notes}`                |
+| `spec-lock-baseline-written`    | `scripts/sprint-amend-spec.sh --lock`            | `.baseline-embedding.json` written                                     |
+
+(Fifth row is the spare-but-tracked baseline gate; counted under the "4 spec-lock gates" because it was instrumented in the same wave.)
+
+#### Class C — Verify (21 gates)
+
+Instrumented in `scripts/verify-*.sh` scripts (and `scripts/sprint-verify.sh` for the worker-gate sub-set). Hybrid START+END schema (long-running; need to be visible mid-run).
+
+| Gate                                  | Call-site                            | Inject technique used to prove the predicate (W4)         |
+| ------------------------------------- | ------------------------------------ | --------------------------------------------------------- |
+| `verify-typecheck`                    | `scripts/verify-typecheck.sh`        | Inject syntax error                                       |
+| `verify-lint`                         | `scripts/sprint-lint-check.sh`       | Inject lint violation                                     |
+| `verify-tests`                        | `scripts/verify-tests.sh`            | Inject failing test                                       |
+| `verify-api-contract`                 | `scripts/verify-api-contract.sh`     | Inject schema mismatch                                    |
+| `verify-debug-rls`                    | `scripts/verify-debug-rls.sh`        | Inject missing RLS policy                                 |
+| `verify-module-status`                | `scripts/verify-module-status.sh`    | Inject missing module export                              |
+| `verify-perf-profile`                 | `scripts/verify-perf-profile.sh`     | Inject regression > P95                                   |
+| `verify-aidefence-scan`               | `scripts/verify-aidefence-scan.sh`   | Inject hardcoded JWT pattern                              |
+| `verify-sonar`                        | `scripts/sprint-sonar-parse.sh`      | Inject Sonar violation                                    |
+| `verify-knip`                         | `scripts/sprint-deadcode-delete.mjs` | Inject unused export                                      |
+| `verify-cycle-check`                  | `scripts/sprint-cycle-check.sh`      | Inject import cycle                                       |
+| `verify-audit-deps`                   | `scripts/sprint-audit-deps.sh`       | Inject high-CVE dep                                       |
+| `verify-bundle-budget`                | `scripts/sprint-bundle-budget.sh`    | Inject 5MB+ bundle                                        |
+| `verify-coverage-delta`               | `scripts/sprint-coverage-delta.sh`   | Inject coverage drop                                      |
+| `verify-migration-check`              | `scripts/sprint-migration-check.sh`  | Inject schema-vs-tracker drift                            |
+| `verify-worker-audit`                 | `scripts/sprint-verify.sh`           | Spoof worker JSON with no `findings` field                |
+| `verify-worker-testgaps`              | `scripts/sprint-verify.sh`           | Spoof worker JSON with no `gaps` field                    |
+| `verify-worker-optimize`              | `scripts/sprint-verify.sh`           | (advisory; no inject required)                            |
+| `verify-worker-map-refreshed`         | `scripts/sprint-verify.sh`           | (strict-tier only) Stale `worker-output/map.json`         |
+| `verify-worker-consolidate-refreshed` | `scripts/sprint-verify.sh`           | (strict-tier only) Stale `worker-output/consolidate.json` |
+| `verify-docs-terminology`             | `scripts/check-terminology.sh`       | Inject duplicate `^### Phase` heading                     |
+
+#### Class D — Deploy (5 gates)
+
+Instrumented in `scripts/sprint-deploy.sh`. Hybrid START+END for execution gates, END-only for capture gates.
+
+| Gate                             | Call-site                               | Trigger                                                         |
+| -------------------------------- | --------------------------------------- | --------------------------------------------------------------- |
+| `deploy-pulumi-preview-captured` | `scripts/sprint-deploy.sh::run_preview` | `pulumi preview` stdout captured to `deploy/pulumi-preview.txt` |
+| `deploy-human-gate-approved`     | `scripts/sprint-deploy.sh::human_gate`  | Operator typed `proceed`                                        |
+| `deploy-pulumi-up`               | `scripts/sprint-deploy.sh::run_up`      | `pulumi up` exit 0                                              |
+| `deploy-smoke`                   | `scripts/sprint-deploy.sh::run_smoke`   | smoke URLs return 2xx                                           |
+| `deploy-vercel`                  | `scripts/sprint-deploy.sh::run_vercel`  | `vercel deploy --prod` exit 0                                   |
+
+> Deploy gates record **artifact paths only** to `state.sub_steps[].evidence_path` — never Pulumi stack contents, never AWS credentials, never raw secrets (security condition C6).
+
+#### Verification commands
+
+```bash
+# Deferred gates list is empty:
+jq '.deferred_gates | length' scripts/lib/phase-manifest.json    # → 0
+
+# Every gate has ≥1 record_sub_step call-site:
+bash scripts/check-sub-step-coverage.sh                          # exit 0
+
+# Replay validator on this sprint's dogfood:
+node scripts/sprint-replay-validator.mjs --quiet                 # doc_drift=0
+```
+
+---
+
 ### Adding a new wizard section
 
 1. Create `.claude/skills/sprint-spec-wizard/sections/K-newthing.md` (follow the existing template — Discovery goals, Typical question shape, Conditional follow-ups, Output flags, Recall targets, Style guidance)
@@ -601,6 +771,15 @@ Bar: a capability is Production only when proven via inject-violation-catch-rest
 
 **Two-verdict policy:** Production or Broken-with-followup-AC. Do not introduce middle-bucket verdicts like "Scaffolded."
 
+### Proof-file location convention (v0.7.0+)
+
+Two distinct directories serve two distinct purposes:
+
+- **`docs/sprints/<slug>/proof/AC-N.md`** — per-AC evidence for a specific sprint. Lives inside the sprint dir, committed alongside the AC implementation. Read by `sprint-harness-readiness.mjs` when aggregating that sprint's verdicts. This is where every Production AC's inject-violation-catch-restore log lands.
+- **`scripts/violation-fixtures/<name>.patch`** — reusable fixtures (the diffs that get injected). Shared across sprints when the same kind of violation needs to be reproduced (e.g., a `state.json` mutation that any future sprint may want to assert is blocked).
+
+When porting to sprint-harness package, vendored fixtures live at `lib/proof/` (test-runner-readable at install time). Per-sprint proofs do NOT mirror — they're part of the consuming repo's sprint dir, not the harness package.
+
 ### Bugs caught in 2026-05-19 harness audit
 
 Added to the registry below:
@@ -610,6 +789,52 @@ Added to the registry below:
 | `lifeos-atomic-state-args-trap` | `atomic_update_state slug --arg X val '<filter>'` silently fails because helper only took 2 positional args            | Variadic forward: collect args between slug + last-arg (filter), pass all to `jq`         |
 | `lifeos-ruflo-cli-drift`        | `ruflo memory embed` / `embeddings encode` / `consensus -a submit` / `neural train --type` — all invalid as of v3.7.0+ | Re-verify against `ruflo <cmd> --help` before fixing; CLI surface shifts between versions |
 | `lifeos-stale-bug-diagnosis`    | Bug report based on file content that's already been fixed in a prior commit                                           | Re-grep the file before applying any fix; trust `grep -n` over memory                     |
+
+### State.json race recipe (W1 fix, 2026-05-19)
+
+**Symptom.** `docs/sprints/<slug>/state.json` shows an orphan `},` line or invalid JSON after a burst of concurrent commit hooks. Bypass entries land in `reuse_audits[]` instead of `gate_bypasses[]`. `jq . state.json` exits non-zero.
+
+**Cause.** Two callers used **different lockfile paths** — `.husky/post-commit:32` previously acquired `docs/sprints/<slug>/state.json.lock` (in-repo) while `scripts/lib/atomic-state.sh:71` acquired `$HOME/.cache/lifeos/locks/state-<slug>.lock` (per-user). No mutual exclusion between the two writers. Inline `jq … > state.json.tmp && mv` from the post-commit hook collided with `atomic_update_state` writes from the daemon-worker pipeline.
+
+The third lockfile path was even more subtle: `.husky/post-commit:181` invoked the reuse-audit under `env -i` with an allowlist. The detached child shell had no inherited state and couldn't reliably `source scripts/lib/atomic-state.sh` (BASH_SOURCE resolution under env-strip).
+
+**Fix.** All state.json writers — `.husky/post-commit` (inline AND the env-stripped audit heredoc), `atomic-state.sh`, `worker-trigger.sh`, every `sprint-*.sh` — acquire the **canonical path** `$LOCK_DIR/state-<slug>.lock` via `scripts/lib/atomic-state.sh::atomic_update_state`:
+
+```bash
+source "$REPO/scripts/lib/atomic-state.sh"
+atomic_update_state "$SLUG" "$JQ_FILTER"
+```
+
+The env-stripped subprocess uses the new wrapper `scripts/sprint-state-append.sh` (env-strip-safe; resolves repo root from `BASH_SOURCE` then sources `atomic-state.sh`):
+
+```bash
+bash "$REPO/scripts/sprint-state-append.sh" "$SLUG" "$JQ_REUSE_AUDIT_APPEND"
+```
+
+**Verify.** Run the 20-writer stress harness:
+
+```bash
+bash scripts/test/stress-state-lock.sh <slug> 20
+# expected: stress: PASS (20 writers, 0 corruption)
+```
+
+The harness simulates four caller classes × 5 each in parallel: post-commit appends, advance-phase writes, worker-trigger appends, sprint-checkin writes. Acceptance assertions:
+
+- `jq empty docs/sprints/<slug>/state.json` (parses)
+- `grep -c '^}$' state.json` returns `1` (single closing brace)
+- All four writer classes' entries present in their target arrays
+- No cross-leak between `gate_bypasses[]` and `reuse_audits[]`
+
+**Invariant I-1 (load-bearing).** For any slug, every state.json write acquires the same path `$LOCK_DIR/state-<slug>.lock`. CI check:
+
+```bash
+grep -rn 'STATE_LOCK\|\.lock\b' scripts/ .husky/ | grep -v atomic-state.sh
+# expected: empty
+```
+
+**Recovery from a corrupt state.json.** `atomic-state.sh::recover_state_from_bak <slug>` restores from `state.json.bak` (written before every successful update).
+
+---
 
 ### Bug patterns to watch for (codified)
 
@@ -834,9 +1059,129 @@ Add any of these by following the "Extending the system" patterns above.
 
 ---
 
+## Audit-driven fix days
+
+> **Status (v0.7.2+):** **IMPLEMENTED in `harness-audit-resolution-and-scope-v1`** (closed 2026-05-19). The `audit-resolution` phase + per-finding tracking + re-fire capability + scope-bounded audit/testgaps gates all shipped together. This section preserves the original design rationale + links the canonical template and a live example.
+>
+> **Canonical template:** [`docs/sprints/_templates/audit-resolutions.md`](../sprints/_templates/audit-resolutions.md) — auto-seeded into the sprint dir on phase entry.
+> **Live example:** [`docs/sprints/harness-truthful-docs-and-wiring-v1/audit-resolutions.md`](../sprints/harness-truthful-docs-and-wiring-v1/audit-resolutions.md) — the 10 HAR-1..10 findings that drove the v0.7.2 sprint.
+
+### The gap
+
+The harness fires `audit` + `testgaps` + `optimize` daemon workers on entry to `verifying` phase (Day 11-12). When they produce real findings — like `docs/sprints/audit-driven-fidelity-v1/worker-output/audit.json` did with **9 vulnerabilities (riskScore=72)** including a high-severity command-injection in `.claude/helpers/github-safe.js:52` — there are only 2 days (Day 12 pre-deploy + Day 13 deploy) before sprint-end. That's not enough time to actually FIX 9 findings; the natural failure mode is "bypass with rationale" or "defer to follow-up" — which is the corner-cutting pattern that drove this sprint.
+
+### What we actually need
+
+The 14-day appetite must explicitly carve out **4 days of audit-resolution capacity AFTER verify runs but BEFORE sprint-end**. Concrete shape:
+
+| Day        | Phase                       | Worker fires                               | Capacity for fixes                                  |
+| ---------- | --------------------------- | ------------------------------------------ | --------------------------------------------------- |
+| Day 9      | building (Wave-N close)     | `audit-light`, `testgaps-light` (advisory) | Findings logged; fix during next Wave               |
+| **Day 10** | **verifying (FULL)**        | `audit`, `testgaps`, `optimize` (BLOCKING) | **Real audit fires here, NOT Day 11-12**            |
+| **Day 11** | **fix-day-1**               | re-run audit after each fix                | **NEW PHASE** — operator addresses findings         |
+| **Day 12** | **fix-day-2 OR pre-deploy** | re-run audit; advance only when clean      | Findings ≤ acceptance threshold or cut to follow-up |
+| Day 13     | deploy                      | (no fire)                                  | Workflow pause for human gate                       |
+| Day 14     | retro                       | `document` + `consolidate`                 | Patterns extracted; findings → memory               |
+
+This requires:
+
+1. **New phase in `phase-manifest.json`**: `audit-resolution` between `verifying` and `pre-deploy`. Required artifacts: `audit-resolutions.md` documenting each finding with status (fixed / deferred-with-AC / accepted-with-rationale). Required state field: `state.audit_findings_resolved_count == state.audit_findings_total` OR explicit `audit_findings_deferred[]` with each entry tagging the follow-up sprint slug.
+2. **Re-fire audit on phase entry to `audit-resolution`** AND on each manual `re-audit` trigger so operators see progress against the finding list.
+3. **Verify-fail = not-blocking-but-recorded.** Currently `verify-worker-audit` is BLOCKING (`phase-workers.json` line 33). With audit-resolution phase, verifying becomes the gate that _populates_ the finding list; resolution happens in its own phase with its own appetite.
+4. **`audit-driven-fidelity-v1` IS the prior art** — that sprint's `worker-output/audit.json` shows the exact finding shape (`vulnerabilities[]` with severity/file/line/description + riskScore + recommendations[]) the resolution phase must consume.
+
+### Why this wasn't in v0.7.0/v0.7.1 (historical)
+
+- Adding a new phase requires updates in 7 places per the "Adding a new phase" recipe above. Each existing sprint's gate_history would need to be backfilled or skipped by the replay validator.
+- The audit-finding-to-AC mapping (which findings get fixed, which get deferred to follow-up sprint as new ACs) is a workflow design problem worth its own appetite — not a tacked-on patch.
+- `audit-resolution` phase + per-finding tracking + re-fire capability is a substantial chunk of work (~6 ACs estimated).
+
+### As implemented in `harness-audit-resolution-and-scope-v1` (v0.7.2)
+
+19 ACs delivered across 4 waves. Wave map:
+
+- **W1 (AC-1..4)** — scope-bounded workers: `gate_audit_blocks` accepts `<slug>` arg + partitions findings (in-scope blocks, out-of-scope advisory); new `gate_optimize_scope_filter`; `sprint-verify.sh` passes `$SLUG`; `phase-workers.json` v1.0→1.1 + per-worker `worker_scope` map. See [`USAGE.md` §3 — Worker scope](./USAGE.md#worker-scope-v072).
+- **W2 (AC-5..8)** — `audit-resolution` phase added (between `verifying` and `pre-deploy`); new predicate kind `audit_resolution_complete`; NEW `scripts/sprint-audit-resolve.sh` (interactive triage walker with `--status` + `--finding HAR-N {fix|defer|accept}` programmatic mode); NEW `scripts/sprint-audit-rerun.sh` (env-stripped audit re-fire + FIXED/REGRESSION/UNCHANGED diff + consecutive-regression streak counter); NEW template `docs/sprints/_templates/audit-resolutions.md`.
+- **W3 (AC-9..18)** — 10 HAR security fixes in `.claude/helpers/{github-safe,memory,session,statusline}.js`: command-injection (HAR-1/5), AES-256-GCM at-rest encryption (HAR-2/4) via node built-in crypto with 0600 key file + atomic plaintext→encrypted migration, UUID session IDs (HAR-3), input validation (HAR-6/7), error-handling discipline (HAR-8/10), atomic tmp file via `O_EXCL` (HAR-9). 45/45 tests passing.
+- **W4 (AC-19)** — replay-validator backward-compat (`phase_manifest_version_seen` per closed sprint), `sprint-status.sh` resolution fix, post-commit Edit-tool atomicity respect, docs+polish.
+
+**Exit predicate:** `state.audit_findings_resolved_count + audit_findings_deferred[].length + audit_findings_accepted[].length == audit_findings_total` AND every deferred entry has non-empty `deferred_to_sprint` + `ac_id`. Vacuous PASS when `audit_findings_total == 0`.
+
+### Companion (also delivered in v0.7.2) — scope-bounded workers
+
+A parallel gap surfaced during W5 dogfood: verify-phase workers (`audit`, `testgaps`, `optimize`) currently scan the ENTIRE repository, producing 10+ pre-existing findings on every sprint regardless of which files this sprint touched. Without scope-bounding, the audit-resolution loop never converges — every fix cycle resurfaces noise from files outside the current sprint's scope.
+
+Required parallel work alongside `harness-audit-resolution-v1`:
+
+- `worker-trigger.sh::trigger_worker` accepts `--scope=files-touched` arg sourced from spec `## Files touched`.
+- `phase-workers.json` declares per-worker scope defaults (verify-\* workers default to files-touched).
+- Audit/testgaps/optimize prompt templates include explicit "ONLY review files in $FILES_TOUCHED" constraint when scope is set.
+- `gate_audit_blocks` rechecks findings against scope before recording fail (drops out-of-scope findings to advisory).
+- Mirror the existing `gate_testgaps_blocks` scope-bound pattern (already filters by spec `## Files touched` per harness-parallel-safety-v2 AC-3).
+
+**Why both must ship before v0.8**: without scope-bounding, every fresh sprint that runs verify will surface the same pre-existing findings → operators desensitize to real audit signal → the audit-resolution-v1 infrastructure becomes ceremony rather than enforcement. Signal-to-noise is load-bearing.
+
+### Operator guidance (v0.7.2+)
+
+Sprints that touch security-sensitive code (auth/RLS/secrets/payments) should:
+
+1. Allocate Days 12–13 as **audit-resolution capacity** — the phase is a peer of verify/pre-deploy, not a slack day. With 5+ findings, expect both days consumed.
+2. Run `bash scripts/sprint-verify.sh` MANUALLY on Day 8 to surface findings early so build still has runway to fix in-line vs deferring.
+3. Use `bash scripts/sprint-audit-resolve.sh --finding HAR-N {fix|defer|accept}` programmatically when scripting triage; default interactive mode walks all findings sequentially.
+4. NEVER bypass `verify-worker-audit` or `audit-findings-exit-predicate` to ship a known-vulnerable diff. Defer with a named follow-up sprint instead — `audit_findings_deferred[]` is a different signal than `gate_bypasses[]` and surfaces in retro + dashboard.
+
+---
+
+## Worker scoping
+
+> **Landed in v0.7.2** (`harness-audit-resolution-and-scope-v1` W1, AC-1..4). Operator-facing details: [`USAGE.md` §3 — Worker scope](./USAGE.md#worker-scope-v072). This subsection covers the implementation contract for developers adding scope-bounding to a new worker.
+
+### The three scope strategies
+
+| `scope`         | When to use                                                                                                                                               | `scope_mode`                | Status                                                                                                                                          |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `files-touched` | Worker output should only block on findings inside `state.files_touched[]`. Out-of-scope findings logged as advisory `[OUT/<severity>]` stderr lines.     | `post-filter`               | Implemented in v0.7.2. Applied at gate-eval time (NOT at worker invocation). Locked default (Sketch A).                                         |
+| `repo`          | Worker is genuinely repo-wide (e.g., `optimize` — recommendations on the whole codebase are still useful, not noisy).                                     | `none`                      | Implemented (back-compat default for unmapped workers).                                                                                         |
+| `spec-h1`       | Future: scope via env-var or prompt-inject at worker invocation. Useful when the LLM-backed worker can short-circuit its own scan given a file allowlist. | `env-var` / `prompt-inject` | **Placeholder.** Not implemented in v0.7.2. Reserved in schema so future workers can declare intent without re-versioning `phase-workers.json`. |
+
+### The testgaps → audit retrofit pattern
+
+`gate_testgaps_blocks` (`scripts/lib/worker-gates.sh:58-106`) is the canonical reference implementation. Originally shipped in `harness-parallel-safety-v2` AC-3, it accepts `<output.json> <slug>`, reads `state.files_touched[]` (with spec.md `## Files touched` fallback for legacy sprints), and partitions worker findings into in-scope (block on any) vs out-of-scope (advisory log only). In v0.7.2, `gate_audit_blocks` was retrofitted to mirror this exact pattern (`worker-gates.sh:25-127`):
+
+1. Accept `<output.json> <slug>` (was `<output.json>` only).
+2. Read `state.files_touched[]` via `jq -r '.files_touched[]?'` with fallback to awk-parse of spec.md `## Files touched`.
+3. Iterate worker findings (`.findings.vulnerabilities[]` for audit; union with legacy `.vulnerabilities[]` for back-compat).
+4. For each finding, check if its `file` field has string-suffix overlap with any `files_touched[]` entry.
+5. Partition into `in_scope[]` + `out_of_scope[]` bash arrays.
+6. Log `[OUT/<severity>] <file>:<line> — <desc>` for each out-of-scope finding on stderr (advisory).
+7. Block (exit 1) **only** on in-scope findings of severity ≥ threshold. Exit 0 if all findings out-of-scope.
+
+### Recipe — adding scope-bounding to a new worker
+
+When introducing a new blocking worker that should respect scope:
+
+1. **Declare the scope in `phase-workers.json`** under the phase's `worker_scope` block:
+   ```json
+   "worker_scope": {
+     "your-worker": { "scope": "files-touched", "scope_mode": "post-filter" }
+   }
+   ```
+2. **Update the gate** in `scripts/lib/worker-gates.sh` to accept `<slug>` as a second arg. Copy the `gate_testgaps_blocks` body and adapt the finding-iteration loop to your worker's output schema (declared in `phase-workers.json` `expects[]`).
+3. **Update `sprint-verify.sh`** (or whichever script invokes the gate) to pass `$SLUG`.
+4. **Smoke-test** against a closed sprint with known out-of-scope findings: gate should exit 0 + emit advisory log lines.
+5. **Bump `phase-workers.json.version`** if the scope-bound worker also gains new structural fields. Otherwise leave at current minor.
+
+### Source of truth
+
+`state.json.files_touched[]` is canonical, populated by `sprint-amend-spec.sh --lock` from spec.md §H1 and amended by `sprint-amend-spec.sh --add-file`. The spec.md `## Files touched` section parse is a fallback for sprints predating spec-lock instrumentation. Never write `files_touched[]` directly — always route through `atomic_update_state`.
+
+---
+
 ## Known limitations
 
 > These 7 gaps were re-confirmed in the 2026-05-17 P5 QA audit (gaps #28-34). All upstream / by-design / environment-dependent — not addressable locally.
+>
+> **Resolved in v0.7.2** (sprint `harness-audit-resolution-and-scope-v1`): the prior limitations "`audit-resolution` phase doesn't exist" and "verify workers run repo-wide regardless of sprint scope" have both landed. The `audit-resolution` phase + scope-bounded `gate_audit_blocks` shipped together so the audit-resolution loop converges on in-scope signal rather than repo-wide noise. See [`## Audit-driven fix days`](#audit-driven-fix-days) and [`## Worker scoping`](#worker-scoping) above.
 
 1. **7 of 12 daemon workers implemented in v3.7.0-alpha.42** _(gap #28)_ — `ultralearn`, `deepdive`, `refactor` (during sprint paused), `benchmark`, `preload` are config-only. No workaround until ruflo ships them.
 
@@ -885,6 +1230,7 @@ Expanded capability coverage from 33 → 71 ACs. New tooling:
 
 - [`USAGE.md`](./USAGE.md) — user-facing usage guide (this doc's user counterpart)
 - [`QUICKSTART.md`](./QUICKSTART.md) — 5-minute first-sprint walkthrough
+- [`SCRIPTS.md`](./SCRIPTS.md) — canonical inventory of every harness script (90+ files)
 - [`README.md`](./README.md) — architecture + dir layout
 - [`~/.claude/plans/hazy-gathering-kettle.md`](file:///Users/gio/.claude/plans/hazy-gathering-kettle.md) — original design with 36 decisions
 - [`../ruflo-sessions/ruflo-for-lifeos.md`](../ruflo-sessions/ruflo-for-lifeos.md) — full ruflo feature reference

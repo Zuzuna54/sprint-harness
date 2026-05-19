@@ -244,6 +244,111 @@ _pp_pred_sub_step_recorded() {
   return 1
 }
 
+# W2 (harness-audit-resolution-and-scope-v1, AC-5): audit-resolution-complete
+# predicate. Pure-state.json (per architect C1 ship-gate). Asserts:
+#   resolved_count + deferred[].length + accepted[].length == audit_findings_total
+#   AND every deferred[] entry has non-empty deferred_to_sprint + ac_id
+#
+# Vacuous PASS when audit_findings_total == 0 (no findings → nothing to resolve).
+_pp_pred_audit_resolution_complete() {
+  local slug="$1"
+  local state_file
+  state_file="$_pp_repo_root/docs/sprints/$slug/state.json"
+  if [ ! -f "$state_file" ]; then
+    echo "[FAIL] audit_resolution_complete: state.json not found for $slug" >&2
+    return 1
+  fi
+
+  local total resolved deferred_count accepted_count
+  total=$(jq -r '.audit_findings_total // 0' "$state_file")
+  resolved=$(jq -r '.audit_findings_resolved_count // 0' "$state_file")
+  deferred_count=$(jq -r '.audit_findings_deferred // [] | length' "$state_file")
+  accepted_count=$(jq -r '.audit_findings_accepted // [] | length' "$state_file")
+
+  # Vacuous PASS when no findings
+  if [ "$total" -eq 0 ]; then
+    return 0
+  fi
+
+  local total_processed=$((resolved + deferred_count + accepted_count))
+  if [ "$total_processed" -ne "$total" ]; then
+    echo "[FAIL] audit_resolution_complete: $resolved resolved + $deferred_count deferred + $accepted_count accepted = $total_processed (expected $total)" >&2
+    return 1
+  fi
+
+  # Every deferred[] entry must have non-empty deferred_to_sprint + ac_id
+  local incomplete_deferred
+  incomplete_deferred=$(jq -r '
+    .audit_findings_deferred // []
+    | map(select((.deferred_to_sprint // "") == "" or (.ac_id // "") == ""))
+    | length
+  ' "$state_file")
+  if [ "$incomplete_deferred" -gt 0 ]; then
+    echo "[FAIL] audit_resolution_complete: $incomplete_deferred deferred[] entries missing deferred_to_sprint or ac_id" >&2
+    return 1
+  fi
+
+  return 0
+}
+
+# W1 (harness-review-resolution-v1, AC-1): review_resolution_complete
+# UNIFIED predicate. Sums findings across producers (audit + knip + sonar).
+# Falls back to legacy audit_findings_* fields for back-compat with v0.7.2
+# sprints (union view).
+#
+# Total = review_findings_total OR (audit_findings_total + knip_findings_total + sonar_findings_total) OR (.review_findings // [] | length)
+# Resolved = review_findings_resolved_count + (audit_findings_resolved_count legacy)
+# Deferred[] = review_findings_deferred[] OR audit_findings_deferred[]
+# Accepted[] = review_findings_accepted[] OR audit_findings_accepted[]
+#
+# Exit: resolved + deferred + accepted == total
+# AND every deferred[] has non-empty {deferred_to_sprint, ac_id}
+_pp_pred_review_resolution_complete() {
+  local slug="$1"
+  local state_file
+  state_file="$_pp_repo_root/docs/sprints/$slug/state.json"
+  if [ ! -f "$state_file" ]; then
+    echo "[FAIL] review_resolution_complete: state.json not found for $slug" >&2
+    return 1
+  fi
+
+  # Union total: review_findings if present, else legacy audit_findings_total
+  local total resolved deferred_count accepted_count
+  total=$(jq -r '
+    if (.review_findings_total // null) != null then .review_findings_total
+    elif (.review_findings // []) | length > 0 then (.review_findings | length)
+    else (.audit_findings_total // 0)
+    end
+  ' "$state_file")
+  resolved=$(jq -r '.review_findings_resolved_count // .audit_findings_resolved_count // 0' "$state_file")
+  deferred_count=$(jq -r '((.review_findings_deferred // .audit_findings_deferred // []) | length)' "$state_file")
+  accepted_count=$(jq -r '((.review_findings_accepted // .audit_findings_accepted // []) | length)' "$state_file")
+
+  if [ "$total" -eq 0 ]; then
+    return 0
+  fi
+
+  local total_processed=$((resolved + deferred_count + accepted_count))
+  if [ "$total_processed" -ne "$total" ]; then
+    echo "[FAIL] review_resolution_complete: $resolved resolved + $deferred_count deferred + $accepted_count accepted = $total_processed (expected $total)" >&2
+    return 1
+  fi
+
+  # Every deferred[] entry must have non-empty deferred_to_sprint + ac_id
+  local incomplete_deferred
+  incomplete_deferred=$(jq -r '
+    (.review_findings_deferred // .audit_findings_deferred // [])
+    | map(select((.deferred_to_sprint // "") == "" or (.ac_id // "") == ""))
+    | length
+  ' "$state_file")
+  if [ "$incomplete_deferred" -gt 0 ]; then
+    echo "[FAIL] review_resolution_complete: $incomplete_deferred deferred[] entries missing deferred_to_sprint or ac_id" >&2
+    return 1
+  fi
+
+  return 0
+}
+
 # ── Top-level: check all predicates for a phase ──────────────────────────────
 
 check_phase_requirements() {
@@ -356,6 +461,12 @@ check_phase_requirements() {
           "$(echo "$pred" | jq -r '.path // "state.json"')" \
           "$(echo "$pred" | jq -r '.json_path')" \
           "$(echo "$pred" | jq -c '.in')" || rc=$?
+        ;;
+      audit_resolution_complete)
+        _pp_pred_audit_resolution_complete "$slug" || rc=$?
+        ;;
+      review_resolution_complete)
+        _pp_pred_review_resolution_complete "$slug" || rc=$?
         ;;
       *)
         echo "[FAIL] unknown predicate kind '$kind' in required_state_fields" >&2

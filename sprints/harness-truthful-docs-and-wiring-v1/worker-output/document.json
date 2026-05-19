@@ -1,0 +1,51 @@
+{
+  "timestamp": "2026-05-19T17:20:17.519Z",
+  "mode": "headless",
+  "workerType": "document",
+  "model": "haiku",
+  "durationMs": 98924,
+  "executionId": "document_1779211118595_sk0rpp",
+  "success": true,
+  "findings": {
+    "sections": [
+      {
+        "title": "Documentation Generation Plan (Text Summary)",
+        "content": "\n",
+        "level": 2
+      },
+      {
+        "title": "Phase 1: High-Leverage Utility Functions (@lifeos/utils)",
+        "content": "\n**dates.ts** → JSDoc for getWeekStart(), formatDate(), and any re-exports from date-fns\n- Add: Usage examples showing timezone handling, week boundary behavior\n- Inline: Comment any non-obvious logic around DST or month boundaries\n\n**macros.ts** → Document TDEE calculation, macro cycling, P/C/F split logic\n- Add: JSDoc with examples showing input ranges, why cycling matters for bulking/cutting\n- Inline: Explain why certain divisors are used, edge cases for minimal calorie days\n\n**cost.ts** → Document budget calculations, projection logic, category rollups\n- Add: Parameter descriptions, return type specs, example inputs/outputs\n- Inline: Why certain costs are attributed to weeks vs. months\n\n**scheduling.ts** → Document block placement, conflict detection, timezone conversions\n- Add: Examples of typical schedules, edge cases (daylight saving, cross-timezone)\n- Inline: Logic for muscle group spacing (48-hour buffer), why certain patterns fail\n\n**Other utilities** (logger.ts, errors.ts, performance.ts, readiness.ts, nutritionFeedback.ts, rrule.ts): Follow same pattern—JSDoc + examples + non-obvious logic comments\n\n---\n\n",
+        "level": 3
+      },
+      {
+        "title": "Phase 2: Lambda API Route Documentation",
+        "content": "\n**Each Lambda module** (ai-scheduler, workouts, nutrition, planner, grocery, health, supplements, auth, finances):\n- List all routes (method + path) in module README\n- Add JSDoc to each route handler function explaining: what it does, who calls it (web/mobile/cron), what it validates (Zod schema), what errors it throws\n- Document input/output shape with examples\n\n**Example route documentation**:\n```\nPOST /v1/workouts → createWorkout(event)\nValidates: WorkoutCreateSchema (Zod)\nReturns: { success: true, data: Workout }\nThrows: 400 (validation), 401 (auth), 409 (spacing conflict)\n```\n\n---\n\n",
+        "level": 3
+      },
+      {
+        "title": "Phase 3: Complex Logic Documentation",
+        "content": "\n**Pipeline V2 (runPipeline.ts)**: Document 7-stage execution (foundation → week_shape → workouts/meals/supplements → aggregate → verify), parallel fanout, error recovery\n- Inline: Why stages run sequentially, what happens on timeout, how results propagate\n\n**Rate Limiting**: Document daily caps per scope (full: 5, partial: 4, sickDay: 10)\n- Inline: Why certain triggers increment counters, how reset works\n\n**Muscle Spacing**: Document 48-hour buffer logic, why it matters (CNS recovery)\n- Inline: Edge cases (week boundaries, timezone midnight), why specific muscle groups can coexist\n\n**Macro Cycling**: Document bulk/cut/recomp phases, weekly adjustments\n- Inline: Why certain formulas prevent metabolic adaptation\n\n---\n\n",
+        "level": 3
+      },
+      {
+        "title": "Phase 4: Module READMEs",
+        "content": "\nCreate for each package and Lambda module:\n- **Purpose**: One sentence explaining what it does\n- **Key Exports**: List of exported functions/types\n- **Usage Examples**: Typical call patterns\n- **Integration Points**: How it connects to other modules\n- **Error Handling**: Common error codes and what to do\n\n---\n\n",
+        "level": 3
+      },
+      {
+        "title": "Execution Order (by impact):",
+        "content": "1. @lifeos/utils/macros.ts, cost.ts, scheduling.ts (used by 20+ routes)\n2. ai-scheduler Lambda routes (core scheduling trigger)\n3. Pipeline V2 orchestration (system brain)\n4. Remaining utilities (dates, logger, errors)\n5. Other Lambda modules (workouts, nutrition, planner, etc.)\n\nThis approach prioritizes functions with highest call-site density—improving their documentation multiplies impact across the codebase.\n</summary>",
+        "level": 3
+      }
+    ],
+    "codeBlocks": [
+      {
+        "language": "text",
+        "code": "POST /v1/workouts → createWorkout(event)\nValidates: WorkoutCreateSchema (Zod)\nReturns: { success: true, data: Workout }\nThrows: 400 (validation), 401 (auth), 409 (spacing conflict)"
+      }
+    ]
+  },
+  "rawOutputPreview": "<analysis>\nThe LifeOS codebase requires systematic documentation across three layers: (1) Lambda API handlers (10 modules with ~120 routes), (2) Utility packages in @lifeos/utils (dates, macros, scheduling, cost, logging, errors), and (3) Complex orchestration logic (Pipeline V2, rate limiting, muscle spacing, grocery aggregation).\n\nFrom the examined context:\n\n**Handler Pattern** (from .claude/rules/lambda.md): All Lambda handlers follow a standard structure with router-based dispatch. The ai-scheduler-lambda/handler.ts exemplifies this—it's already well-documented with dual entry points (EventBridge cron + API Gateway). The pattern is: OPTIONS preflight → route matching → handler invocation → error handling with structured logging.\n\n**Key Undocumented Areas**:\n- pipelineRoutes.ts: The main API surface for Pipeline V2 (POST /generate-pipeline, GET /pipelines/:id, POST /stages/:stage/retry) lacks inline documentation despite being the critical flow orchestrator.\n- @lifeos/utils modules: dates.ts, cost.ts, scheduling.ts, macros.ts have minimal JSDoc. These are heavily used across 10 Lambda modules and web components—they're high-leverage targets.\n- Complex logic: Pipeline V2 runPipeline.ts (7-stage sequential + parallel fanout), rate limiting (daily caps per scope), muscle group spacing (48-hour buffer logic), macro calculations (TDEE, cycling, P/C/F splits), grocery aggregation (deduplication + quantity rollup), cost projections.\n\n**Documentation Leverage**: Focusing on @lifeos/utils first yields maximum impact—each exported function serves 3-5 Lambda routes + 10+ web components. Pipeline orchestration comes second because it's the system's heartbeat.\n\n**Constraints from existing patterns**:\n- JSDoc format: @param {type} name, @returns {type}, @throws {type} error\n- Comments explain WHY not WHAT (per CLAUDE.md preferences)\n- Inline comments only for non-obvious logic (hidden constraints, workarounds, subtle invariants)\n- Examples show typed usage, not pseudo-code\n- E",
+  "rawOutputLength": 5562
+}

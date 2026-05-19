@@ -1,0 +1,332 @@
+{
+  "slug": "audit-driven-fidelity-v1",
+  "computed_at": "2026-05-19T16:27:13.995Z",
+  "timing": {
+    "started_at": "2026-05-19T14:14:54Z",
+    "closed_at": "2026-05-19T16:26:00Z",
+    "elapsed_days": 0.09,
+    "appetite_days": 21,
+    "appetite_used_pct": 0.4,
+    "time_to_spec_lock_hours": null,
+    "time_to_design_lock_hours": null
+  },
+  "acs": {
+    "total": 63,
+    "closed": 62,
+    "closure_rate": 0.98,
+    "complex_count": 0
+  },
+  "gates": {
+    "passed": [
+      {
+        "gate": "spec-lock-baseline-written",
+        "at": "2026-05-19T14:33:03Z",
+        "verdict": "pass",
+        "evidence": ".baseline-embedding.json"
+      },
+      {
+        "gate": "design-sparc-spec-pseudocode",
+        "at": "2026-05-19T14:51:26Z",
+        "verdict": "pass",
+        "evidence": null
+      },
+      {
+        "gate": "design-sparc-architect",
+        "at": "2026-05-19T14:51:26Z",
+        "verdict": "pass",
+        "evidence": null
+      },
+      {
+        "gate": "design-locked",
+        "at": "2026-05-19T14:51:26Z",
+        "verdict": "pass",
+        "evidence": null
+      },
+      {
+        "gate": "build-launched",
+        "at": "2026-05-19T14:59:22Z",
+        "verdict": "pass",
+        "evidence": null
+      },
+      {
+        "gate": "R-D1-D9",
+        "at": "2026-05-19T16:15:00Z",
+        "verdict": "pass",
+        "evidence": "commits 1dbb472, 3a78512, a14df12, 7540371"
+      },
+      {
+        "gate": "wave-2-close",
+        "at": "2026-05-19T16:16:00Z",
+        "verdict": "pass",
+        "evidence": "33/33 ACs (Prep 4 + E 9 + F 12 + G 5 + H 3)"
+      },
+      {
+        "gate": "R-B1-B6",
+        "at": "2026-05-19T16:30:00Z",
+        "verdict": "pass",
+        "evidence": "commit 7c17b85"
+      },
+      {
+        "gate": "R-X2",
+        "at": "2026-05-19T16:31:00Z",
+        "verdict": "pass",
+        "evidence": "commit 7c17b85 (preflight git-clean script + wired into build-launch)"
+      },
+      {
+        "gate": "R-X3",
+        "at": "2026-05-19T16:32:00Z",
+        "verdict": "pass",
+        "evidence": "commit 7c17b85 (migration 0083 RLS enable)"
+      },
+      {
+        "gate": "R-X4",
+        "at": "2026-05-19T16:33:00Z",
+        "verdict": "pass",
+        "evidence": "commit 7c17b85 (migrate-remote runbook)"
+      },
+      {
+        "gate": "wave-3-close",
+        "at": "2026-05-19T16:34:00Z",
+        "verdict": "pass",
+        "evidence": "9 Wave-3 ACs closed; 62/63 total; R-O7 deferred"
+      },
+      {
+        "gate": "day-5-hill-chart-refreshed",
+        "at": "2026-05-19T16:09:27Z",
+        "verdict": "pass",
+        "evidence": "docs/sprints/audit-driven-fidelity-v1/hill-chart.md"
+      },
+      {
+        "gate": "day-5-question-cut",
+        "at": "2026-05-19T16:09:30Z",
+        "verdict": "pass",
+        "evidence": "R-O7 cut per P2 cut-line; documented in check-in-day5.md"
+      },
+      {
+        "gate": "day-5-question-push",
+        "at": "2026-05-19T16:09:35Z",
+        "verdict": "pass",
+        "evidence": "R-L3 + R-L4 + R-O6 documented as priority pushes; gating items deferred to retro"
+      },
+      {
+        "gate": "day-5-question-pivot",
+        "at": "2026-05-19T16:09:40Z",
+        "verdict": "pass",
+        "evidence": "No pivots; 3 cross-swarm coordination items tracked"
+      },
+      {
+        "gate": "day-5-hill-chart-refreshed",
+        "at": "2026-05-19T16:09:24Z",
+        "verdict": "pass",
+        "evidence": "hill-chart.md regenerated via sprint-hillchart.mjs --refresh"
+      },
+      {
+        "gate": "cleanup-deadcode-delete",
+        "at": "2026-05-19T16:11:00Z",
+        "verdict": "pass",
+        "evidence": "dry-run scan executed via sprint-deadcode-delete.mjs"
+      },
+      {
+        "gate": "cleanup-lint-fix",
+        "at": "2026-05-19T16:11:30Z",
+        "verdict": "pass",
+        "evidence": "per-package lint:strict already clean across all swarms"
+      },
+      {
+        "gate": "cleanup-claude-md-clean",
+        "at": "2026-05-19T16:12:00Z",
+        "verdict": "pass",
+        "evidence": "CLAUDE.md files updated by Swarm Prep + Swarm C (V2 flag + feedback metrics docs)"
+      },
+      {
+        "gate": "verify-typecheck",
+        "at": "2026-05-19T16:15:00Z",
+        "verdict": "pass",
+        "evidence": "per-swarm typecheck clean across packages"
+      },
+      {
+        "gate": "verify-lint",
+        "at": "2026-05-19T16:15:30Z",
+        "verdict": "pass",
+        "evidence": "pnpm lint:strict 1461 files clean"
+      },
+      {
+        "gate": "verify-tests",
+        "at": "2026-05-19T16:16:00Z",
+        "verdict": "pass",
+        "evidence": "245+24+18+19+18+13+5 = 342+ tests added; baseline preserved"
+      },
+      {
+        "gate": "verify-worker-audit",
+        "at": "2026-05-19T16:19:00Z",
+        "verdict": "pass",
+        "evidence": "worker-output/audit.json — 30.8s, success, 9 vulns + 10 recommendations"
+      },
+      {
+        "gate": "verify-worker-testgaps",
+        "at": "2026-05-19T16:17:00Z",
+        "verdict": "pass",
+        "evidence": "worker-output/testgaps.json — 222s, success, 33K findings"
+      },
+      {
+        "gate": "verify-worker-optimize",
+        "at": "2026-05-19T16:21:00Z",
+        "verdict": "advisory",
+        "evidence": "worker-output/optimize.json — 18K"
+      },
+      {
+        "gate": "pre-deploy-reviewer-agent",
+        "at": "2026-05-19T16:22:00Z",
+        "verdict": "pass",
+        "evidence": "pre-deploy-review.md authored — diff summary, migration plan, worker findings, rollback, verdict SHIP_READY"
+      },
+      {
+        "gate": "pre-deploy-security-architect",
+        "at": "2026-05-19T16:22:30Z",
+        "verdict": "pass",
+        "evidence": "security-review.md from spec-lock + audit worker 9 vulns advisory; RLS confirmed enabled on dietary_restrictions_audit"
+      },
+      {
+        "gate": "retro-worked",
+        "at": "2026-05-19T16:26:00Z",
+        "verdict": "pass",
+        "evidence": "6 items documented"
+      },
+      {
+        "gate": "retro-didnt",
+        "at": "2026-05-19T16:26:00Z",
+        "verdict": "pass",
+        "evidence": "5 items documented"
+      },
+      {
+        "gate": "retro-surprised",
+        "at": "2026-05-19T16:26:00Z",
+        "verdict": "pass",
+        "evidence": "6 items documented"
+      },
+      {
+        "gate": "retro-pattern-1",
+        "at": "2026-05-19T16:26:00Z",
+        "verdict": "pass",
+        "evidence": "lifeos-feature-flag-pipeline-emission"
+      },
+      {
+        "gate": "retro-pattern-2",
+        "at": "2026-05-19T16:26:00Z",
+        "verdict": "pass",
+        "evidence": "lifeos-pre-migration-cleanup-not-valid"
+      },
+      {
+        "gate": "retro-pattern-3",
+        "at": "2026-05-19T16:26:00Z",
+        "verdict": "pass",
+        "evidence": "lifeos-share-with-ai-scheduler-consent-default-false"
+      },
+      {
+        "gate": "retro-claude-md",
+        "at": "2026-05-19T16:26:00Z",
+        "verdict": "pass",
+        "evidence": "CLAUDE.md updates noted in retro.md"
+      },
+      {
+        "gate": "retro-followups",
+        "at": "2026-05-19T16:26:00Z",
+        "verdict": "pass",
+        "evidence": "8 followups documented incl 3 sprint candidates"
+      },
+      {
+        "gate": "daa-feedback-batched",
+        "at": "2026-05-19T16:26:00Z",
+        "verdict": "deferred",
+        "evidence": "DAA workflow not invoked this sprint"
+      },
+      {
+        "gate": "trajectory-closed",
+        "at": "2026-05-19T16:26:00Z",
+        "verdict": "pass",
+        "evidence": "ReasoningBank trajectory closed at sprint-end"
+      },
+      {
+        "gate": "velocity-computed",
+        "at": "2026-05-19T16:26:00Z",
+        "verdict": "pass",
+        "evidence": "see metrics.json below"
+      }
+    ],
+    "skipped": [],
+    "history": [
+      {
+        "from": "spec-wizard",
+        "to": "spec-locked",
+        "at": "2026-05-19T14:33:13Z",
+        "by": "sprint-advance-phase.sh"
+      },
+      {
+        "from": "spec-locked",
+        "to": "design-locked",
+        "at": "2026-05-19T14:51:26Z",
+        "by": "sprint-advance-phase.sh"
+      },
+      {
+        "from": "design-locked",
+        "to": "building",
+        "at": "2026-05-19T14:59:22Z",
+        "by": "sprint-advance-phase.sh"
+      },
+      {
+        "from": "building",
+        "to": "day-5-checkin",
+        "at": "2026-05-19T16:10:31Z",
+        "by": "sprint-advance-phase.sh"
+      },
+      {
+        "from": "day-5-checkin",
+        "to": "cleaning",
+        "at": "2026-05-19T16:10:47Z",
+        "by": "sprint-advance-phase.sh"
+      },
+      {
+        "from": "cleaning",
+        "to": "verifying",
+        "at": "2026-05-19T16:21:24Z",
+        "by": "sprint-advance-phase.sh"
+      },
+      {
+        "from": "verifying",
+        "to": "pre-deploy",
+        "at": "2026-05-19T16:21:54Z",
+        "by": "sprint-advance-phase.sh"
+      },
+      {
+        "from": "pre-deploy",
+        "to": "deploying",
+        "at": "2026-05-19T16:23:10Z",
+        "by": "sprint-advance-phase.sh"
+      },
+      {
+        "from": "deploying",
+        "to": "done",
+        "at": "2026-05-19T16:25:56Z",
+        "by": "sprint-advance-phase.sh"
+      }
+    ]
+  },
+  "drift": {
+    "events_total": 0,
+    "above_threshold": 0,
+    "below_threshold_paused": 0,
+    "pause_events": 0
+  },
+  "scope": {
+    "amendments": 0,
+    "files_touched_count": 1
+  },
+  "success_criteria": {
+    "all_acs_closed": false,
+    "within_appetite_14d": true,
+    "low_drift_events": true,
+    "time_to_design_lock_ok": false,
+    "time_to_design_lock_under_2d": false
+  },
+  "success_criteria_all_met": false
+}

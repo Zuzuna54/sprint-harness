@@ -1,0 +1,14 @@
+{
+  "checked_at": "2026-05-19T14:14:58Z",
+  "mode": "start",
+  "critical_fail": 0,
+  "warn_count": 1,
+  "checks": {
+    "daemon": { "ok": 1, "detail": "running" },
+    "mcp": { "ok": 1, "detail": "running" },
+    "memory_db": { "ok": 1, "detail": "192 entries" },
+    "memory_decay_cron": { "ok": 1, "detail": "registered" },
+    "graphify": { "ok": 1, "detail": "present" },
+    "husky_hooks": { "ok": 0, "detail": "found 1 of 2 hooks" }
+  }
+}

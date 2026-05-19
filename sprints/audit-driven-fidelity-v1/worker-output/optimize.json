@@ -1,0 +1,132 @@
+{
+  "timestamp": "2026-05-19T16:27:41.243Z",
+  "mode": "headless",
+  "workerType": "optimize",
+  "model": "sonnet",
+  "durationMs": 339981,
+  "executionId": "optimize_1779207721262_iybwyb",
+  "success": true,
+  "findings": {
+    "sections": [
+      {
+        "title": "Performance Analysis",
+        "content": "\n",
+        "level": 2
+      },
+      {
+        "title": "1. N+1 Query Patterns",
+        "content": "\n",
+        "level": 3
+      },
+      {
+        "title": "**HIGH — `acceptSchedule.ts` lines 182–205**",
+        "content": "A `for` loop calls `resolveLinkedEntity()` (a DB `SELECT`) then `db.update(timeBlocks)` **per accepted block**. A 20-block schedule acceptance triggers up to 40 DB round-trips.\n\n```\napps/lambdas/planner-lambda/src/routes/acceptSchedule.ts:182\n```\n\n```typescript\n// CURRENT — N+1\nfor (const block of created) {\n  const link = await resolveLinkedEntity({ id: block.id, ... }) // SELECT per block\n  if (!link) continue\n  await db.update(timeBlocks).set({ linkedEntityId: link.id, ... }) // UPDATE per block\n}\n\n// FIX — batch lookup then single bulkUpdate\nconst resolvable = created.filter(b => ['WORKOUT','MEAL','SUPPLEMENT'].includes(b.type))\nconst links = await Promise.all(resolvable.map(b => resolveLinkedEntity(...).catch(() => null)))\nconst toUpdate = resolvable.flatMap((b, i) => links[i] ? [{ id: b.id, link: links[i]! }] : [])\n// Then batch: Promise.all(toUpdate.map(({ id, link }) => db.update(...).where(eq(timeBlocks.id, id))))\n```\n\n---\n\n",
+        "level": 4
+      },
+      {
+        "title": "**HIGH — `foundation.ts` lines 134–162** (also violates `ctx.userPrefs` contract)",
+        "content": "Three sequential DB reads that are completely independent. The pipeline CLAUDE.md (`ai-scheduler-lambda/CLAUDE.md`) explicitly states *\"Stages MUST NOT re-query these tables — they read from `ctx.userPrefs.*`\"* — the code is still issuing the queries anyway.\n\n```\napps/lambdas/ai-scheduler-lambda/src/pipeline/stages/foundation.ts:134-162\n```\n\n```typescript\n// CURRENT — 3 sequential round-trips + contract violation\nconst [fp]    = await db.select().from(fitnessProfiles).where(...)  // line 134\nconst [_goals] = await db.select().from(goalSettings).where(...)    // line 148\nconst [up]    = await db.select().from(userProfiles).where(...)     // line 158\n\n// FIX — use data already loaded by runPipeline's UserSchedulingPrefs aggregate (AC-48)\n// ctx.userPrefs.fitnessProfile, ctx.userPrefs.goalSettings, ctx.userPrefs.userProfile\n// already exist. Just read them:\nconst fp    = ctx.userPrefs?.fitnessProfile\nconst up    = ctx.userPrefs?.userProfile\n// If ctx.userPrefs is guaranteed by runPipeline, drop the fallback selects entirely.\n```\n\n---\n\n",
+        "level": 4
+      },
+      {
+        "title": "**MEDIUM — `getWeek.ts` lines 121–265** (two sequential fetches outside the `Promise.all`)",
+        "content": "`skippedMealLogs` (line 121) and `supplementPauses` (line 255) are awaited sequentially but depend only on `userId`/`weekStartDateStr`/`weekEndDateStr` — all available before the initial `Promise.all`. They each add one full DB round-trip on the critical path.\n\n```\napps/lambdas/planner-lambda/src/routes/getWeek.ts:67, 121, 255\n```\n\n```typescript\n// CURRENT — 7 total DB calls (Promise.all of 5 + 2 sequential)\nconst [blocks, pauses, recurringBlocks, flagsRow, specialDayRows] = await Promise.all([...])\nconst skippedMealLogs = await db.select()...  // sequential after\nconst workVirtuals    = await expandWorkBlocks(...)  // depends on pauses — ok to be sequential\nconst pauseRows       = await db.select()...  // sequential after\n\n// FIX — include skippedMealLogs + supplementPauses in the first Promise.all (6 → 7 concurrent)\nconst [blocks, pauses, recurringBlocks, flagsRow, specialDayRows, skippedMealLogs, pauseRows] =\n  await Promise.all([\n    db.select().from(timeBlocks)...,\n    db.select().from(modulePauses)...,\n    db.select().from(timeBlocks).where(and(...isNotNull(timeBlocks.recurrenceRule))),\n    db.select().from(goalSettings)...,\n    db.select().from(specialDays)...,\n    db.select({ logDate:..., mealId:... }).from(dailyNutritionLogs)...,  // moved here\n    db.select().from(supplementPauses)...,                               // moved here\n  ])\n// expandWorkBlocks still comes after (needs pauses)\n```\n\n---\n\n",
+        "level": 4
+      },
+      {
+        "title": "2. Unnecessary Re-renders",
+        "content": "\n",
+        "level": 3
+      },
+      {
+        "title": "**MEDIUM — `PlannerView.tsx`** — well-handled, no issues",
+        "content": "`blocksForDate` and `blocksForRange` are correctly wrapped in `useMemo` at lines 328–329. `useCallback` is used throughout. No re-render issues found.\n\n---\n\n",
+        "level": 4
+      },
+      {
+        "title": "3. Caching Opportunities",
+        "content": "\n",
+        "level": 3
+      },
+      {
+        "title": "**HIGH — `getWeek.ts` lines 276–293** — O(n×m) supplement-pause lookup",
+        "content": "For every block in `allBlocks` (potentially 50+), `pauseRows.find()` scans all supplement pauses. This is O(n×m) on every request. Fix with a pre-computed `Map`:\n\n```\napps/lambdas/planner-lambda/src/routes/getWeek.ts:276\n```\n\n```typescript\n// CURRENT — O(n × |pauseRows|) scan per block\nfor (const b of allBlocks) {\n  const overlap = pauseRows.find(\n    (p) => p.userSupplementId === supplementId && p.pausedFrom <= scheduledDate && p.resumesOn >= scheduledDate,\n  )\n}\n\n// FIX — precompute Map<supplementId, PauseRow[]> once before the loop\nconst pauseBySupplementId = new Map<string, typeof pauseRows>()\nfor (const p of pauseRows) {\n  if (!pauseBySupplementId.has(p.userSupplementId)) pauseBySupplementId.set(p.userSupplementId, [])\n  pauseBySupplementId.get(p.userSupplementId)!.push(p)\n}\n\nfor (const b of allBlocks) {\n  const candidatePauses = pauseBySupplementId.get(supplementId) ?? []\n  const overlap = candidatePauses.find(p => p.pausedFrom <= scheduledDate && p.resumesOn >= scheduledDate)\n}\n```\n\n",
+        "level": 4
+      },
+      {
+        "title": "**MEDIUM — `foundation.ts` lines 370–436** — 4 more sequential writes",
+        "content": "After computing `target`, the stage does: `SELECT nutrition_targets → UPDATE/INSERT → UPDATE goal_settings → SELECT training_phases → INSERT training_phase → seedDefaultPantry()`. The two reads (`SELECT nutrition_targets` at line 370 and `SELECT training_phases` at line 414) can run in parallel with each other:\n\n```typescript\n// FIX\nconst [existingTarget, activePhase] = await Promise.all([\n  db.select({ id: nutritionTargets.id }).from(nutritionTargets).where(eq(nutritionTargets.userId, userId)).limit(1),\n  db.select({ id: trainingPhases.id }).from(trainingPhases).where(and(eq(trainingPhases.userId, userId), isNull(trainingPhases.endedAt))).limit(1),\n])\n// Then: UPDATE/INSERT targets + UPDATE goalSettings + conditionally INSERT training_phase\n// seedDefaultPantry can also run concurrently with goal_settings update\n```\n\n---\n\n",
+        "level": 4
+      },
+      {
+        "title": "4. Memory Leaks",
+        "content": "\n**None found.** All `useEffect` hooks with timers and event listeners have correct cleanup:\n- `Greeting.tsx:39` — `clearInterval(id)` ✓\n- `ChatDrawer.tsx:44-45` — `removeEventListener` ✓\n- `PlannerView.tsx:214, 294` — `removeEventListener` ✓\n- `MealPrepDetailContent.tsx:180` — `clearInterval(id)` ✓\n\n---\n\n",
+        "level": 3
+      },
+      {
+        "title": "5. Redundant Computations",
+        "content": "\n",
+        "level": 3
+      },
+      {
+        "title": "**MEDIUM — `acceptSchedule.ts` lines 116–144** — O(n²) clash check",
+        "content": "The inner `existing.find()` and `accepted.find()` on every iteration make the conflict check O(n²). Acceptable for current schedule sizes (~30 blocks) but worth noting:\n\n```typescript\n// FIX for production scale — build an interval tree or precompute sorted array\n// For now: at least replace accepted.find with a timeline scan using the existing sorted insert\n// (The existing.find scan against DB rows is the bigger issue — that's already one bulk SELECT at line 97)\n```\n\n",
+        "level": 4
+      },
+      {
+        "title": "**LOW — `isMealSkipped` closure in `getWeek.ts` line 141**",
+        "content": "The inner function is re-declared on every invocation but its body only does a `Set.has()` lookup — negligible cost. No action needed.\n\n---\n\n",
+        "level": 4
+      },
+      {
+        "title": "Priority Summary",
+        "content": "| # | Issue | File | Severity | Est. Impact |\n|---|-------|------|----------|-------------|\n| 1 | N+1 in `acceptSchedule` loop | `planner-lambda/routes/acceptSchedule.ts:182` | **HIGH** | 40+ DB calls → 2 |\n| 2 | Foundation stage ignores `ctx.userPrefs` | `ai-scheduler-lambda/pipeline/stages/foundation.ts:134` | **HIGH** | 3 extra queries per pipeline run |\n| 3 | O(n×m) supplement-pause scan in `getWeek` | `planner-lambda/routes/getWeek.ts:276` | **HIGH** | O(1) with Map |\n| 4 | 2 sequential fetches outside `Promise.all` in `getWeek` | `planner-lambda/routes/getWeek.ts:121,255` | **MEDIUM** | Removes 2 serial round-trips |\n| 5 | 2 sequential reads in `foundation` end section | `ai-scheduler-lambda/pipeline/stages/foundation.ts:370` | **MEDIUM** | ~50ms saved per pipeline |\n\nWant me to fix any of these? Items 1, 3, and 4 are surgical and low-risk — happy to implement them now.",
+        "level": 3
+      }
+    ],
+    "codeBlocks": [
+      {
+        "language": "text",
+        "code": "apps/lambdas/planner-lambda/src/routes/acceptSchedule.ts:182"
+      },
+      {
+        "language": "typescript",
+        "code": "// CURRENT — N+1\nfor (const block of created) {\n  const link = await resolveLinkedEntity({ id: block.id, ... }) // SELECT per block\n  if (!link) continue\n  await db.update(timeBlocks).set({ linkedEntityId: link.id, ... }) // UPDATE per block\n}\n\n// FIX — batch lookup then single bulkUpdate\nconst resolvable = created.filter(b => ['WORKOUT','MEAL','SUPPLEMENT'].includes(b.type))\nconst links = await Promise.all(resolvable.map(b => resolveLinkedEntity(...).catch(() => null)))\nconst toUpdate = resolvable.flatMap((b, i) => links[i] ? [{ id: b.id, link: links[i]! }] : [])\n// Then batch: Promise.all(toUpdate.map(({ id, link }) => db.update(...).where(eq(timeBlocks.id, id))))"
+      },
+      {
+        "language": "text",
+        "code": "apps/lambdas/ai-scheduler-lambda/src/pipeline/stages/foundation.ts:134-162"
+      },
+      {
+        "language": "typescript",
+        "code": "// CURRENT — 3 sequential round-trips + contract violation\nconst [fp]    = await db.select().from(fitnessProfiles).where(...)  // line 134\nconst [_goals] = await db.select().from(goalSettings).where(...)    // line 148\nconst [up]    = await db.select().from(userProfiles).where(...)     // line 158\n\n// FIX — use data already loaded by runPipeline's UserSchedulingPrefs aggregate (AC-48)\n// ctx.userPrefs.fitnessProfile, ctx.userPrefs.goalSettings, ctx.userPrefs.userProfile\n// already exist. Just read them:\nconst fp    = ctx.userPrefs?.fitnessProfile\nconst up    = ctx.userPrefs?.userProfile\n// If ctx.userPrefs is guaranteed by runPipeline, drop the fallback selects entirely."
+      },
+      {
+        "language": "text",
+        "code": "apps/lambdas/planner-lambda/src/routes/getWeek.ts:67, 121, 255"
+      },
+      {
+        "language": "typescript",
+        "code": "// CURRENT — 7 total DB calls (Promise.all of 5 + 2 sequential)\nconst [blocks, pauses, recurringBlocks, flagsRow, specialDayRows] = await Promise.all([...])\nconst skippedMealLogs = await db.select()...  // sequential after\nconst workVirtuals    = await expandWorkBlocks(...)  // depends on pauses — ok to be sequential\nconst pauseRows       = await db.select()...  // sequential after\n\n// FIX — include skippedMealLogs + supplementPauses in the first Promise.all (6 → 7 concurrent)\nconst [blocks, pauses, recurringBlocks, flagsRow, specialDayRows, skippedMealLogs, pauseRows] =\n  await Promise.all([\n    db.select().from(timeBlocks)...,\n    db.select().from(modulePauses)...,\n    db.select().from(timeBlocks).where(and(...isNotNull(timeBlocks.recurrenceRule))),\n    db.select().from(goalSettings)...,\n    db.select().from(specialDays)...,\n    db.select({ logDate:..., mealId:... }).from(dailyNutritionLogs)...,  // moved here\n    db.select().from(supplementPauses)...,                               // moved here\n  ])\n// expandWorkBlocks still comes after (needs pauses)"
+      },
+      {
+        "language": "text",
+        "code": "apps/lambdas/planner-lambda/src/routes/getWeek.ts:276"
+      },
+      {
+        "language": "typescript",
+        "code": "// CURRENT — O(n × |pauseRows|) scan per block\nfor (const b of allBlocks) {\n  const overlap = pauseRows.find(\n    (p) => p.userSupplementId === supplementId && p.pausedFrom <= scheduledDate && p.resumesOn >= scheduledDate,\n  )\n}\n\n// FIX — precompute Map<supplementId, PauseRow[]> once before the loop\nconst pauseBySupplementId = new Map<string, typeof pauseRows>()\nfor (const p of pauseRows) {\n  if (!pauseBySupplementId.has(p.userSupplementId)) pauseBySupplementId.set(p.userSupplementId, [])\n  pauseBySupplementId.get(p.userSupplementId)!.push(p)\n}\n\nfor (const b of allBlocks) {\n  const candidatePauses = pauseBySupplementId.get(supplementId) ?? []\n  const overlap = candidatePauses.find(p => p.pausedFrom <= scheduledDate && p.resumesOn >= scheduledDate)\n}"
+      },
+      {
+        "language": "typescript",
+        "code": "// FIX\nconst [existingTarget, activePhase] = await Promise.all([\n  db.select({ id: nutritionTargets.id }).from(nutritionTargets).where(eq(nutritionTargets.userId, userId)).limit(1),\n  db.select({ id: trainingPhases.id }).from(trainingPhases).where(and(eq(trainingPhases.userId, userId), isNull(trainingPhases.endedAt))).limit(1),\n])\n// Then: UPDATE/INSERT targets + UPDATE goalSettings + conditionally INSERT training_phase\n// seedDefaultPantry can also run concurrently with goal_settings update"
+      },
+      {
+        "language": "typescript",
+        "code": "// FIX for production scale — build an interval tree or precompute sorted array\n// For now: at least replace accepted.find with a timeline scan using the existing sorted insert\n// (The existing.find scan against DB rows is the bigger issue — that's already one bulk SELECT at line 97)"
+      }
+    ]
+  },
+  "rawOutputPreview": "I now have complete data across all five areas. Here's the full analysis:\n\n---\n\n## Performance Analysis\n\n### 1. N+1 Query Patterns\n\n#### **HIGH — `acceptSchedule.ts` lines 182–205**\nA `for` loop calls `resolveLinkedEntity()` (a DB `SELECT`) then `db.update(timeBlocks)` **per accepted block**. A 20-block schedule acceptance triggers up to 40 DB round-trips.\n\n```\napps/lambdas/planner-lambda/src/routes/acceptSchedule.ts:182\n```\n\n```typescript\n// CURRENT — N+1\nfor (const block of created) {\n  const link = await resolveLinkedEntity({ id: block.id, ... }) // SELECT per block\n  if (!link) continue\n  await db.update(timeBlocks).set({ linkedEntityId: link.id, ... }) // UPDATE per block\n}\n\n// FIX — batch lookup then single bulkUpdate\nconst resolvable = created.filter(b => ['WORKOUT','MEAL','SUPPLEMENT'].includes(b.type))\nconst links = await Promise.all(resolvable.map(b => resolveLinkedEntity(...).catch(() => null)))\nconst toUpdate = resolvable.flatMap((b, i) => links[i] ? [{ id: b.id, link: links[i]! }] : [])\n// Then batch: Promise.all(toUpdate.map(({ id, link }) => db.update(...).where(eq(timeBlocks.id, id))))\n```\n\n---\n\n#### **HIGH — `foundation.ts` lines 134–162** (also violates `ctx.userPrefs` contract)\nThree sequential DB reads that are completely independent. The pipeline CLAUDE.md (`ai-scheduler-lambda/CLAUDE.md`) explicitly states *\"Stages MUST NOT re-query these tables — they read from `ctx.userPrefs.*`\"* — the code is still issuing the queries anyway.\n\n```\napps/lambdas/ai-scheduler-lambda/src/pipeline/stages/foundation.ts:134-162\n```\n\n```typescript\n// CURRENT — 3 sequential round-trips + contract violation\nconst [fp]    = await db.select().from(fitnessProfiles).where(...)  // line 134\nconst [_goals] = await db.select().from(goalSettings).where(...)    // line 148\nconst [up]    = await db.select().from(userProfiles).where(...)     // line 158\n\n// FIX — use data already loaded by runPipeline's UserSchedulingPrefs aggregate (AC-48)\n// ctx.userPrefs.fitnessProfile, ctx.u",
+  "rawOutputLength": 8080
+}

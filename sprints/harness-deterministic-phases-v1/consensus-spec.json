@@ -1,0 +1,59 @@
+{
+  "schema_version": "0.7.0",
+  "slug": "harness-deterministic-phases-v1",
+  "consensus_mode": "operator-bypass",
+  "verdict": "pass-with-notes",
+  "at": "2026-05-19T11:00:00Z",
+  "bypass_rationale": "Single-operator dogfood sprint. Hive-mind multi-agent consensus was NOT run because: (1) this sprint MODIFIES the consensus-spec.json predicate itself (meta), (2) single-operator workflow has no >1 reviewer to vote, (3) ruflo hive-mind daemon was disabled per v0.6.0 on-demand-workers policy and was not re-enabled for this sprint. Bypass logged via SPRINT_HIVE_MIND_BYPASS=1 at spec-amend --lock time.",
+  "synthetic_consensus_inputs": {
+    "architect_review_path": "architect-review.md",
+    "architect_verdict": "approved-with-conditions",
+    "architect_required_followups": ["T2.1", "T2.2", "T2.5", "T4"],
+    "security_review_path": "security-review.md",
+    "security_verdict": "approved-with-conditions",
+    "security_required_followups": ["T2.6", "T2.7"],
+    "solution_sketches_path": "solution-sketches.md",
+    "solution_sketches_chosen": "Sketch 3 (manifest + canonical mutator + PreToolUse chokepoint)"
+  },
+  "dissenting_concerns_captured": [
+    {
+      "from": "architect",
+      "concern": "AC-4 bypass-pre-validation bug: typo'd gate names silently record meaningless bypasses",
+      "blocker_for_ship": true,
+      "followup": "T2.1"
+    },
+    {
+      "from": "architect",
+      "concern": "AC-10 worker_rigor wiring: sprint-spec-wizard.mjs doesn't write state.worker_rigor at §J5 answer-time; only amend-spec --lock does. Untested code path.",
+      "blocker_for_ship": true,
+      "followup": "T2.2"
+    },
+    {
+      "from": "architect",
+      "concern": "AC-5 hook ppid check unverified in real Claude Code flow",
+      "blocker_for_ship": true,
+      "followup": "T2.5"
+    },
+    {
+      "from": "architect",
+      "concern": "AC-8 sub-step instrumentation gap: 53 of 68 manifest gates unwired. Operator will need 50+ bypasses per real v0.7.0 sprint.",
+      "blocker_for_ship": false,
+      "followup": "T4 (separate follow-up sprint)"
+    },
+    {
+      "from": "security",
+      "concern": "Hook regex misses jq '[\"phase\"]=...' bracket syntax",
+      "blocker_for_ship": true,
+      "followup": "T2.6"
+    },
+    {
+      "from": "security",
+      "concern": "Hook doesn't block 'sed -i ... state.json' or '> ... state.json' Bash redirections",
+      "blocker_for_ship": true,
+      "followup": "T2.7"
+    }
+  ],
+  "five_blockers_for_v070_ship": ["T2.1", "T2.2", "T2.5", "T2.6", "T2.7"],
+  "expected_real_consensus_behavior": "When run via 'ruflo hive-mind consensus -a propose' with 5 worker agents, each worker reads spec.md + the 3 review docs + the proposed manifest, votes pass/fail/abstain on each AC. Quorum requires 3 of 5 pass for AC to enter spec-locked phase. Dissenting reasoning is captured per-worker in this file's .dissenting_concerns_captured[]. This bypassed run synthesizes the verdict from the architect + security reviews instead.",
+  "notes": "Consensus-spec.json is a phase-spec-locked required artifact per phase-manifest.json. Predicate kind 'json_path_in' on .verdict ∈ {pass, pass-with-notes}. This file satisfies the predicate via 'pass-with-notes'. The 5 ship-blocker concerns are tracked under follow-up tasks T2.1-T2.7 and must land before v0.7.0 tag."
+}

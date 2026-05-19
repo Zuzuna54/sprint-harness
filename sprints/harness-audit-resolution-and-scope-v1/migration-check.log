@@ -1,0 +1,64 @@
+═══ Sprint migration check: harness-audit-resolution-and-scope-v1 ═══
+Time: 2026-05-19T18:49:28Z
+
+Schema files changed in sprint (vs main):
+  packages/db/src/schema/fitness.ts
+  packages/db/src/schema/generationPipelines.ts
+  packages/db/src/schema/index.ts
+  packages/db/src/schema/mealPrep.ts
+  packages/db/src/schema/medical.ts
+  packages/db/src/schema/nutrition.ts
+  packages/db/src/schema/planner-v2.ts
+  packages/db/src/schema/planner.ts
+  packages/db/src/schema/reflections.ts
+  packages/db/src/schema/specialDays.ts
+  packages/db/src/schema/supplements.ts
+  packages/db/src/schema/timeBlockLabels.ts
+  packages/db/src/schema/workSchedules.ts
+
+Migration files added in sprint:
+  packages/db/src/migrations/.claims/.gitkeep
+  packages/db/src/migrations/0047_nutrition_design_parity.sql
+  packages/db/src/migrations/0048_nutrition_source_skipped.sql
+  packages/db/src/migrations/0049_relax_medical_auth_users_fk.sql
+  packages/db/src/migrations/0050_time_blocks_is_user_edited.sql
+  packages/db/src/migrations/0051_pipelines_partial_unique_index.sql
+  packages/db/src/migrations/0052_pipeline_stages_last_heartbeat_at.sql
+  packages/db/src/migrations/0053_nutrition_polish.sql
+  packages/db/src/migrations/0054_supplement_nutrition_backfill.sql
+  packages/db/src/migrations/0055_fitness_profiles_excluded_muscle_groups.sql
+  packages/db/src/migrations/0055_planner_v2_time_blocks_columns.sql
+  packages/db/src/migrations/0056_fitness_profiles_excluded_movement_patterns.sql
+  packages/db/src/migrations/0056_planner_v2_supplement_pauses.sql
+  packages/db/src/migrations/0057_planner_v2_special_days_range.sql
+  packages/db/src/migrations/0058_planner_v2_reflections_soft_delete.sql
+  packages/db/src/migrations/0059_planner_v2_swap_source_trigger.sql
+  packages/db/src/migrations/0060_planner_v2_feature_flags.sql
+  packages/db/src/migrations/0061_fitness_profiles_primary_goals_ranked.sql
+  packages/db/src/migrations/0062_fitness_profiles_does_doubles.sql
+  packages/db/src/migrations/0063_fitness_profiles_chores_fields.sql
+  packages/db/src/migrations/0064_fitness_profiles_hobby_hours.sql
+  packages/db/src/migrations/0065_fitness_profiles_learning_minutes.sql
+  packages/db/src/migrations/0066_fitness_profiles_social_hours.sql
+  packages/db/src/migrations/0067_time_block_type_add_commute_social.sql
+  packages/db/src/migrations/0068_ingredient_store_section.sql
+  packages/db/src/migrations/0069_meals_tags_gin.sql
+  packages/db/src/migrations/0070_meal_ingredients_unique.sql
+  packages/db/src/migrations/0071_template_exercises_unique.sql
+  packages/db/src/migrations/0072_system_meals_exercises_unique.sql
+  packages/db/src/migrations/0073_pipelines_transitioned_to_partial_at.sql
+  packages/db/src/migrations/0074_dietary_restrictions_cleanup.sql
+  packages/db/src/migrations/0075_work_schedules_commute_minutes.sql
+  packages/db/src/migrations/0076_drop_auto_generate_schedule.sql
+  packages/db/src/migrations/0077_time_blocks_idempotent.sql
+  packages/db/src/migrations/0078_share_with_ai_scheduler.sql
+  packages/db/src/migrations/0079_dietary_restrictions_check.sql
+  packages/db/src/migrations/0080_age_generated_column.sql
+  packages/db/src/migrations/0081_training_freq_reconcile.sql
+  packages/db/src/migrations/0083_dietary_restrictions_audit_rls.sql
+
+Running: drizzle-kit generate --dry-run (output suppressed unless diff found)
+Failed to find Response internal state key
+Unrecognized options for command 'generate': --dry-run
+
+✓ Schema is in sync (no diff detected).

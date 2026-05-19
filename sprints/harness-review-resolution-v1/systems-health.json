@@ -1,0 +1,14 @@
+{
+  "checked_at": "2026-05-19T20:19:49Z",
+  "mode": "end",
+  "critical_fail": 0,
+  "warn_count": 0,
+  "checks": {
+    "daemon":            { "ok": 1,   "detail": "running" },
+    "mcp":               { "ok": 1,      "detail": "running" },
+    "memory_db":         { "ok": 1,    "detail": "197 entries" },
+    "memory_decay_cron": { "ok": 1,    "detail": "registered" },
+    "graphify":          { "ok": 1, "detail": "present" },
+    "husky_hooks":       { "ok": 1,    "detail": "pre-commit + post-commit installed" }
+  }
+}

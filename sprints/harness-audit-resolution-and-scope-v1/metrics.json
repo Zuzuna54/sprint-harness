@@ -1,0 +1,18 @@
+{
+  "slug": "harness-audit-resolution-and-scope-v1",
+  "closed_at": "2026-05-19T18:58:24Z",
+  "elapsed_seconds": 4500,
+  "elapsed_days": 0,
+  "appetite_days": 14,
+  "acs_total": 19,
+  "acs_closed": 19,
+  "ac_closure_rate": 1.0,
+  "drift_events_count": 1,
+  "pause_events_count": 162,
+  "scope_amendments_count": 1,
+  "success_criteria": {
+    "all_acs_closed": true,
+    "within_appetite": true,
+    "low_drift": true
+  }
+}

@@ -1,0 +1,110 @@
+{
+  "slug": "harness-deterministic-phases-v1",
+  "computed_at": "2026-05-19T12:02:48.676Z",
+  "timing": {
+    "started_at": "2026-05-19T10:29:03Z",
+    "closed_at": null,
+    "elapsed_days": 0.07,
+    "appetite_days": 14,
+    "appetite_used_pct": 0.5,
+    "time_to_spec_lock_hours": null,
+    "time_to_design_lock_hours": null
+  },
+  "acs": {
+    "total": 14,
+    "closed": 0,
+    "closure_rate": 0,
+    "complex_count": 3
+  },
+  "gates": {
+    "passed": [
+      {
+        "gate": "spec-lock-solution-sketches",
+        "at": "2026-05-19T11:00:00Z",
+        "verdict": "pass"
+      },
+      {
+        "gate": "spec-lock-architect-review",
+        "at": "2026-05-19T11:00:00Z",
+        "verdict": "pass"
+      },
+      {
+        "gate": "spec-lock-security-review",
+        "at": "2026-05-19T11:00:00Z",
+        "verdict": "pass"
+      },
+      {
+        "gate": "spec-lock-hive-mind-consensus",
+        "at": "2026-05-19T11:00:00Z",
+        "verdict": "pass"
+      },
+      {
+        "gate": "spec-lock-baseline-written",
+        "at": "2026-05-19T11:00:00Z",
+        "verdict": "pass"
+      },
+      {
+        "gate": "spec-lock",
+        "at": "2026-05-19T10:39:54Z",
+        "verdict": "pass",
+        "evidence": null
+      },
+      {
+        "gate": "day-5-question-cut",
+        "at": "2026-05-19T11:46:36Z",
+        "verdict": "pass",
+        "evidence": "docs/sprints/harness-deterministic-phases-v1/check-in-day5.md"
+      },
+      {
+        "gate": "day-5-question-push",
+        "at": "2026-05-19T11:46:36Z",
+        "verdict": "pass",
+        "evidence": "docs/sprints/harness-deterministic-phases-v1/check-in-day5.md"
+      },
+      {
+        "gate": "day-5-question-pivot",
+        "at": "2026-05-19T11:46:36Z",
+        "verdict": "pass",
+        "evidence": "docs/sprints/harness-deterministic-phases-v1/check-in-day5.md"
+      }
+    ],
+    "skipped": [],
+    "history": [
+      {
+        "gate": "spec-lock",
+        "status": "passed",
+        "at": "2026-05-19T10:31:34Z"
+      },
+      {
+        "from": "spec-locked",
+        "to": "design-locked",
+        "at": "2026-05-19T10:44:09Z",
+        "by": "sprint-advance-phase.sh"
+      },
+      {
+        "from": "design-locked",
+        "to": "building",
+        "at": "2026-05-19T10:45:00Z",
+        "by": "sprint-advance-phase.sh"
+      }
+    ]
+  },
+  "drift": {
+    "events_total": 0,
+    "above_threshold": 0,
+    "below_threshold_paused": 0,
+    "pause_events": 0
+  },
+  "scope": {
+    "amendments": 0,
+    "files_touched_count": 58
+  },
+  "success_criteria": {
+    "all_acs_closed": false,
+    "within_appetite_14d": true,
+    "low_drift_events": true,
+    "time_to_design_lock_ok": false,
+    "time_to_design_lock_under_2d": false
+  },
+  "success_criteria_all_met": false
+}

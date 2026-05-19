@@ -1,0 +1,92 @@
+[
+  {
+    "key": "lifeos-sprint-harness-extraction",
+    "score": 0.79,
+    "namespace": "project",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T15:24:34.526Z"
+  },
+  {
+    "key": "lifeos-causal-post-commit-jscpd-leak",
+    "score": 0.74,
+    "namespace": "causal",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T15:24:34.526Z"
+  },
+  {
+    "key": "lifeos-diagnose-subscription-quota-burn",
+    "score": 0.72,
+    "namespace": "patterns",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T15:24:34.526Z"
+  },
+  {
+    "key": "lifeos-procedure-phantom-sweep",
+    "score": 0.72,
+    "namespace": "procedures",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T15:24:34.526Z"
+  },
+  {
+    "key": "lifeos-state-lock-pattern",
+    "score": 0.71,
+    "namespace": "patterns",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T15:24:34.526Z"
+  },
+  {
+    "key": "lifeos-hive-mind-consensus-noop",
+    "score": 0.71,
+    "namespace": "causal",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T15:24:34.526Z"
+  },
+  {
+    "key": "lifeos-token-burn-investigation-2026-05-19",
+    "score": 0.71,
+    "namespace": "project",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T15:24:34.526Z"
+  },
+  {
+    "key": "lifeos-parallel-sprint-triad",
+    "score": 0.68,
+    "namespace": "causal",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T15:24:34.526Z"
+  },
+  {
+    "key": "lifeos-causal-launchd-desktop-fda-block",
+    "score": 0.64,
+    "namespace": "causal",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T15:24:34.526Z"
+  },
+  {
+    "key": "lifeos-atomic-state-args-trap",
+    "score": 0.63,
+    "namespace": "patterns",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T15:24:34.526Z"
+  }
+]

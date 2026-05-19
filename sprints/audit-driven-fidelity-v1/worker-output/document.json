@@ -1,0 +1,190 @@
+{
+  "timestamp": "2026-05-19T16:26:01.653Z",
+  "mode": "headless",
+  "workerType": "document",
+  "model": "haiku",
+  "durationMs": 159673,
+  "executionId": "document_1779207801980_u1yocr",
+  "success": true,
+  "findings": {
+    "sections": [
+      {
+        "title": "LifeOS Documentation Generation — Phase 1: Packages Overview",
+        "content": "\nStarting with packages/types and proceeding through the core package hierarchy.\n\n---\n\n",
+        "level": 1
+      },
+      {
+        "title": "**packages/types** — Type Definitions",
+        "content": "\n",
+        "level": 2
+      },
+      {
+        "title": "Purpose",
+        "content": "Central type repository for all LifeOS domain entities. Single source of truth for TypeScript interfaces across web, lambdas, and database layers. Enforces type safety at system boundaries and eliminates duplicate type definitions across the monorepo.\n\n",
+        "level": 3
+      },
+      {
+        "title": "Module Structure",
+        "content": "```\npackages/types/src/\n├── account.ts          // User accounts, profiles, preferences\n├── groceryImports.ts   // Grocery list import records\n├── pantry.ts           // User pantry inventory\n├── userDocuments.ts    // Medical records, uploads\n├── swaps.ts            // Ingredient substitution records\n├── medical.ts          // Medical conditions, medications\n├── progress.ts         // Progress tracking for goals\n├── notifications.ts    // Push notification definitions\n├── workoutPlans.ts     // Workout plan schemas\n├── workSchedule.ts     // Work schedule definitions\n├── workouts.ts         // Workout session and exercise types\n├── nutrition.ts        // Nutrition and macro definitions\n├── fitness.ts          // Fitness profile and metrics\n└── index.ts            // Unified re-exports\n```\n\n",
+        "level": 3
+      },
+      {
+        "title": "Key Constraints",
+        "content": "- **TDD-first**: All types must have corresponding Zod runtime schemas in packages/types or packages/db\n- **Validation boundary**: Never export raw `Record<string, any>` or unvalidated types\n- **Enum consistency**: All pgEnum columns have TypeScript literal unions defined here; DB is source of truth\n- **Soft-delete support**: All mutable entities include `deleted_at?: Date` field\n- **Audit trail**: All user-mutable records include `created_at`, `updated_at`, and `created_by_user_id`\n\n",
+        "level": 3
+      },
+      {
+        "title": "Common Patterns",
+        "content": "```typescript\n// Pattern 1: Mutable entity with audit trail\nexport interface Workout {\n  id: string\n  user_id: string\n  name: string\n  exercises: Exercise[]\n  created_at: Date\n  updated_at: Date\n  deleted_at?: Date\n}\n\n// Pattern 2: Domain enum (pgEnum source of truth in DB)\nexport type WorkoutType =\n  | 'strength'\n  | 'cardio'\n  | 'flexibility'\n  | 'sports'\n\n// Pattern 3: Input vs stored (Zod validation separates them)\nexport interface CreateWorkoutInput {\n  name: string\n  exercises: CreateExerciseInput[]\n}\n// Stored version has id, timestamps, user_id added by DB layer\n```\n\n---\n\n",
+        "level": 3
+      },
+      {
+        "title": "**packages/auth-middleware** — Authentication & Authorization",
+        "content": "\n",
+        "level": 2
+      },
+      {
+        "title": "Purpose",
+        "content": "Single entry point for all token verification, user extraction, and authorization checks. Centralizes JWT validation (ES256 Supabase tokens), permission checks, and error handling for both Lambda handlers and Next.js routes.\n\n",
+        "level": 3
+      },
+      {
+        "title": "Key Modules",
+        "content": "- **createAuthorizer.ts** — Lambda Authorizer for API Gateway integration\n- **verifyToken.ts** — JWT verification with Supabase public key\n- **getUserId.ts** — Extract user ID from verified token (Lambda handlers)\n- **requireUser.ts** — Middleware for Next.js API routes\n\n",
+        "level": 3
+      },
+      {
+        "title": "Critical Rules",
+        "content": "1. **Every Lambda handler** calls `getUserId(event)` as the FIRST operation\n2. **Every Next.js API route** calls `requireUser()` before any business logic\n3. **ES256 verification**: Supabase (2025+) uses ES256, not HS256; silent verification failures on wrong algorithm\n4. **Token claims**: User ID extracted from `sub` claim; expiration checked automatically\n5. **Service role key**: NEVER exposed to frontend; Lambda-only, server-side operations only\n6. **Anon key**: Frontend-only; RLS policies enforce data isolation at database layer\n\n",
+        "level": 3
+      },
+      {
+        "title": "Typical Handler Pattern",
+        "content": "```typescript\n// Lambda handler (packages pattern from createAuthorizer)\nexport const handler: Handler = async (event) => {\n  const userId = getUserId(event) // Validates, extracts, throws 401 if invalid\n  \n  if (!userId) {\n    return error(401, 'Unauthorized')\n  }\n  \n  // Safe to use userId for all subsequent queries\n  // RLS policies provide additional row-level security\n}\n\n// Next.js API route\nexport async function GET(req: NextRequest) {\n  const userId = requireUser(req) // Throws if no valid token\n  \n  // userId is now guaranteed to be a string\n  const data = await getWorkouts(userId)\n  return Response.json(data)\n}\n```\n\n---\n\n",
+        "level": 3
+      },
+      {
+        "title": "**packages/api-client** — Typed HTTP Client",
+        "content": "\n",
+        "level": 2
+      },
+      {
+        "title": "Purpose",
+        "content": "Single source of typed API requests from web to Lambda backend. Wraps fetch, handles authentication (adds Bearer token), response validation, error formatting, and retry logic. Prevents raw fetch() usage across the codebase.\n\n",
+        "level": 3
+      },
+      {
+        "title": "Key Constraint",
+        "content": "**Never use raw `fetch()`** — always route through this client to ensure:\n- Authorization headers included\n- Response validation with Zod\n- Consistent error handling\n- Centralized retry/timeout logic\n\n",
+        "level": 3
+      },
+      {
+        "title": "Typical Usage",
+        "content": "```typescript\n// Usage in React components (packages/ui)\nconst result = await apiClient.get('/workouts', {\n  params: { userId },\n})\n\nif (result.ok) {\n  setWorkouts(result.data) // Fully typed\n} else {\n  logger.error('Fetch failed:', result.error) // Typed error\n}\n```\n\n---\n\n",
+        "level": 3
+      },
+      {
+        "title": "**packages/db** — Database Layer & ORM",
+        "content": "\n",
+        "level": 2
+      },
+      {
+        "title": "Purpose",
+        "content": "Drizzle ORM schema definitions, migrations, query builders, and RLS policy enforcement. Single source of truth for database structure; all table schemas reverse-map to TypeScript types in packages/types.\n\n",
+        "level": 3
+      },
+      {
+        "title": "Critical Constraints",
+        "content": "1. **Row-Level Security (RLS)**: Every table must have SELECT/INSERT/UPDATE/DELETE policies\n   - SELECT: `user_id = auth.uid()`\n   - INSERT: `auth.uid() = new.user_id`\n   - UPDATE: `auth.uid() = old.user_id`\n   - DELETE: `auth.uid() = old.user_id` (soft delete pattern: block, use `deleted_at` instead)\n\n2. **Soft Delete Pattern**: Never hard DELETE\n   - Set `deleted_at = NOW()` instead\n   - All read queries include `WHERE deleted_at IS NULL`\n   - Soft deletes maintain audit trail and prevent data loss\n\n3. **Parameterized Queries Always**\n   ```typescript\n   // CORRECT\n   const data = await db.select().from(workouts).where(eq(workouts.user_id, userId))\n   \n   // WRONG — SQL injection risk\n   const query = `SELECT * FROM workouts WHERE user_id = '${userId}'`\n   ```\n\n4. **Enum Handling**: pgEnum is source of truth\n   - TS types in packages/types match pgEnum values exactly\n   - Runtime Zod schemas validate against both\n   - Drift symptoms: 400 in <2ms + empty `{}` log (UI/Zod/pgEnum mismatch)\n\n",
+        "level": 3
+      },
+      {
+        "title": "Database Schema Summary (10 Tables)",
+        "content": "All follow the audit trail + soft delete pattern:\n- user_profiles (account info, height, weight, fitness level)\n- workouts (sessions with exercises)\n- meal_logs (nutrition tracking)\n- meal_plans (weekly meal structure)\n- supplements (inventory, dosages)\n- medical_conditions (user health history)\n- medications (prescription tracking)\n- grocery_lists (shopping + inventory)\n- time_blocks (calendar scheduling)\n- pipelines (AI-generated weekly plans)\n\n---\n\n",
+        "level": 3
+      },
+      {
+        "title": "**packages/utils** — Shared Utilities",
+        "content": "\n",
+        "level": 2
+      },
+      {
+        "title": "Purpose",
+        "content": "Common functions used across packages and apps: date helpers, macro calculations, sanitization, formatting, and business logic utilities. No UI dependencies, fully testable.\n\n",
+        "level": 3
+      },
+      {
+        "title": "Typical Categories",
+        "content": "- **Date/Time**: ISO string formatting, timezone conversion, week boundaries\n- **Macro Math**: TDEE calculation, macro distribution, meal portion scaling\n- **Validation**: Email/UUID sanitization (XSS/injection prevention), phone parsing\n- **Formatting**: Weight display (kg/lbs toggle), duration (hours:minutes), calorie rounding\n\n",
+        "level": 3
+      },
+      {
+        "title": "Example Sanitization Pattern",
+        "content": "```typescript\n// Prevents XSS and SQL-like patterns\nexport function sanitizeSearchQuery(input: string): string {\n  return input\n    .replace(/[<>'\"]/g, '') // Remove XSS vectors\n    .replace(/[;\\\\]/g, '')   // Remove SQL delimiters\n    .trim()\n    .substring(0, 200)       // Length limit\n}\n\n// Strict UUID validation\nexport function sanitizeUUID(input: string): string {\n  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i\n  if (!uuidRegex.test(input)) throw new BadRequestError('Invalid UUID format')\n  return input\n}\n```\n\n---\n\n",
+        "level": 3
+      },
+      {
+        "title": "**packages/ui** — Component Library",
+        "content": "\n",
+        "level": 2
+      },
+      {
+        "title": "Purpose",
+        "content": "Radix UI-based component library for consistent design system across LifeOS. All components are presentation-only; data fetching and state management live in the app layer (apps/web).\n\n",
+        "level": 3
+      },
+      {
+        "title": "File Organization",
+        "content": "```\npackages/ui/src/\n├── components/\n│   ├── Form/          // Input, Select, Checkbox (Radix-wrapped)\n│   ├── Layout/        // Header, Footer, Sidebar\n│   ├── Cards/         // Workout, Meal, Supplement cards\n│   ├── Charts/        // Macro ring, progress charts\n│   └── Modals/        // Dialogs for forms, confirmations\n├── hooks/\n│   ├── useFormState.ts\n│   └── useAnimation.ts\n├── styles/            // Tailwind config, CSS variables\n└── index.ts           // Re-exports (public API)\n```\n\n",
+        "level": 3
+      },
+      {
+        "title": "Component Naming Convention",
+        "content": "- **PascalCase**: `WorkoutLogger.tsx`, `MacroRing.tsx`, `TimeBlockCard.tsx`\n- **Props interface**: `interface WorkoutLoggerProps`\n- **Unused parameters**: Prefix with `_` if required by signature contract\n\n",
+        "level": 3
+      },
+      {
+        "title": "Hydration Note",
+        "content": "For Radix `useId` hydration mismatches (mounting issues):\n- Mount a sibling gate component\n- Return hooks AFTER the gate, not before\n- Fixes false positives in SSR/CSR mismatch detection\n\n---\n\n",
+        "level": 3
+      },
+      {
+        "title": "Next Steps: Lambda Routes Documentation",
+        "content": "The next phase will document all 33+ Lambda endpoints across:\n- **Authentication routes** (login, refresh, logout)\n- **Planner routes** (generate weekly plan, fetch schedule, update blocks)\n- **Nutrition routes** (log meal, fetch logs, get macro targets)\n- **Workouts routes** (start session, log set, complete workout)\n- **Integrations** (Stripe webhooks, HealthKit sync, calendar exports)\n\nEach route will include:\n- Request/response Zod schemas\n- Authentication requirement\n- RLS policy context (which user rows accessed)\n- Error codes (400, 401, 409, 500)\n- Integration points with database and external services\n\n---\n\nReady to proceed to Lambda routes documentation or would you like me to expand any package section above?",
+        "level": 2
+      }
+    ],
+    "codeBlocks": [
+      {
+        "language": "text",
+        "code": "packages/types/src/\n├── account.ts          // User accounts, profiles, preferences\n├── groceryImports.ts   // Grocery list import records\n├── pantry.ts           // User pantry inventory\n├── userDocuments.ts    // Medical records, uploads\n├── swaps.ts            // Ingredient substitution records\n├── medical.ts          // Medical conditions, medications\n├── progress.ts         // Progress tracking for goals\n├── notifications.ts    // Push notification definitions\n├── workoutPlans.ts     // Workout plan schemas\n├── workSchedule.ts     // Work schedule definitions\n├── workouts.ts         // Workout session and exercise types\n├── nutrition.ts        // Nutrition and macro definitions\n├── fitness.ts          // Fitness profile and metrics\n└── index.ts            // Unified re-exports"
+      },
+      {
+        "language": "typescript",
+        "code": "// Pattern 1: Mutable entity with audit trail\nexport interface Workout {\n  id: string\n  user_id: string\n  name: string\n  exercises: Exercise[]\n  created_at: Date\n  updated_at: Date\n  deleted_at?: Date\n}\n\n// Pattern 2: Domain enum (pgEnum source of truth in DB)\nexport type WorkoutType =\n  | 'strength'\n  | 'cardio'\n  | 'flexibility'\n  | 'sports'\n\n// Pattern 3: Input vs stored (Zod validation separates them)\nexport interface CreateWorkoutInput {\n  name: string\n  exercises: CreateExerciseInput[]\n}\n// Stored version has id, timestamps, user_id added by DB layer"
+      },
+      {
+        "language": "typescript",
+        "code": "// Lambda handler (packages pattern from createAuthorizer)\nexport const handler: Handler = async (event) => {\n  const userId = getUserId(event) // Validates, extracts, throws 401 if invalid\n  \n  if (!userId) {\n    return error(401, 'Unauthorized')\n  }\n  \n  // Safe to use userId for all subsequent queries\n  // RLS policies provide additional row-level security\n}\n\n// Next.js API route\nexport async function GET(req: NextRequest) {\n  const userId = requireUser(req) // Throws if no valid token\n  \n  // userId is now guaranteed to be a string\n  const data = await getWorkouts(userId)\n  return Response.json(data)\n}"
+      },
+      {
+        "language": "typescript",
+        "code": "// Usage in React components (packages/ui)\nconst result = await apiClient.get('/workouts', {\n  params: { userId },\n})\n\nif (result.ok) {\n  setWorkouts(result.data) // Fully typed\n} else {\n  logger.error('Fetch failed:', result.error) // Typed error\n}"
+      },
+      {
+        "language": "typescript",
+        "code": "// CORRECT\n   const data = await db.select().from(workouts).where(eq(workouts.user_id, userId))\n   \n   // WRONG — SQL injection risk\n   const query = `SELECT * FROM workouts WHERE user_id = '${userId}'`"
+      },
+      {
+        "language": "typescript",
+        "code": "// Prevents XSS and SQL-like patterns\nexport function sanitizeSearchQuery(input: string): string {\n  return input\n    .replace(/[<>'\"]/g, '') // Remove XSS vectors\n    .replace(/[;\\\\]/g, '')   // Remove SQL delimiters\n    .trim()\n    .substring(0, 200)       // Length limit\n}\n\n// Strict UUID validation\nexport function sanitizeUUID(input: string): string {\n  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i\n  if (!uuidRegex.test(input)) throw new BadRequestError('Invalid UUID format')\n  return input\n}"
+      },
+      {
+        "language": "text",
+        "code": "packages/ui/src/\n├── components/\n│   ├── Form/          // Input, Select, Checkbox (Radix-wrapped)\n│   ├── Layout/        // Header, Footer, Sidebar\n│   ├── Cards/         // Workout, Meal, Supplement cards\n│   ├── Charts/        // Macro ring, progress charts\n│   └── Modals/        // Dialogs for forms, confirmations\n├── hooks/\n│   ├── useFormState.ts\n│   └── useAnimation.ts\n├── styles/            // Tailwind config, CSS variables\n└── index.ts           // Re-exports (public API)"
+      }
+    ]
+  },
+  "rawOutputPreview": "# LifeOS Documentation Generation — Phase 1: Packages Overview\n\nStarting with packages/types and proceeding through the core package hierarchy.\n\n---\n\n## **packages/types** — Type Definitions\n\n### Purpose\nCentral type repository for all LifeOS domain entities. Single source of truth for TypeScript interfaces across web, lambdas, and database layers. Enforces type safety at system boundaries and eliminates duplicate type definitions across the monorepo.\n\n### Module Structure\n```\npackages/types/src/\n├── account.ts          // User accounts, profiles, preferences\n├── groceryImports.ts   // Grocery list import records\n├── pantry.ts           // User pantry inventory\n├── userDocuments.ts    // Medical records, uploads\n├── swaps.ts            // Ingredient substitution records\n├── medical.ts          // Medical conditions, medications\n├── progress.ts         // Progress tracking for goals\n├── notifications.ts    // Push notification definitions\n├── workoutPlans.ts     // Workout plan schemas\n├── workSchedule.ts     // Work schedule definitions\n├── workouts.ts         // Workout session and exercise types\n├── nutrition.ts        // Nutrition and macro definitions\n├── fitness.ts          // Fitness profile and metrics\n└── index.ts            // Unified re-exports\n```\n\n### Key Constraints\n- **TDD-first**: All types must have corresponding Zod runtime schemas in packages/types or packages/db\n- **Validation boundary**: Never export raw `Record<string, any>` or unvalidated types\n- **Enum consistency**: All pgEnum columns have TypeScript literal unions defined here; DB is source of truth\n- **Soft-delete support**: All mutable entities include `deleted_at?: Date` field\n- **Audit trail**: All user-mutable records include `created_at`, `updated_at`, and `created_by_user_id`\n\n### Common Patterns\n```typescript\n// Pattern 1: Mutable entity with audit trail\nexport interface Workout {\n  id: string\n  user_id: string\n  name: string\n  exercises: Exercise[]\n  created_at: Date\n  updated_at: D",
+  "rawOutputLength": 9955
+}

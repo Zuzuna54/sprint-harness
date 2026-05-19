@@ -1,0 +1,6 @@
+═══ Cyclic dependency check: harness-truthful-docs-and-wiring-v1 ═══
+Time: 2026-05-19T17:03:48Z
+
+Scanning apps/lambdas + packages for cycles...
+Current cycles: 0
+[i] No baseline; writing current as baseline (first run).

@@ -1,0 +1,50 @@
+{
+  "timestamp": "2026-05-19T18:34:39.590Z",
+  "mode": "headless",
+  "workerType": "audit",
+  "model": "haiku",
+  "durationMs": 34220,
+  "executionId": "audit_1779215645370_earbph",
+  "success": true,
+  "findings": {
+    "vulnerabilities": [
+      {
+        "severity": "low",
+        "file": ".claude/helpers/session.js",
+        "line": 32,
+        "description": "Code injection pattern detection using simple regex. The pattern `/\\beval\\b|\\bnew\\s+Function\\b|\\$\\{|`/` may not catch all code injection variants (e.g., 'eval ' with extra spaces, or using Function constructor indirectly). This is adequate as defense-in-depth but not foolproof."
+      },
+      {
+        "severity": "low",
+        "file": ".claude/helpers/session.js",
+        "line": 21,
+        "description": "Arbitrary recursion depth limit of 4 levels in validateContextValue(). Values nested beyond 4 levels are rejected, which could cause unexpected validation failures for deeply nested legitimate data structures."
+      },
+      {
+        "severity": "low",
+        "file": ".claude/helpers/memory.js",
+        "line": 57,
+        "description": "Key file permissions verified on read, but no integrity/MAC verification of the key file itself. If permissions are compromised by an attacker with system access, the key could be read or tampered with before validation occurs."
+      },
+      {
+        "severity": "low",
+        "file": ".claude/helpers/github-safe.js",
+        "line": 48,
+        "description": "Shell metacharacter check skips flag values entirely (as noted: 'skip shell-meta check for flag VALUES'). While this is safe due to file piping, a flag injection attack through crafted titles/bodies could theoretically occur if the piping mechanism fails."
+      }
+    ],
+    "riskScore": 15,
+    "recommendations": [
+      "Upgrade code injection detection in session.js from simple regex to an AST-based approach or use a dedicated code-detection library for eval/Function patterns",
+      "Remove or increase the arbitrary recursion depth limit in validateContextValue() - allow deeper nesting or document why depth 4 is required",
+      "Add periodic key rotation mechanism using the keyVersion field in the encryption envelope for long-running sessions",
+      "Implement HMAC verification for key files to detect tampering on read (in addition to permission checks)",
+      "Add security headers and CSP validation if these helper scripts are exposed to any web context",
+      "Audit the webpack/build artifact files (.sst/platform, docs/plans) - many appear to be minified third-party code; ensure dependency versions are current and free of known CVEs",
+      "Document the threat model for the helpers (what attacks they defend against vs. what's out of scope)",
+      "Consider adding rate limiting to shell command execution in github-safe.js to prevent resource exhaustion"
+    ]
+  },
+  "rawOutputPreview": "```json\n{\n  \"vulnerabilities\": [\n    {\n      \"severity\": \"low\",\n      \"file\": \".claude/helpers/session.js\",\n      \"line\": 32,\n      \"description\": \"Code injection pattern detection using simple regex. The pattern `/\\\\beval\\\\b|\\\\bnew\\\\s+Function\\\\b|\\\\$\\\\{|`/` may not catch all code injection variants (e.g., 'eval ' with extra spaces, or using Function constructor indirectly). This is adequate as defense-in-depth but not foolproof.\"\n    },\n    {\n      \"severity\": \"low\",\n      \"file\": \".claude/helpers/session.js\",\n      \"line\": 21,\n      \"description\": \"Arbitrary recursion depth limit of 4 levels in validateContextValue(). Values nested beyond 4 levels are rejected, which could cause unexpected validation failures for deeply nested legitimate data structures.\"\n    },\n    {\n      \"severity\": \"low\",\n      \"file\": \".claude/helpers/memory.js\",\n      \"line\": 57,\n      \"description\": \"Key file permissions verified on read, but no integrity/MAC verification of the key file itself. If permissions are compromised by an attacker with system access, the key could be read or tampered with before validation occurs.\"\n    },\n    {\n      \"severity\": \"low\",\n      \"file\": \".claude/helpers/github-safe.js\",\n      \"line\": 48,\n      \"description\": \"Shell metacharacter check skips flag values entirely (as noted: 'skip shell-meta check for flag VALUES'). While this is safe due to file piping, a flag injection attack through crafted titles/bodies could theoretically occur if the piping mechanism fails.\"\n    }\n  ],\n  \"riskScore\": 15,\n  \"recommendations\": [\n    \"Upgrade code injection detection in session.js from simple regex to an AST-based approach or use a dedicated code-detection library for eval/Function patterns\",\n    \"Remove or increase the arbitrary recursion depth limit in validateContextValue() - allow deeper nesting or document why depth 4 is required\",\n    \"Add periodic key rotation mechanism using the keyVersion field in the encryption envelope for long-running sessions\",\n    \"Imple",
+  "rawOutputLength": 3287
+}

@@ -1,0 +1,11 @@
+{
+  "timestamp": "2026-05-19T19:16:48.041Z",
+  "projectRoot": "/Users/gio/Desktop/lifeos",
+  "structure": {
+    "hasPackageJson": true,
+    "hasTsConfig": false,
+    "hasClaudeConfig": true,
+    "hasClaudeFlow": true
+  },
+  "scannedAt": 1779218208041
+}

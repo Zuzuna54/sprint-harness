@@ -1,0 +1,90 @@
+{
+  "timestamp": "2026-05-19T16:51:24.596Z",
+  "mode": "headless",
+  "workerType": "audit",
+  "model": "haiku",
+  "durationMs": 36343,
+  "executionId": "audit_1779209448253_1xdmus",
+  "success": true,
+  "findings": {
+    "vulnerabilities": [
+      {
+        "severity": "high",
+        "file": ".claude/helpers/github-safe.js",
+        "line": 45,
+        "description": "Command injection risk: tmpFile path is directly interpolated into shell command without proper escaping. While the filename is randomized, the path could be exploited via TMPDIR manipulation or symlink attacks."
+      },
+      {
+        "severity": "high",
+        "file": ".claude/helpers/memory.js",
+        "line": 9,
+        "description": "Insecure data storage: Memory data is stored as plaintext JSON without encryption or access controls. Sensitive configuration or cached credentials would be exposed."
+      },
+      {
+        "severity": "high",
+        "file": ".claude/helpers/session.js",
+        "line": 18,
+        "description": "Predictable session ID generation: Session IDs based on Date.now() are easily predictable, allowing session hijacking or collision attacks."
+      },
+      {
+        "severity": "high",
+        "file": ".claude/helpers/session.js",
+        "line": 9,
+        "description": "Unencrypted session storage: User context and session data stored in plaintext JSON file without encryption or integrity verification."
+      },
+      {
+        "severity": "medium",
+        "file": ".claude/helpers/github-safe.js",
+        "line": 46,
+        "description": "Insufficient input validation: The 'command', 'subcommand', and 'restArgs' parameters are not validated before being used in shell execution."
+      },
+      {
+        "severity": "medium",
+        "file": ".claude/helpers/memory.js",
+        "line": 23,
+        "description": "No input validation on key parameter: Keys can be manipulated to perform path traversal (../../../sensitive_file)."
+      },
+      {
+        "severity": "medium",
+        "file": ".claude/helpers/session.js",
+        "line": 33,
+        "description": "No validation of context data: User-supplied context objects stored without type checking or sanitization, enabling code injection."
+      },
+      {
+        "severity": "medium",
+        "file": ".claude/helpers/statusline.js",
+        "line": 22,
+        "description": "Unsafe database file access: Attempts to read SQLite database files from multiple paths without proper error handling or permission checks."
+      },
+      {
+        "severity": "medium",
+        "file": ".claude/helpers/github-safe.js",
+        "line": 62,
+        "description": "Race condition in temp file handling: File created, then passed to execSync. Between creation and use, file could be symlinked or modified."
+      },
+      {
+        "severity": "low",
+        "file": ".claude/helpers/memory.js",
+        "line": 45,
+        "description": "Missing error handling: File I/O operations use try-catch that silently ignores errors, potentially masking security issues or file access problems."
+      }
+    ],
+    "riskScore": 72,
+    "recommendations": [
+      "Implement input validation and sanitization for all user-controlled parameters in github-safe.js and other helpers. Use allowlists for command/subcommand values.",
+      "Encrypt sensitive data at rest using libsodium or similar (memory.json, session.json files). Implement authenticated encryption (NaCl secretbox).",
+      "Replace predictable session IDs with cryptographically secure random tokens using crypto.randomBytes() with at least 32 bytes of entropy.",
+      "Add integrity verification using HMAC-SHA256 for stored files to detect tampering. Sign all serialized data.",
+      "Use absolute paths with validation to prevent directory traversal. Implement fs.realpath() to resolve and validate all file paths.",
+      "Replace execSync with spawn/execFile for better command safety. Use an array of arguments instead of shell string concatenation.",
+      "Implement proper error handling instead of silent failures. Log security-relevant errors for audit trails.",
+      "Add access control checks before reading/writing files. Use fs.statSync() to verify file permissions and ownership.",
+      "Use process.env.HOME or explicit safe temporary directories instead of os.tmpdir() which can be manipulated.",
+      "Implement rate limiting and logging for session creation to detect brute force attacks against predictable session IDs.",
+      "Never store credentials, API keys, or sensitive config in plaintext JSON files. Use environment variables or secure vaults.",
+      "Add comprehensive input validation for all file operations with explicit whitelisting of allowed characters in keys/names."
+    ]
+  },
+  "rawOutputPreview": "```json\n{\n  \"vulnerabilities\": [\n    {\n      \"severity\": \"high\",\n      \"file\": \".claude/helpers/github-safe.js\",\n      \"line\": 45,\n      \"description\": \"Command injection risk: tmpFile path is directly interpolated into shell command without proper escaping. While the filename is randomized, the path could be exploited via TMPDIR manipulation or symlink attacks.\"\n    },\n    {\n      \"severity\": \"high\",\n      \"file\": \".claude/helpers/memory.js\",\n      \"line\": 9,\n      \"description\": \"Insecure data storage: Memory data is stored as plaintext JSON without encryption or access controls. Sensitive configuration or cached credentials would be exposed.\"\n    },\n    {\n      \"severity\": \"high\",\n      \"file\": \".claude/helpers/session.js\",\n      \"line\": 18,\n      \"description\": \"Predictable session ID generation: Session IDs based on Date.now() are easily predictable, allowing session hijacking or collision attacks.\"\n    },\n    {\n      \"severity\": \"high\",\n      \"file\": \".claude/helpers/session.js\",\n      \"line\": 9,\n      \"description\": \"Unencrypted session storage: User context and session data stored in plaintext JSON file without encryption or integrity verification.\"\n    },\n    {\n      \"severity\": \"medium\",\n      \"file\": \".claude/helpers/github-safe.js\",\n      \"line\": 46,\n      \"description\": \"Insufficient input validation: The 'command', 'subcommand', and 'restArgs' parameters are not validated before being used in shell execution.\"\n    },\n    {\n      \"severity\": \"medium\",\n      \"file\": \".claude/helpers/memory.js\",\n      \"line\": 23,\n      \"description\": \"No input validation on key parameter: Keys can be manipulated to perform path traversal (../../../sensitive_file).\"\n    },\n    {\n      \"severity\": \"medium\",\n      \"file\": \".claude/helpers/session.js\",\n      \"line\": 33,\n      \"description\": \"No validation of context data: User-supplied context objects stored without type checking or sanitization, enabling code injection.\"\n    },\n    {\n      \"severity\": \"medium\",\n      \"file\":",
+  "rawOutputLength": 5582
+}

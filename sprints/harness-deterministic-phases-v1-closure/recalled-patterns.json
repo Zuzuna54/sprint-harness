@@ -1,0 +1,92 @@
+[
+  {
+    "key": "lifeos-sprint-pipeline-realistic-scheduling-delivered",
+    "score": 0.72,
+    "namespace": "project",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T14:21:06.958Z"
+  },
+  {
+    "key": "lifeos-harness-portability-sprints",
+    "score": 0.7,
+    "namespace": "patterns",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T14:21:06.959Z"
+  },
+  {
+    "key": "lifeos-sprint-harness-extraction",
+    "score": 0.7,
+    "namespace": "project",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T14:21:06.959Z"
+  },
+  {
+    "key": "lifeos-sprint-branch-2026-05-17",
+    "score": 0.69,
+    "namespace": "episodes",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T14:21:06.959Z"
+  },
+  {
+    "key": "lifeos-causal-post-commit-jscpd-leak",
+    "score": 0.67,
+    "namespace": "causal",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T14:21:06.959Z"
+  },
+  {
+    "key": "lifeos-token-burn-investigation-2026-05-19",
+    "score": 0.65,
+    "namespace": "project",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T14:21:06.959Z"
+  },
+  {
+    "key": "lifeos-parallel-sprint-triad",
+    "score": 0.63,
+    "namespace": "causal",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T14:21:06.959Z"
+  },
+  {
+    "key": "lifeos-procedure-phantom-sweep",
+    "score": 0.62,
+    "namespace": "procedures",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T14:21:06.959Z"
+  },
+  {
+    "key": "sprint-harness-v0.4-shipped",
+    "score": 0.6,
+    "namespace": "patterns",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T14:21:06.959Z"
+  },
+  {
+    "key": "lifeos-inject-violation-surfaces-glob-holes",
+    "score": 0.57,
+    "namespace": "default",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T14:21:06.959Z"
+  }
+]

@@ -1,0 +1,62 @@
+{
+  "timestamp": "2026-05-19T20:04:56.592Z",
+  "mode": "headless",
+  "workerType": "audit",
+  "model": "haiku",
+  "durationMs": 37885,
+  "executionId": "audit_1779221058707_fe02k3",
+  "success": true,
+  "findings": {
+    "vulnerabilities": [
+      {
+        "severity": "medium",
+        "file": ".claude/helpers/router.js",
+        "line": null,
+        "description": "No input validation on task parameter before regex matching. While regex operations are generally safe, an attacker could pass very long strings causing ReDoS (Regular Expression Denial of Service) attacks if patterns are not compiled efficiently. The TASK_PATTERNS object uses regex patterns without explicit anchors."
+      },
+      {
+        "severity": "medium",
+        "file": ".claude/helpers/memory.js",
+        "line": 20,
+        "description": "Key validation regex `/^[A-Za-z0-9_.-]+$/` allows dots, which could theoretically enable simple directory traversal when combined with other operations. Should restrict to alphanumeric and underscore only like session.js does."
+      },
+      {
+        "severity": "low",
+        "file": ".claude/helpers/session.js",
+        "line": 42,
+        "description": "Code injection detection regex `/\\beval\\b|\\bnew\\s+Function\\b|\\$\\{|`/` may not catch all injection patterns. For example, using `eval` as a property name (e.g., `obj.eval()`) would pass the word boundary check. Consider using AST-based validation for strict security requirements."
+      },
+      {
+        "severity": "low",
+        "file": ".claude/helpers/statusline.js",
+        "line": 52,
+        "description": "Generic error handling swallows error details with `console.error()` but continues execution. While HAR-8 claims explicit error handling, the implementation uses broad try-catch blocks that could mask critical errors. Specific error codes (ENOENT vs EACCES) are distinguished but logged inconsistently."
+      },
+      {
+        "severity": "low",
+        "file": ".claude/helpers/router.js",
+        "line": null,
+        "description": "No rate limiting or access control on task routing. Any caller can invoke this router to route tasks to arbitrary agents. If exposed in a client-facing API without authentication, it could be abused to overload specific agents or enumerate available agents."
+      },
+      {
+        "severity": "low",
+        "file": ".claude/helpers/github-safe.js",
+        "line": 33,
+        "description": "While the allowlist approach is sound, positional args undergo shell-meta validation but flag values do not. If flag values are later used in unquoted contexts or logging without proper escaping, they could become attack vectors."
+      }
+    ],
+    "riskScore": 28,
+    "recommendations": [
+      "**Input Validation**: Add length limits and ReDoS protection to router.js task parameter. Use compiled regex patterns with explicit anchors (^...$) to prevent unintended matches.",
+      "**Key Validation Consistency**: Update memory.js to use the same alphanumeric+underscore-only pattern as session.js for key validation (`/^[A-Za-z0-9_]+$/`).",
+      "**Code Injection Detection**: Supplement regex checks with allowlist-based validation for context keys. Consider restricting context values to primitive types only (string, number, boolean, null) and reject all objects.",
+      "**Error Handling**: Implement context-specific error handling: silently skip ENOENT (file not found), but throw explicitly on EACCES, EIO, and other permission/IO errors. Log specific error types for debugging.",
+      "**API Security**: If router.js is exposed via an API, add authentication and authorization checks. Implement rate limiting per caller to prevent agent overload. Log all routing decisions with caller context.",
+      "**Dependency Audit**: Run `npm audit` and verify the webpack-bundled dependencies (React Query, Zod, Radix UI, etc.) have no known CVEs. The bundles contain several third-party libs that should be monitored.",
+      "**Temporary File Handling**: github-safe.js already uses O_EXCL correctly, but ensure the temporary directory is not on a shared filesystem where symlink races could still occur. Consider using `/dev/shm` on Unix systems.",
+      "**Secret Storage**: Encryption keys at `~/.claude-flow/.encryption-key` rely on filesystem permissions. Document the requirement for proper umask and file ownership. Consider supporting hardware security keys (TPM, Secure Enclave) for future versions."
+    ]
+  },
+  "rawOutputPreview": "# Security Vulnerability Analysis Report\n\n```json\n{\n  \"vulnerabilities\": [\n    {\n      \"severity\": \"medium\",\n      \"file\": \".claude/helpers/router.js\",\n      \"line\": null,\n      \"description\": \"No input validation on task parameter before regex matching. While regex operations are generally safe, an attacker could pass very long strings causing ReDoS (Regular Expression Denial of Service) attacks if patterns are not compiled efficiently. The TASK_PATTERNS object uses regex patterns without explicit anchors.\"\n    },\n    {\n      \"severity\": \"medium\",\n      \"file\": \".claude/helpers/memory.js\",\n      \"line\": 20,\n      \"description\": \"Key validation regex `/^[A-Za-z0-9_.-]+$/` allows dots, which could theoretically enable simple directory traversal when combined with other operations. Should restrict to alphanumeric and underscore only like session.js does.\"\n    },\n    {\n      \"severity\": \"low\",\n      \"file\": \".claude/helpers/session.js\",\n      \"line\": 42,\n      \"description\": \"Code injection detection regex `/\\\\beval\\\\b|\\\\bnew\\\\s+Function\\\\b|\\\\$\\\\{|`/` may not catch all injection patterns. For example, using `eval` as a property name (e.g., `obj.eval()`) would pass the word boundary check. Consider using AST-based validation for strict security requirements.\"\n    },\n    {\n      \"severity\": \"low\",\n      \"file\": \".claude/helpers/statusline.js\",\n      \"line\": 52,\n      \"description\": \"Generic error handling swallows error details with `console.error()` but continues execution. While HAR-8 claims explicit error handling, the implementation uses broad try-catch blocks that could mask critical errors. Specific error codes (ENOENT vs EACCES) are distinguished but logged inconsistently.\"\n    },\n    {\n      \"severity\": \"low\",\n      \"file\": \".claude/helpers/router.js\",\n      \"line\": null,\n      \"description\": \"No rate limiting or access control on task routing. Any caller can invoke this router to route tasks to arbitrary agents. If exposed in a client-facing API without authenti",
+  "rawOutputLength": 5099
+}

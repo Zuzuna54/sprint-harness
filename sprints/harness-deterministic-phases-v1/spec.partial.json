@@ -1,0 +1,26 @@
+{
+  "slug": "harness-deterministic-phases-v1",
+  "started_at": "2026-05-19T10:29:03Z",
+  "current_section": "A",
+  "sections_status": {
+    "A": "pending",
+    "B": "pending",
+    "C": "pending",
+    "D": "pending",
+    "E": "pending",
+    "F": "pending",
+    "G": "pending",
+    "H": "pending",
+    "I": "pending",
+    "J": "in-progress"
+  },
+  "sections_answers": {
+    "J": {
+      "worker_rigor": "yolo"
+    }
+  },
+  "recalled_patterns": [],
+  "codebase_refs": [],
+  "coherence_checks": [],
+  "skip_reasons": {}
+}

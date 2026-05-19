@@ -1,0 +1,17 @@
+{
+  "slug": "audit-driven-fidelity-v1",
+  "ran_at": "2026-05-19T16:11:05.134Z",
+  "knip_reported": 1,
+  "excluded_in_sprint_scope": 0,
+  "flagged_false_positive": 0,
+  "safe_candidates": 1,
+  "files": [
+    {
+      "name": "tests/state-race-stress.mjs"
+    }
+  ],
+  "false_positives": [],
+  "mode": "dry-run",
+  "deleted": [],
+  "reverted": []
+}

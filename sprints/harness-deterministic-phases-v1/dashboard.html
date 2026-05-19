@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="refresh" content="60" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sprint Dashboard: harness-deterministic-phases-v1</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Mono", Monaco, monospace;
+      background: #0a0a0a;
+      color: #e0e0e0;
+      max-width: 1100px;
+      margin: 2rem auto;
+      padding: 0 1.5rem;
+      line-height: 1.6;
+    }
+    h1, h2, h3 { color: #fff; font-weight: 600; }
+    h1 { border-bottom: 1px solid #333; padding-bottom: 0.5rem; }
+    .meta { color: #888; font-size: 0.9rem; }
+    .grid { display: grid; gap: 1.5rem; grid-template-columns: 1fr 1fr; margin: 1.5rem 0; }
+    .card {
+      background: #141414;
+      border: 1px solid #222;
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+    }
+    .card.full { grid-column: 1 / -1; }
+    .progress-bar {
+      width: 100%; height: 24px;
+      background: #222; border-radius: 4px;
+      overflow: hidden; margin: 0.5rem 0;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4ade80, #22d3ee);
+      width: 50%;
+      transition: width 0.3s;
+    }
+    .phase-list {
+      display: flex; gap: 0.5rem; flex-wrap: wrap; font-size: 0.85rem;
+      margin-top: 0.5rem;
+    }
+    .phase-pill {
+      padding: 0.2rem 0.6rem; border-radius: 999px;
+      border: 1px solid #333; color: #666;
+    }
+    .phase-pill.done { background: #14532d; color: #4ade80; border-color: #166534; }
+    .phase-pill.current { background: #1e3a8a; color: #93c5fd; border-color: #1d4ed8; font-weight: 600; }
+    .ac-list { list-style: none; padding: 0; }
+    .ac-item {
+      display: flex; align-items: center; gap: 0.6rem;
+      padding: 0.4rem 0; border-bottom: 1px solid #1a1a1a;
+    }
+    .ac-item:last-child { border-bottom: none; }
+    .ac-check { font-size: 1.1rem; width: 1.2rem; }
+    .ac-id { font-weight: 600; min-width: 4rem; }
+    .ac-tag {
+      font-size: 0.75rem; padding: 0.1rem 0.4rem; border-radius: 3px;
+      background: #2c1810; color: #fbbf24;
+    }
+    .drift-timeline {
+      display: flex; align-items: flex-end; gap: 4px;
+      height: 80px; margin-top: 0.5rem; padding: 0.5rem;
+      background: #0d0d0d; border-radius: 4px;
+    }
+    .drift-bar {
+      flex: 1; min-width: 6px;
+      background: #4ade80;
+      border-radius: 2px 2px 0 0;
+      transition: height 0.3s;
+    }
+    .drift-bar.low { background: #ef4444; }
+    .hill-svg { width: 100%; height: 180px; }
+    .hill-svg path { fill: none; stroke: #555; stroke-width: 2; }
+    .hill-dot { fill: #4ade80; }
+    .hill-dot.complex { fill: #f59e0b; }
+    .hill-dot.todo { fill: #6b7280; }
+    code { background: #1a1a1a; padding: 0.1rem 0.3rem; border-radius: 3px; }
+    .footer { color: #555; font-size: 0.85rem; margin-top: 2rem; text-align: center; }
+  </style>
+</head>
+<body>
+  <h1>🚀 Sprint: harness-deterministic-phases-v1</h1>
+  <div class="meta">
+    Phase: <code>building</code> · Day 0/14 ·
+    Gates: [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object] ·
+    Auto-refresh: 60s
+  </div>
+
+  <div class="card full">
+    <h3>Phase progression</h3>
+    <div class="progress-bar"><div class="progress-fill"></div></div>
+    <div class="phase-list">
+      <span class="phase-pill done">spec-wizard</span><span class="phase-pill done">spec-locked</span><span class="phase-pill done">design-locked</span><span class="phase-pill current">building</span><span class="phase-pill ">verifying</span><span class="phase-pill ">pre-deploy</span><span class="phase-pill ">deploying</span><span class="phase-pill ">done</span>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h3>Hill chart</h3>
+      <svg class="hill-svg" viewBox="0 0 600 180" preserveAspectRatio="xMidYMid meet">
+        <path d="M 30 150 Q 300 -20, 570 150" />
+        <text x="30" y="170" fill="#888" font-size="11">Figuring out</text>
+        <text x="500" y="170" fill="#888" font-size="11">Making it happen</text>
+        <circle class="hill-dot todo" cx="80" cy="145" r="6"><title>AC-1</title></circle><circle class="hill-dot todo" cx="110" cy="125" r="6"><title>AC-2</title></circle><circle class="hill-dot todo" cx="140" cy="105" r="6"><title>AC-3</title></circle><circle class="hill-dot complex" cx="170" cy="85" r="6"><title>AC-4 (complex)</title></circle><circle class="hill-dot complex" cx="200" cy="145" r="6"><title>AC-5 (complex)</title></circle><circle class="hill-dot todo" cx="230" cy="125" r="6"><title>AC-6</title></circle><circle class="hill-dot todo" cx="260" cy="105" r="6"><title>AC-7</title></circle><circle class="hill-dot todo" cx="290" cy="85" r="6"><title>AC-8</title></circle><circle class="hill-dot todo" cx="80" cy="145" r="6"><title>AC-9</title></circle><circle class="hill-dot todo" cx="110" cy="125" r="6"><title>AC-10</title></circle><circle class="hill-dot todo" cx="140" cy="105" r="6"><title>AC-11</title></circle><circle class="hill-dot todo" cx="170" cy="85" r="6"><title>AC-12</title></circle><circle class="hill-dot complex" cx="200" cy="145" r="6"><title>AC-13 (complex)</title></circle><circle class="hill-dot todo" cx="230" cy="125" r="6"><title>AC-14</title></circle>
+      </svg>
+      <div class="meta">
+        🟢 done (0) ·
+        🟠 complex (3) ·
+        ⚪ in progress (11)
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Acceptance criteria (0/14)</h3>
+      <ul class="ac-list">
+        <li class="ac-item">
+            <span class="ac-check">⏳</span>
+            <span class="ac-id">AC-1</span>
+            
+          </li><li class="ac-item">
+            <span class="ac-check">⏳</span>
+            <span class="ac-id">AC-2</span>
+            
+          </li><li class="ac-item">
+            <span class="ac-check">⏳</span>
+            <span class="ac-id">AC-3</span>
+            
+          </li><li class="ac-item">
+            <span class="ac-check">⏳</span>
+            <span class="ac-id">AC-4</span>
+            <span class="ac-tag">complex · pair-mode</span>
+          </li><li class="ac-item">
+            <span class="ac-check">⏳</span>
+            <span class="ac-id">AC-5</span>
+            <span class="ac-tag">complex · pair-mode</span>
+          </li><li class="ac-item">
+            <span class="ac-check">⏳</span>
+            <span class="ac-id">AC-6</span>
+            
+          </li><li class="ac-item">
+            <span class="ac-check">⏳</span>
+            <span class="ac-id">AC-7</span>
+            
+          </li><li class="ac-item">
+            <span class="ac-check">⏳</span>
+            <span class="ac-id">AC-8</span>
+            
+          </li><li class="ac-item">
+            <span class="ac-check">⏳</span>
+            <span class="ac-id">AC-9</span>
+            
+          </li><li class="ac-item">
+            <span class="ac-check">⏳</span>
+            <span class="ac-id">AC-10</span>
+            
+          </li><li class="ac-item">
+            <span class="ac-check">⏳</span>
+            <span class="ac-id">AC-11</span>
+            
+          </li><li class="ac-item">
+            <span class="ac-check">⏳</span>
+            <span class="ac-id">AC-12</span>
+            
+          </li><li class="ac-item">
+            <span class="ac-check">⏳</span>
+            <span class="ac-id">AC-13</span>
+            <span class="ac-tag">complex · pair-mode</span>
+          </li><li class="ac-item">
+            <span class="ac-check">⏳</span>
+            <span class="ac-id">AC-14</span>
+            
+          </li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h3>Drift timeline (last 0 commits)</h3>
+      <div class="drift-timeline">
+        <span style="color:#666; font-size: 0.85rem;">No drift events yet</span>
+      </div>
+      <div class="meta">Threshold: 0.75 (bars below this are red — drift detected)</div>
+    </div>
+
+    <div class="card">
+      <h3>Drift events (recent)</h3>
+      <em style="color:#666">None — sprint stayed within spec.</em>
+    </div>
+  </div>
+
+  <div class="card full">
+    <h3>Files touched (claims scope)</h3>
+    <ul style="font-family: monospace; font-size: 0.85rem;">
+      <li>claude/helpers/sprint-hook.cjs</li><li>claude/skills/sprint-orchestrator/SKILL.md</li><li>claude/skills/sprint-spec-wizard/sections/J-risks.md</li><li>docs/sprints/DEVELOPER.md</li><li>docs/sprints/USAGE.md</li><li>docs/sprints/_guides/bypass-cheatsheet.md</li><li>docs/sprints/_guides/sub-step-coverage.md</li><li>docs/sprints/_template/spec.md</li><li>docs/sprints/harness-deterministic-phases-v1/architect-review.md</li><li>docs/sprints/harness-deterministic-phases-v1/check-in-day5.md</li><li>docs/sprints/harness-deterministic-phases-v1/consensus-spec.js</li><li>docs/sprints/harness-deterministic-phases-v1/design.md</li><li>docs/sprints/harness-deterministic-phases-v1/proof/AC-1.md</li><li>docs/sprints/harness-deterministic-phases-v1/proof/AC-10.md</li><li>docs/sprints/harness-deterministic-phases-v1/proof/AC-11.md</li><li>docs/sprints/harness-deterministic-phases-v1/proof/AC-12.md</li><li>docs/sprints/harness-deterministic-phases-v1/proof/AC-13.md</li><li>docs/sprints/harness-deterministic-phases-v1/proof/AC-14.md</li><li>docs/sprints/harness-deterministic-phases-v1/proof/AC-2.md</li><li>docs/sprints/harness-deterministic-phases-v1/proof/AC-3.md</li><li>docs/sprints/harness-deterministic-phases-v1/proof/AC-4.md</li><li>docs/sprints/harness-deterministic-phases-v1/proof/AC-5.md</li><li>docs/sprints/harness-deterministic-phases-v1/proof/AC-6.md</li><li>docs/sprints/harness-deterministic-phases-v1/proof/AC-7.md</li><li>docs/sprints/harness-deterministic-phases-v1/proof/AC-8.md</li><li>docs/sprints/harness-deterministic-phases-v1/proof/AC-9.md</li><li>docs/sprints/harness-deterministic-phases-v1/retro.md</li><li>docs/sprints/harness-deterministic-phases-v1/security-review.md</li><li>docs/sprints/harness-deterministic-phases-v1/solution-sketches.md</li><li>docs/sprints/harness-deterministic-phases-v1/spec.md</li><li>docs/sprints/harness-deterministic-phases-v1/state.js</li><li>github/workflows/test.yml</li><li>scripts/lib/atomic-state.sh</li><li>scripts/lib/bypass.sh</li><li>scripts/lib/lock-dir.sh</li><li>scripts/lib/phase-manifest.js</li><li>scripts/lib/phase-manifest.schema.js</li><li>scripts/lib/phase-predicates.sh</li><li>scripts/lib/session-file.sh</li><li>scripts/lib/sub-step.sh</li><li>scripts/sprint-advance-phase.sh</li><li>scripts/sprint-amend-spec.sh</li><li>scripts/sprint-build-launch.sh</li><li>scripts/sprint-checkin.sh</li><li>scripts/sprint-cleanup-launch.sh</li><li>scripts/sprint-design-lock.sh</li><li>scripts/sprint-end.sh</li><li>scripts/sprint-pause.sh</li><li>scripts/sprint-predeploy-gate.sh</li><li>scripts/sprint-rebaseline.sh</li><li>scripts/sprint-resume.sh</li><li>scripts/sprint-spec-wizard.mjs</li><li>scripts/sprint-start.sh</li><li>scripts/sprint-system-test.sh</li><li>scripts/sprint-verify.sh</li><li>scripts/sprint-wizard-assemble.mjs</li><li>scripts/sync-mirror.sh</li><li>worker-trigger.sh</li>
+    </ul>
+  </div>
+
+  <div class="footer">
+    Auto-refreshes every 60 seconds. Updated: 2026-05-19T12:02:48.705Z<br>
+    Source: <code>docs/sprints/harness-deterministic-phases-v1/dashboard.html</code> ·
+    Regenerate: <code>node scripts/sprint-dashboard.mjs harness-deterministic-phases-v1</code>
+  </div>
+</body>
+</html>

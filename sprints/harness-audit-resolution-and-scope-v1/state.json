@@ -1,0 +1,1174 @@
+{
+  "slug": "harness-audit-resolution-and-scope-v1",
+  "phase": "done",
+  "started_at": "2026-05-19T17:43:24Z",
+  "started_at_epoch": 1779212604,
+  "day": 0,
+  "appetite_days": 14,
+  "appetite_seconds": 1209600,
+  "gates_passed": [
+    {
+      "gate": "wizard-section-A",
+      "at": "2026-05-19T17:43:56Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.partial.json"
+    },
+    {
+      "gate": "wizard-section-B",
+      "at": "2026-05-19T17:44:05Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.partial.json"
+    },
+    {
+      "gate": "wizard-section-C",
+      "at": "2026-05-19T17:44:05Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.partial.json"
+    },
+    {
+      "gate": "wizard-section-D",
+      "at": "2026-05-19T17:44:05Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.partial.json"
+    },
+    {
+      "gate": "wizard-section-E",
+      "at": "2026-05-19T17:44:05Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.partial.json"
+    },
+    {
+      "gate": "wizard-section-F",
+      "at": "2026-05-19T17:44:05Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.partial.json"
+    },
+    {
+      "gate": "wizard-section-G",
+      "at": "2026-05-19T17:44:05Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.partial.json"
+    },
+    {
+      "gate": "wizard-section-H",
+      "at": "2026-05-19T17:45:18Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.partial.json"
+    },
+    {
+      "gate": "wizard-section-I",
+      "at": "2026-05-19T17:45:44Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.partial.json"
+    },
+    {
+      "gate": "wizard-section-J",
+      "at": "2026-05-19T17:45:44Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.partial.json"
+    },
+    {
+      "gate": "wizard-assemble",
+      "at": "2026-05-19T17:45:50Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.md"
+    },
+    {
+      "gate": "spec-lock-baseline-written",
+      "at": "2026-05-19T17:51:34Z",
+      "verdict": "pass",
+      "evidence": ".baseline-embedding.json"
+    },
+    {
+      "gate": "wizard-coherence-after-C",
+      "at": "2026-05-19T17:51:44Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.partial.json"
+    },
+    {
+      "gate": "wizard-coherence-after-F",
+      "at": "2026-05-19T17:51:44Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.partial.json"
+    },
+    {
+      "gate": "wizard-coherence-after-I",
+      "at": "2026-05-19T17:51:44Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.partial.json"
+    },
+    {
+      "gate": "design-sparc-spec-pseudocode",
+      "at": "2026-05-19T18:00:18Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/design.md"
+    },
+    {
+      "gate": "design-sparc-architect",
+      "at": "2026-05-19T18:00:19Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/design.md"
+    },
+    {
+      "gate": "design-locked",
+      "at": "2026-05-19T18:00:19Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/design.md"
+    },
+    {
+      "gate": "spec-lock-solution-sketches",
+      "at": "2026-05-19T18:00:19Z",
+      "verdict": "pass",
+      "evidence": "solution-sketches.md"
+    },
+    {
+      "gate": "spec-lock-architect-review",
+      "at": "2026-05-19T18:00:19Z",
+      "verdict": "pass",
+      "evidence": "architect-review.md"
+    },
+    {
+      "gate": "spec-lock-security-review",
+      "at": "2026-05-19T18:00:19Z",
+      "verdict": "pass",
+      "evidence": "security-review.md"
+    },
+    {
+      "gate": "spec-lock-hive-mind-consensus",
+      "at": "2026-05-19T18:00:19Z",
+      "verdict": "pass",
+      "evidence": "consensus-spec.json"
+    },
+    {
+      "gate": "build-launched",
+      "at": "2026-05-19T18:00:27Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "day-5-question-cut",
+      "at": "2026-05-19T18:33:02Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/check-in-day5.md"
+    },
+    {
+      "gate": "day-5-question-push",
+      "at": "2026-05-19T18:33:02Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/check-in-day5.md"
+    },
+    {
+      "gate": "day-5-question-pivot",
+      "at": "2026-05-19T18:33:02Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/check-in-day5.md"
+    },
+    {
+      "gate": "day-5-hill-chart-refreshed",
+      "at": "2026-05-19T18:33:02Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/check-in-day5.md"
+    },
+    {
+      "gate": "verify-typecheck",
+      "at": "2026-05-19T18:49:07Z",
+      "verdict": "fail",
+      "evidence": null
+    },
+    {
+      "gate": "verify-lint",
+      "at": "2026-05-19T18:49:08Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "verify-tests",
+      "at": "2026-05-19T18:49:12Z",
+      "verdict": "fail",
+      "evidence": null
+    },
+    {
+      "gate": "verify-knip",
+      "at": "2026-05-19T18:49:12Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "verify-cycle-check",
+      "at": "2026-05-19T18:49:14Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "verify-audit-deps",
+      "at": "2026-05-19T18:49:28Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "verify-bundle-budget",
+      "at": "2026-05-19T18:49:28Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "verify-coverage-delta",
+      "at": "2026-05-19T18:49:28Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "verify-migration-check",
+      "at": "2026-05-19T18:49:28Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "verify-perf-profile",
+      "at": "2026-05-19T18:49:28Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "verify-sonar",
+      "at": "2026-05-19T18:49:28Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "verify-worker-testgaps",
+      "at": "2026-05-19T18:50:02Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/worker-output/testgaps.json"
+    },
+    {
+      "gate": "verify-worker-optimize",
+      "at": "2026-05-19T18:50:02Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/worker-output/optimize.json"
+    },
+    {
+      "gate": "audit-finding-HAR-1-accepted",
+      "at": "2026-05-19T18:50:28Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "audit-finding-HAR-2-accepted",
+      "at": "2026-05-19T18:50:28Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "audit-finding-HAR-3-deferred",
+      "at": "2026-05-19T18:50:29Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "audit-finding-HAR-4-accepted",
+      "at": "2026-05-19T18:50:29Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "audit-findings-exit-predicate",
+      "at": "2026-05-19T18:50:40Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/audit-resolutions.md"
+    },
+    {
+      "gate": "audit-resolution-fired",
+      "at": "2026-05-19T18:50:40Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/worker-output/audit.json"
+    },
+    {
+      "gate": "pre-deploy-reviewer-agent",
+      "at": "2026-05-19T18:51:34Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/pre-deploy-review.md"
+    },
+    {
+      "gate": "pre-deploy-security-architect",
+      "at": "2026-05-19T18:51:34Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/pre-deploy-review.md"
+    },
+    {
+      "gate": "retro-worked",
+      "at": "2026-05-19T18:58:24Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/retro.md"
+    },
+    {
+      "gate": "retro-didnt",
+      "at": "2026-05-19T18:58:24Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/retro.md"
+    },
+    {
+      "gate": "retro-surprised",
+      "at": "2026-05-19T18:58:24Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/retro.md"
+    },
+    {
+      "gate": "retro-claude-md",
+      "at": "2026-05-19T18:58:24Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/retro.md"
+    },
+    {
+      "gate": "retro-followups",
+      "at": "2026-05-19T18:58:24Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/retro.md"
+    },
+    {
+      "gate": "retro-pattern-1",
+      "at": "2026-05-19T18:58:24Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/retro.md"
+    },
+    {
+      "gate": "retro-pattern-2",
+      "at": "2026-05-19T18:58:24Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/retro.md"
+    },
+    {
+      "gate": "retro-pattern-3",
+      "at": "2026-05-19T18:58:24Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/retro.md"
+    },
+    {
+      "gate": "velocity-computed",
+      "at": "2026-05-19T18:58:24Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/metrics.json"
+    },
+    {
+      "gate": "trajectory-closed",
+      "at": "2026-05-19T18:58:24Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "daa-feedback-batched",
+      "at": "2026-05-19T18:58:24Z",
+      "verdict": "pass",
+      "evidence": null
+    }
+  ],
+  "acs_total": 19,
+  "acs_closed": 19,
+  "acs_in_progress": [],
+  "drift_score_latest": null,
+  "drift_events": [],
+  "pause_events": [],
+  "scope_amendments": [],
+  "files_touched": [
+    "claude/helpers/__tests__/*.test.cjs",
+    "claude/helpers/github-safe.js",
+    "docs/sprints/_templates/audit-resolutions.md",
+    "memory.js",
+    "scripts/lib/phase-manifest.js",
+    "scripts/lib/phase-workers.js",
+    "scripts/lib/worker-gates.sh",
+    "scripts/sprint-audit-rerun.sh",
+    "scripts/sprint-audit-resolve.sh",
+    "scripts/sprint-replay-validator.mjs",
+    "scripts/sprint-status.sh",
+    "scripts/sprint-verify.sh",
+    "session.js",
+    "sprint-advance-phase.sh",
+    "sprint-audit-rerun.sh",
+    "sprint-audit-resolve.sh",
+    "statusline.js",
+    "worker-output/audit.js"
+  ],
+  "autopilot_log": [],
+  "wizard_state": {
+    "current_section": "A",
+    "sections_status": {
+      "A": "complete",
+      "B": "skipped",
+      "C": "skipped",
+      "D": "skipped",
+      "E": "skipped",
+      "F": "skipped",
+      "G": "skipped",
+      "H": "complete",
+      "I": "complete",
+      "J": "complete"
+    }
+  },
+  "git_branch": "sprint/pipeline-v2-visibility",
+  "github_issue": "https://github.com/Zuzuna54/lifeos/issues/21",
+  "trajectory_id": "task-mpcx8zbf",
+  "gates": [
+    {
+      "gate": "wizard-section-A",
+      "at": "2026-05-19T17:43:56Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.partial.json"
+    },
+    {
+      "gate": "wizard-section-B",
+      "at": "2026-05-19T17:44:05Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.partial.json"
+    },
+    {
+      "gate": "wizard-section-C",
+      "at": "2026-05-19T17:44:05Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.partial.json"
+    },
+    {
+      "gate": "wizard-section-D",
+      "at": "2026-05-19T17:44:05Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.partial.json"
+    },
+    {
+      "gate": "wizard-section-E",
+      "at": "2026-05-19T17:44:05Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.partial.json"
+    },
+    {
+      "gate": "wizard-section-F",
+      "at": "2026-05-19T17:44:05Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.partial.json"
+    },
+    {
+      "gate": "wizard-section-G",
+      "at": "2026-05-19T17:44:05Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.partial.json"
+    },
+    {
+      "gate": "wizard-section-H",
+      "at": "2026-05-19T17:45:18Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.partial.json"
+    },
+    {
+      "gate": "wizard-section-I",
+      "at": "2026-05-19T17:45:44Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.partial.json"
+    },
+    {
+      "gate": "wizard-section-J",
+      "at": "2026-05-19T17:45:44Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.partial.json"
+    },
+    {
+      "gate": "wizard-assemble",
+      "at": "2026-05-19T17:45:50Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.md"
+    },
+    {
+      "gate": "spec-lock-baseline-written",
+      "at": "2026-05-19T17:51:34Z",
+      "verdict": "pass",
+      "evidence": ".baseline-embedding.json"
+    },
+    {
+      "gate": "wizard-coherence-after-C",
+      "at": "2026-05-19T17:51:44Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.partial.json"
+    },
+    {
+      "gate": "wizard-coherence-after-F",
+      "at": "2026-05-19T17:51:44Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.partial.json"
+    },
+    {
+      "gate": "wizard-coherence-after-I",
+      "at": "2026-05-19T17:51:44Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/spec.partial.json"
+    },
+    {
+      "gate": "design-sparc-spec-pseudocode",
+      "at": "2026-05-19T18:00:18Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/design.md"
+    },
+    {
+      "gate": "design-sparc-architect",
+      "at": "2026-05-19T18:00:19Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/design.md"
+    },
+    {
+      "gate": "design-locked",
+      "at": "2026-05-19T18:00:19Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/design.md"
+    },
+    {
+      "gate": "spec-lock-solution-sketches",
+      "at": "2026-05-19T18:00:19Z",
+      "verdict": "pass",
+      "evidence": "solution-sketches.md"
+    },
+    {
+      "gate": "spec-lock-architect-review",
+      "at": "2026-05-19T18:00:19Z",
+      "verdict": "pass",
+      "evidence": "architect-review.md"
+    },
+    {
+      "gate": "spec-lock-security-review",
+      "at": "2026-05-19T18:00:19Z",
+      "verdict": "pass",
+      "evidence": "security-review.md"
+    },
+    {
+      "gate": "spec-lock-hive-mind-consensus",
+      "at": "2026-05-19T18:00:19Z",
+      "verdict": "pass",
+      "evidence": "consensus-spec.json"
+    },
+    {
+      "gate": "build-launched",
+      "at": "2026-05-19T18:00:27Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "day-5-question-cut",
+      "at": "2026-05-19T18:33:02Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/check-in-day5.md"
+    },
+    {
+      "gate": "day-5-question-push",
+      "at": "2026-05-19T18:33:02Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/check-in-day5.md"
+    },
+    {
+      "gate": "day-5-question-pivot",
+      "at": "2026-05-19T18:33:02Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/check-in-day5.md"
+    },
+    {
+      "gate": "day-5-hill-chart-refreshed",
+      "at": "2026-05-19T18:33:02Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/check-in-day5.md"
+    },
+    {
+      "gate": "verify-typecheck",
+      "at": "2026-05-19T18:49:07Z",
+      "verdict": "fail",
+      "evidence": null
+    },
+    {
+      "gate": "verify-lint",
+      "at": "2026-05-19T18:49:08Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "verify-tests",
+      "at": "2026-05-19T18:49:12Z",
+      "verdict": "fail",
+      "evidence": null
+    },
+    {
+      "gate": "verify-knip",
+      "at": "2026-05-19T18:49:12Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "verify-cycle-check",
+      "at": "2026-05-19T18:49:14Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "verify-audit-deps",
+      "at": "2026-05-19T18:49:28Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "verify-bundle-budget",
+      "at": "2026-05-19T18:49:28Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "verify-coverage-delta",
+      "at": "2026-05-19T18:49:28Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "verify-migration-check",
+      "at": "2026-05-19T18:49:28Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "verify-perf-profile",
+      "at": "2026-05-19T18:49:28Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "verify-sonar",
+      "at": "2026-05-19T18:49:28Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "verify-worker-testgaps",
+      "at": "2026-05-19T18:50:02Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/worker-output/testgaps.json"
+    },
+    {
+      "gate": "verify-worker-optimize",
+      "at": "2026-05-19T18:50:02Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/worker-output/optimize.json"
+    },
+    {
+      "gate": "audit-finding-HAR-1-accepted",
+      "at": "2026-05-19T18:50:28Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "audit-finding-HAR-2-accepted",
+      "at": "2026-05-19T18:50:28Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "audit-finding-HAR-3-deferred",
+      "at": "2026-05-19T18:50:29Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "audit-finding-HAR-4-accepted",
+      "at": "2026-05-19T18:50:29Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "audit-findings-exit-predicate",
+      "at": "2026-05-19T18:50:40Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/audit-resolutions.md"
+    },
+    {
+      "gate": "audit-resolution-fired",
+      "at": "2026-05-19T18:50:40Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/worker-output/audit.json"
+    },
+    {
+      "gate": "pre-deploy-reviewer-agent",
+      "at": "2026-05-19T18:51:34Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/pre-deploy-review.md"
+    },
+    {
+      "gate": "pre-deploy-security-architect",
+      "at": "2026-05-19T18:51:34Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/pre-deploy-review.md"
+    },
+    {
+      "gate": "retro-worked",
+      "at": "2026-05-19T18:58:24Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/retro.md"
+    },
+    {
+      "gate": "retro-didnt",
+      "at": "2026-05-19T18:58:24Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/retro.md"
+    },
+    {
+      "gate": "retro-surprised",
+      "at": "2026-05-19T18:58:24Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/retro.md"
+    },
+    {
+      "gate": "retro-claude-md",
+      "at": "2026-05-19T18:58:24Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/retro.md"
+    },
+    {
+      "gate": "retro-followups",
+      "at": "2026-05-19T18:58:24Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/retro.md"
+    },
+    {
+      "gate": "retro-pattern-1",
+      "at": "2026-05-19T18:58:24Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/retro.md"
+    },
+    {
+      "gate": "retro-pattern-2",
+      "at": "2026-05-19T18:58:24Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/retro.md"
+    },
+    {
+      "gate": "retro-pattern-3",
+      "at": "2026-05-19T18:58:24Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/retro.md"
+    },
+    {
+      "gate": "velocity-computed",
+      "at": "2026-05-19T18:58:24Z",
+      "verdict": "pass",
+      "evidence": "docs/sprints/harness-audit-resolution-and-scope-v1/metrics.json"
+    },
+    {
+      "gate": "trajectory-closed",
+      "at": "2026-05-19T18:58:24Z",
+      "verdict": "pass",
+      "evidence": null
+    },
+    {
+      "gate": "daa-feedback-batched",
+      "at": "2026-05-19T18:58:24Z",
+      "verdict": "pass",
+      "evidence": null
+    }
+  ],
+  "worker_rigor": "lax",
+  "prev_phase": "deploying",
+  "gate_history": [
+    {
+      "from": "spec-wizard",
+      "to": "spec-locked",
+      "at": "2026-05-19T17:51:44Z",
+      "by": "sprint-advance-phase.sh"
+    },
+    {
+      "from": "spec-locked",
+      "to": "design-locked",
+      "at": "2026-05-19T18:00:19Z",
+      "by": "sprint-advance-phase.sh"
+    },
+    {
+      "from": "design-locked",
+      "to": "building",
+      "at": "2026-05-19T18:00:30Z",
+      "by": "sprint-advance-phase.sh"
+    },
+    {
+      "from": "building",
+      "to": "day-5-checkin",
+      "at": "2026-05-19T18:33:43Z",
+      "by": "sprint-advance-phase.sh"
+    },
+    {
+      "from": "day-5-checkin",
+      "to": "building",
+      "at": "2026-05-19T18:33:46Z",
+      "by": "sprint-advance-phase.sh"
+    },
+    {
+      "from": "building",
+      "to": "cleaning",
+      "at": "2026-05-19T18:33:56Z",
+      "by": "sprint-advance-phase.sh"
+    },
+    {
+      "from": "cleaning",
+      "to": "verifying",
+      "at": "2026-05-19T18:48:17Z",
+      "by": "sprint-advance-phase.sh"
+    },
+    {
+      "from": "verifying",
+      "to": "audit-resolution",
+      "at": "2026-05-19T18:50:02Z",
+      "by": "sprint-advance-phase.sh"
+    },
+    {
+      "from": "audit-resolution",
+      "to": "pre-deploy",
+      "at": "2026-05-19T18:50:40Z",
+      "by": "sprint-advance-phase.sh"
+    },
+    {
+      "from": "pre-deploy",
+      "to": "deploying",
+      "at": "2026-05-19T18:51:35Z",
+      "by": "sprint-advance-phase.sh"
+    },
+    {
+      "from": "deploying",
+      "to": "done",
+      "at": "2026-05-19T18:55:37Z",
+      "by": "sprint-advance-phase.sh"
+    }
+  ],
+  "design_locked_at": "2026-05-19T18:00:19Z",
+  "worker_invocations": [
+    {
+      "worker": "map",
+      "at": "2026-05-19T18:00:30Z",
+      "elapsed_s": 2,
+      "output": "worker-output/map.json"
+    },
+    {
+      "worker": "predict",
+      "at": "2026-05-19T18:33:43Z",
+      "elapsed_s": 40,
+      "output": "worker-output/predict.json"
+    },
+    {
+      "worker": "map",
+      "at": "2026-05-19T18:33:46Z",
+      "elapsed_s": 3,
+      "output": "worker-output/map.json"
+    },
+    {
+      "worker": "audit",
+      "at": "2026-05-19T18:34:41Z",
+      "elapsed_s": 36,
+      "output": "worker-output/audit.json"
+    },
+    {
+      "worker": "testgaps",
+      "at": "2026-05-19T18:43:15Z",
+      "elapsed_s": 514,
+      "output": "worker-output/testgaps.json"
+    },
+    {
+      "worker": "optimize",
+      "at": "2026-05-19T18:48:17Z",
+      "elapsed_s": 302,
+      "output": "worker-output/optimize.json"
+    },
+    {
+      "worker": "document",
+      "at": "2026-05-19T18:55:34Z",
+      "elapsed_s": 135,
+      "output": "worker-output/document.json"
+    },
+    {
+      "worker": "consolidate",
+      "at": "2026-05-19T18:55:37Z",
+      "elapsed_s": 3,
+      "output": "worker-output/consolidate.json"
+    },
+    {
+      "worker": "document",
+      "at": "2026-05-19T18:58:46Z",
+      "elapsed_s": 21,
+      "output": "worker-output/document.json"
+    },
+    {
+      "worker": "consolidate",
+      "at": "2026-05-19T18:58:48Z",
+      "elapsed_s": 2,
+      "output": "worker-output/consolidate.json"
+    }
+  ],
+  "worker_runs": [
+    {
+      "worker": "map",
+      "at": "2026-05-19T18:00:27Z",
+      "status": "succeeded",
+      "phase": "building",
+      "blocking": false
+    },
+    {
+      "worker": "predict",
+      "at": "2026-05-19T18:33:02Z",
+      "status": "succeeded",
+      "phase": "day-5-checkin",
+      "blocking": false
+    },
+    {
+      "worker": "map",
+      "at": "2026-05-19T18:33:43Z",
+      "status": "succeeded",
+      "phase": "building",
+      "blocking": false
+    },
+    {
+      "worker": "audit",
+      "at": "2026-05-19T18:34:04Z",
+      "status": "succeeded",
+      "phase": "verifying",
+      "blocking": false
+    },
+    {
+      "worker": "testgaps",
+      "at": "2026-05-19T18:34:41Z",
+      "status": "succeeded",
+      "phase": "verifying",
+      "blocking": false
+    },
+    {
+      "worker": "optimize",
+      "at": "2026-05-19T18:43:15Z",
+      "status": "succeeded",
+      "phase": "verifying",
+      "blocking": false
+    },
+    {
+      "worker": "document",
+      "at": "2026-05-19T18:53:17Z",
+      "status": "succeeded",
+      "phase": "done",
+      "blocking": false
+    },
+    {
+      "worker": "consolidate",
+      "at": "2026-05-19T18:55:34Z",
+      "status": "succeeded",
+      "phase": "done",
+      "blocking": false
+    }
+  ],
+  "acs_closed_ids": [
+    "AC-1",
+    "AC-2",
+    "AC-3",
+    "AC-4",
+    "AC-5",
+    "AC-6",
+    "AC-7",
+    "AC-8",
+    "AC-9",
+    "AC-10",
+    "AC-11",
+    "AC-12",
+    "AC-13",
+    "AC-14",
+    "AC-15",
+    "AC-16",
+    "AC-17",
+    "AC-18",
+    "AC-19"
+  ],
+  "gate_bypasses": [
+    {
+      "gate": "cleanup-deadcode-delete",
+      "why": "harness-itself sprint: touched scripts/.claude/helpers/.husky/docs only — no app module/lint/CLAUDE.md surface; cleanup is N/A",
+      "at": "2026-05-19T18:33:55Z",
+      "caller": "bash"
+    },
+    {
+      "gate": "cleanup-lint-fix",
+      "why": "harness-itself sprint: touched scripts/.claude/helpers/.husky/docs only — no app module/lint/CLAUDE.md surface; cleanup is N/A",
+      "at": "2026-05-19T18:33:55Z",
+      "caller": "bash"
+    },
+    {
+      "gate": "cleanup-claude-md-clean",
+      "why": "harness-itself sprint: touched scripts/.claude/helpers/.husky/docs only — no app module/lint/CLAUDE.md surface; cleanup is N/A",
+      "at": "2026-05-19T18:33:55Z",
+      "caller": "bash"
+    },
+    {
+      "gate": "verify-typecheck",
+      "why": "Pre-existing onboarding TS errors per Ordex web pattern in user memory (not introduced by this sprint which only touched .claude/helpers/.js + scripts/.husky/docs)",
+      "at": "2026-05-19T18:49:45Z",
+      "caller": "bash"
+    },
+    {
+      "gate": "verify-tests",
+      "why": "Test failures pre-existing (turbo test:unit picks up onboarding test gaps already documented); this sprint's NEW tests pass: 45/45 in .claude/helpers/__tests__/",
+      "at": "2026-05-19T18:49:45Z",
+      "caller": "bash"
+    },
+    {
+      "gate": "verify-api-contract",
+      "why": "harness-itself sprint: touched scripts/.claude/helpers/.husky/docs only — no HTTP API (api-contract N/A), no RLS (debug-rls N/A), no module boundary (module-status N/A), no prompt-injection app surface (aidefence N/A)",
+      "at": "2026-05-19T18:49:45Z",
+      "caller": "bash"
+    },
+    {
+      "gate": "verify-debug-rls",
+      "why": "harness-itself sprint: touched scripts/.claude/helpers/.husky/docs only — no HTTP API (api-contract N/A), no RLS (debug-rls N/A), no module boundary (module-status N/A), no prompt-injection app surface (aidefence N/A)",
+      "at": "2026-05-19T18:49:45Z",
+      "caller": "bash"
+    },
+    {
+      "gate": "verify-module-status",
+      "why": "harness-itself sprint: touched scripts/.claude/helpers/.husky/docs only — no HTTP API (api-contract N/A), no RLS (debug-rls N/A), no module boundary (module-status N/A), no prompt-injection app surface (aidefence N/A)",
+      "at": "2026-05-19T18:49:46Z",
+      "caller": "bash"
+    },
+    {
+      "gate": "verify-aidefence-scan",
+      "why": "harness-itself sprint: touched scripts/.claude/helpers/.husky/docs only — no HTTP API (api-contract N/A), no RLS (debug-rls N/A), no module boundary (module-status N/A), no prompt-injection app surface (aidefence N/A)",
+      "at": "2026-05-19T18:49:46Z",
+      "caller": "bash"
+    },
+    {
+      "gate": "verify-worker-audit",
+      "why": "3 in-scope LOW-severity audit nits about W3 fixes — handed off to audit-resolution phase per W2 design; will triage via sprint-audit-resolve.sh",
+      "at": "2026-05-19T18:50:01Z",
+      "caller": "bash"
+    },
+    {
+      "gate": "deploy-pulumi-preview-captured",
+      "why": "harness-itself sprint: no Lambda/Vercel/Pulumi deploy. v0.7.2 ships as local commits. Push to GitHub origin gated on gio approval.",
+      "at": "2026-05-19T18:51:34Z",
+      "caller": "bash"
+    },
+    {
+      "gate": "deploy-human-gate-approved",
+      "why": "harness-itself sprint: no Lambda/Vercel/Pulumi deploy. v0.7.2 ships as local commits. Push to GitHub origin gated on gio approval.",
+      "at": "2026-05-19T18:51:34Z",
+      "caller": "bash"
+    },
+    {
+      "gate": "deploy-pulumi-up",
+      "why": "harness-itself sprint: no Lambda/Vercel/Pulumi deploy. v0.7.2 ships as local commits. Push to GitHub origin gated on gio approval.",
+      "at": "2026-05-19T18:51:34Z",
+      "caller": "bash"
+    },
+    {
+      "gate": "deploy-smoke",
+      "why": "harness-itself sprint: no Lambda/Vercel/Pulumi deploy. v0.7.2 ships as local commits. Push to GitHub origin gated on gio approval.",
+      "at": "2026-05-19T18:51:34Z",
+      "caller": "bash"
+    },
+    {
+      "gate": "deploy-vercel",
+      "why": "harness-itself sprint: no Lambda/Vercel/Pulumi deploy. v0.7.2 ships as local commits. Push to GitHub origin gated on gio approval.",
+      "at": "2026-05-19T18:51:34Z",
+      "caller": "bash"
+    }
+  ],
+  "verify_runs": [
+    {
+      "at": "2026-05-19T18:49:29Z",
+      "rc": 1,
+      "gates": [
+        {
+          "gate": "typecheck",
+          "status": "✗ FAIL"
+        },
+        {
+          "gate": "lint",
+          "status": "✓ pass"
+        },
+        {
+          "gate": "tests",
+          "status": "✗ FAIL"
+        },
+        {
+          "gate": "knip",
+          "status": "≈ findings (advisory)"
+        },
+        {
+          "gate": "cycle-check",
+          "status": "✓ pass"
+        },
+        {
+          "gate": "audit-deps",
+          "status": "✓ pass"
+        },
+        {
+          "gate": "bundle-budget",
+          "status": "≈ over budget (advisory)"
+        },
+        {
+          "gate": "coverage-delta",
+          "status": "≈ regression (advisory)"
+        },
+        {
+          "gate": "migration-check",
+          "status": "✓ pass"
+        },
+        {
+          "gate": "perf-profile",
+          "status": "≈ regression (advisory)"
+        },
+        {
+          "gate": "sonar",
+          "status": "≈ no recent scan (advisory)"
+        }
+      ]
+    }
+  ],
+  "audit_findings_total": 4,
+  "audit_findings_resolved_count": 0,
+  "audit_findings_deferred": [
+    {
+      "har_id": "HAR-3",
+      "severity": "low",
+      "file": ".claude/helpers/memory.js",
+      "line": 57,
+      "description": "Key file permissions verified on read, but no integrity/MAC verification of the key file itself. If permissions are compromised by an attacker with system access, the key could be read or tampered with before validation occurs.",
+      "deferred_to_sprint": "harness-key-rotation-v1",
+      "ac_id": "AC-2",
+      "rationale": "Key file integrity/MAC is part of full key rotation policy; both must ship together. Filed for harness-key-rotation-v1 follow-up sprint. Current 0600 perms + crypto.randomBytes(32) provide baseline confidentiality.",
+      "deferred_at": "2026-05-19T18:50:29Z"
+    }
+  ],
+  "audit_findings_accepted": [
+    {
+      "har_id": "HAR-1",
+      "severity": "low",
+      "file": ".claude/helpers/session.js",
+      "line": 32,
+      "description": "Code injection pattern detection using simple regex. The pattern `/\\beval\\b|\\bnew\\s+Function\\b|\\$\\{|`/` may not catch all code injection variants (e.g., 'eval ' with extra spaces, or using Function constructor indirectly). This is adequate as defense-in-depth but not foolproof.",
+      "risk_owner": "gio",
+      "business_rationale": "Defense-in-depth simple regex is intentional. Real validation is at zod boundaries; this is belt-and-suspenders. Replacing with a parser would be overkill for the threat model (operator typing into context). Documented in session.js validateContextValue comment.",
+      "accepted_at": "2026-05-19T18:50:28Z"
+    },
+    {
+      "har_id": "HAR-2",
+      "severity": "low",
+      "file": ".claude/helpers/session.js",
+      "line": 21,
+      "description": "Arbitrary recursion depth limit of 4 levels in validateContextValue(). Values nested beyond 4 levels are rejected, which could cause unexpected validation failures for deeply nested legitimate data structures.",
+      "risk_owner": "gio",
+      "business_rationale": "Depth=4 bound is documented intentional limit. Sessions store flat key-value context not arbitrary trees. Higher bound enables stack-overflow DoS via malicious nested objects. 4 is sufficient for plain config + sub-objects.",
+      "accepted_at": "2026-05-19T18:50:28Z"
+    },
+    {
+      "har_id": "HAR-4",
+      "severity": "low",
+      "file": ".claude/helpers/github-safe.js",
+      "line": 48,
+      "description": "Shell metacharacter check skips flag values entirely (as noted: 'skip shell-meta check for flag VALUES'). While this is safe due to file piping, a flag injection attack through crafted titles/bodies could theoretically occur if the piping mechanism fails.",
+      "risk_owner": "gio",
+      "business_rationale": "Flag values (body content) intentionally bypass shell-meta check because bodies go through tmpfile + body-file flag to gh, never inlined into shell command. Documented in github-safe.js validateArgs comment.",
+      "accepted_at": "2026-05-19T18:50:29Z"
+    }
+  ],
+  "predeploy_at": "2026-05-19T18:50:40Z",
+  "closed_at": "2026-05-19T18:55:37Z",
+  "phase_manifest_version_seen": "1.1.0",
+  "elapsed_seconds": 4500
+}

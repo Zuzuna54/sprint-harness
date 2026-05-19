@@ -1,0 +1,38 @@
+{
+  "timestamp": "2026-05-19T15:55:32.861Z",
+  "mode": "headless",
+  "workerType": "predict",
+  "model": "haiku",
+  "durationMs": 21209,
+  "executionId": "predict_1779206111652_w1n2bi",
+  "success": true,
+  "findings": {
+    "filesToPreload": [
+      "apps/lambdas/ai-scheduler-lambda/src/pipeline/stages/foundation.ts",
+      "apps/lambdas/ai-scheduler-lambda/src/pipeline/stages/index.ts",
+      "packages/db/src/schema/nutrition.ts",
+      "packages/db/src/migrations/latest.ts",
+      "packages/db/src/seed/data/ingredients.json",
+      "packages/db/src/seed/data/meals.json",
+      "apps/web/components/dashboard/NotificationsBanner.tsx",
+      "docs/sprints/pipeline-v2-visibility/spec.md",
+      "docs/sprints/pipeline-v2-visibility/state.json"
+    ],
+    "testsToRun": [
+      "apps/lambdas/ai-scheduler-lambda/src/pipeline/stages/__tests__/foundation.test.ts",
+      "packages/db/src/__tests__/schema-nutrition.test.ts",
+      "packages/db/src/__tests__/seed-validation.test.ts",
+      "apps/web/components/dashboard/__tests__/NotificationsBanner.test.tsx"
+    ],
+    "docsToReference": [
+      "docs/sprints/USAGE.md",
+      ".claude/projects/-Users-gio-Desktop-lifeos/memory/reference_pipeline_realistic_scheduling_runbook.md",
+      ".claude/projects/-Users-gio-Desktop-lifeos/memory/project_sprint_pipeline_realistic_scheduling.md",
+      "CLAUDE.md (Key Constraints: TDD-first, RLS, soft delete, auth on every route)",
+      ".claude/rules/security.md (Input Validation + Environment Variable Validation)"
+    ],
+    "confidence": 0.78
+  },
+  "rawOutputPreview": "Based on the active `sprint/pipeline-v2-visibility` branch and recent codebase activity, here's the preload prediction:\n\n```json\n{\n  \"filesToPreload\": [\n    \"apps/lambdas/ai-scheduler-lambda/src/pipeline/stages/foundation.ts\",\n    \"apps/lambdas/ai-scheduler-lambda/src/pipeline/stages/index.ts\",\n    \"packages/db/src/schema/nutrition.ts\",\n    \"packages/db/src/migrations/latest.ts\",\n    \"packages/db/src/seed/data/ingredients.json\",\n    \"packages/db/src/seed/data/meals.json\",\n    \"apps/web/components/dashboard/NotificationsBanner.tsx\",\n    \"docs/sprints/pipeline-v2-visibility/spec.md\",\n    \"docs/sprints/pipeline-v2-visibility/state.json\"\n  ],\n  \"testsToRun\": [\n    \"apps/lambdas/ai-scheduler-lambda/src/pipeline/stages/__tests__/foundation.test.ts\",\n    \"packages/db/src/__tests__/schema-nutrition.test.ts\",\n    \"packages/db/src/__tests__/seed-validation.test.ts\",\n    \"apps/web/components/dashboard/__tests__/NotificationsBanner.test.tsx\"\n  ],\n  \"docsToReference\": [\n    \"docs/sprints/USAGE.md\",\n    \".claude/projects/-Users-gio-Desktop-lifeos/memory/reference_pipeline_realistic_scheduling_runbook.md\",\n    \".claude/projects/-Users-gio-Desktop-lifeos/memory/project_sprint_pipeline_realistic_scheduling.md\",\n    \"CLAUDE.md (Key Constraints: TDD-first, RLS, soft delete, auth on every route)\",\n    \".claude/rules/security.md (Input Validation + Environment Variable Validation)\"\n  ],\n  \"confidence\": 0.78\n}\n```\n\n**Why this pattern:**\n\n- **Recent edits** on `weekShape.ts` (duration ACs) + nutrition schema + seed data confirm pipeline foundation work\n- **Dashboard integration** (`NotificationsBanner`) suggests visibility layer is next\n- **Tests** align with sprint requirements and the TDD-first constraint in CLAUDE.md\n- **Docs** cover deployment runbook (pipeline-realistic-scheduling) + sprint system + security rules for validation\n\n**Current sprint state:** Check `/sprint pipeline-v2-visibility` or run `bash scripts/sprint-status.sh` for latest phase + AC completion.\n",
+  "rawOutputLength": 1982
+}

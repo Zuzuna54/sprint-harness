@@ -1,0 +1,17 @@
+{
+  "verdict": "pass",
+  "outcome": "pass",
+  "consensus_kind": "deterministic-5-vote",
+  "spec_sha256": "64c0dc6333c5928b3f7d33decf7afec841b358dc323b42063b3d9b017538aceb",
+  "at": "2026-05-19T20:23:35Z",
+  "votes": [
+    {"id": 1, "check": "ac_count_in_range",     "result": "fail", "reason": "AC-N references = 1 (outside 3..100; under-scoped or runaway)"},
+    {"id": 2, "check": "files_touched_nonempty","result": "pass", "reason": "§H section has 3 integration-point line(s)"},
+    {"id": 3, "check": "no_unresolved_markers", "result": "pass", "reason": "No TODO/FIXME/TBD/XXX markers in spec body"},
+    {"id": 4, "check": "risks_section_filled",  "result": "pass", "reason": "§J Risks has 1016 chars of content"},
+    {"id": 5, "check": "ac_verifiability",      "result": "pass", "reason": "6 verification/testability mention(s) in spec"}
+  ],
+  "pass_count": 4,
+  "total_votes": 5,
+  "note": "Replaces ruflo hive-mind consensus (broken upstream, see memory feedback_hive_mind_consensus_decorative). Deterministic 5-vote heuristic — fast, reproducible, no external dependency. Set RUFLO_CONSENSUS_USE_BROKEN_CLI=1 on sprint-hive-mind-spec-lock.sh to fall back to the legacy ruflo path."
+}

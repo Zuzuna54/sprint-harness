@@ -1,0 +1,15 @@
+{
+  "timestamp": "2026-05-19T16:56:53.742Z",
+  "mode": "headless",
+  "workerType": "testgaps",
+  "model": "sonnet",
+  "durationMs": 326502,
+  "executionId": "testgaps_1779209487240_xglcph",
+  "success": false,
+  "findings": {
+    "sections": [],
+    "codeBlocks": []
+  },
+  "rawOutputPreview": "API Error: The socket connection was closed unexpectedly. For more information, pass `verbose: true` in the second argument to fetch()\n",
+  "rawOutputLength": 135
+}

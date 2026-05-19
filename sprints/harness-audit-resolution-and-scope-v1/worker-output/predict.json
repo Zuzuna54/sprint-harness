@@ -1,0 +1,69 @@
+{
+  "timestamp": "2026-05-19T18:33:41.285Z",
+  "mode": "headless",
+  "workerType": "predict",
+  "model": "haiku",
+  "durationMs": 37772,
+  "executionId": "predict_1779215583513_4pefn5",
+  "success": true,
+  "findings": {
+    "filesToPreload": [
+      "apps/lambdas/ai-scheduler-lambda/src/pipeline/stages/foundation.ts",
+      "apps/lambdas/ai-scheduler-lambda/src/pipeline/userSchedulingPrefs.ts",
+      "apps/web/components/planner/WeeklyCalendar.tsx",
+      "apps/web/components/nutrition/MacroRing.tsx",
+      "apps/web/components/workouts/WorkoutLogger.tsx",
+      ".claude/helpers/github-safe.js",
+      "docs/sprints/pipeline-v2-visibility/spec.md",
+      "packages/db/src/schema.ts"
+    ],
+    "testsToRun": [
+      "apps/lambdas/ai-scheduler-lambda/__tests__/userSchedulingPrefs.test.ts",
+      "apps/lambdas/ai-scheduler-lambda/src/pipeline/stages/__tests__/foundation.test.ts",
+      "apps/web/src/__tests__/WeeklyCalendar.test.tsx",
+      "apps/web/src/__tests__/MacroRing.test.tsx",
+      "apps/web/src/__tests__/WorkoutLogger.test.tsx"
+    ],
+    "docsToReference": [
+      "docs/sprints/pipeline-v2-visibility/spec.md",
+      "CLAUDE.md — Key Constraints (TDD-first, RLS, soft delete, validation everywhere)",
+      ".claude/rules/security.md — Input validation, secret management",
+      ".claude/projects/-Users-gio-Desktop-lifeos/memory/feedback_two_verdict_policy.md"
+    ],
+    "confidence": 0.84,
+    "blockingIssues": [
+      {
+        "severity": "CRITICAL",
+        "issue": "Command injection in .claude/helpers/github-safe.js:31",
+        "impact": "Security gate blocker — unsafe GitHub operations",
+        "action": "Use spawn/spawnSync with arg arrays instead of shell interpolation"
+      },
+      {
+        "severity": "CRITICAL",
+        "issue": "apps/web/src has ZERO tests — violates TDD-first policy",
+        "impact": "Cannot ship without test coverage per CLAUDE.md",
+        "action": "Add RTL tests for WeeklyCalendar, MacroRing, WorkoutLogger"
+      },
+      {
+        "severity": "HIGH",
+        "issue": "N+1 query patterns in 3 files (acceptSchedule, foundation, getWeek)",
+        "impact": "Performance regression — batched queries can eliminate 2–4 DB round-trips per request",
+        "action": "Move skippedMealLogs + supplementPauses into Promise.all; batch resolveLinkedEntity"
+      }
+    ],
+    "nextLikelyTasks": [
+      "1. Fix command injection in github-safe.js (security compliance gate)",
+      "2. Add RTL tests for frontend components (TDD compliance)",
+      "3. Optimize N+1 queries in Lambda routes (performance audit follow-up)",
+      "4. Verify userSchedulingPrefs fallbacks (AC-31, AC-33 edge cases)"
+    ],
+    "context": {
+      "activeBranch": "sprint/pipeline-v2-visibility",
+      "recentFocus": "Pipeline foundation + scheduler prefs integration + frontend visibility",
+      "deploymentStatus": "Ready pending: test coverage + security fixes",
+      "sprintPhase": "Build phase — visibility features + performance tuning"
+    }
+  },
+  "rawOutputPreview": "```json\n{\n  \"filesToPreload\": [\n    \"apps/lambdas/ai-scheduler-lambda/src/pipeline/stages/foundation.ts\",\n    \"apps/lambdas/ai-scheduler-lambda/src/pipeline/userSchedulingPrefs.ts\",\n    \"apps/web/components/planner/WeeklyCalendar.tsx\",\n    \"apps/web/components/nutrition/MacroRing.tsx\",\n    \"apps/web/components/workouts/WorkoutLogger.tsx\",\n    \".claude/helpers/github-safe.js\",\n    \"docs/sprints/pipeline-v2-visibility/spec.md\",\n    \"packages/db/src/schema.ts\"\n  ],\n  \"testsToRun\": [\n    \"apps/lambdas/ai-scheduler-lambda/__tests__/userSchedulingPrefs.test.ts\",\n    \"apps/lambdas/ai-scheduler-lambda/src/pipeline/stages/__tests__/foundation.test.ts\",\n    \"apps/web/src/__tests__/WeeklyCalendar.test.tsx\",\n    \"apps/web/src/__tests__/MacroRing.test.tsx\",\n    \"apps/web/src/__tests__/WorkoutLogger.test.tsx\"\n  ],\n  \"docsToReference\": [\n    \"docs/sprints/pipeline-v2-visibility/spec.md\",\n    \"CLAUDE.md — Key Constraints (TDD-first, RLS, soft delete, validation everywhere)\",\n    \".claude/rules/security.md — Input validation, secret management\",\n    \".claude/projects/-Users-gio-Desktop-lifeos/memory/feedback_two_verdict_policy.md\"\n  ],\n  \"confidence\": 0.84,\n  \"blockingIssues\": [\n    {\n      \"severity\": \"CRITICAL\",\n      \"issue\": \"Command injection in .claude/helpers/github-safe.js:31\",\n      \"impact\": \"Security gate blocker — unsafe GitHub operations\",\n      \"action\": \"Use spawn/spawnSync with arg arrays instead of shell interpolation\"\n    },\n    {\n      \"severity\": \"CRITICAL\",\n      \"issue\": \"apps/web/src has ZERO tests — violates TDD-first policy\",\n      \"impact\": \"Cannot ship without test coverage per CLAUDE.md\",\n      \"action\": \"Add RTL tests for WeeklyCalendar, MacroRing, WorkoutLogger\"\n    },\n    {\n      \"severity\": \"HIGH\",\n      \"issue\": \"N+1 query patterns in 3 files (acceptSchedule, foundation, getWeek)\",\n      \"impact\": \"Performance regression — batched queries can eliminate 2–4 DB round-trips per request\",\n      \"action\": \"Move skippedMealLogs + supplementPauses into Prom",
+  "rawOutputLength": 3111
+}

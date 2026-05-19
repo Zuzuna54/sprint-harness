@@ -1,0 +1,92 @@
+{
+  "timestamp": "2026-05-19T18:48:15.624Z",
+  "mode": "headless",
+  "workerType": "optimize",
+  "model": "sonnet",
+  "durationMs": 299496,
+  "executionId": "optimize_1779216196128_1dqgrs",
+  "success": true,
+  "findings": {
+    "sections": [
+      {
+        "title": "Performance Analysis — LifeOS / Ordex",
+        "content": "\n",
+        "level": 2
+      },
+      {
+        "title": "1. N+1 / Excessive Network Requests",
+        "content": "\n**HIGH — `mealImageSign.ts:66-68` — N parallel S3 presign calls, no caching**\n```typescript\n// Current: 1 GetObjectCommand per meal, every list fetch\nreturn Promise.all(\n  meals.map(async (m) => ({ ...m, imageUrl: await signMealImageKey(m.imageUrl) })),\n)\n```\nSigned URLs are valid for 3,600 seconds (line 19), but every `getMeals` call re-signs all keys from scratch. A 20-meal list fires 20 S3 API calls. Fix: cache signed URLs in a module-level `Map<key, {url, expiresAt}>` and only re-sign when within 5 min of expiry:\n```typescript\nconst signCache = new Map<string, { url: string; expiresAt: number }>()\n\nexport async function signMealImageKey(imageUrl: string | null): Promise<string | null> {\n  // ... existing guards ...\n  const cached = signCache.get(imageUrl)\n  if (cached && Date.now() < cached.expiresAt - 300_000) return cached.url\n  const url = await getSignedUrl(s3(), cmd, { expiresIn: PRESIGN_GET_TTL_SECONDS })\n  signCache.set(imageUrl, { url, expiresAt: Date.now() + PRESIGN_GET_TTL_SECONDS * 1000 })\n  return url\n}\n```\n\n**HIGH — `useNutritionLogRange.ts:39-56` — 365 API calls for 1Y Progress view, bypasses TanStack Query cache**\n\nThe hook fans out one HTTP call per day, batched by 10, but uses raw `useState/useEffect` — no TanStack Query caching. Every mount (switching tabs, navigating) re-fires all requests:\n```typescript\nconst dates = enumerateDays(from, to);  // up to 365 items\nfor (let i = 0; i < dates.length; i += concurrency) {  // 37 sequential batches of 10\n  const settled = await Promise.allSettled(slice.map(async (date) => nutritionGetLog({ date })));\n}\n```\nFix: Either (a) add a server-side range endpoint `GET /nutrition/log?from=&to=` that returns all days in one query, or (b) replace with `useQueries` from TanStack Query so results are individually cached and deduplicated:\n```typescript\nimport { useQueries } from '@tanstack/react-query'\n\nconst queries = useQueries({\n  queries: dates.map((date) => ({\n    queryKey: ['nutrition', 'log', date],\n    queryFn: () => nutritionGetLog({ date }),\n    staleTime: 5 * 60_000,\n    enabled,\n  })),\n})\n```\nThis lets TanStack Query serve cached days instantly — a 30D view that already loaded its first week won't re-fetch those days.\n\n---\n\n",
+        "level": 3
+      },
+      {
+        "title": "2. Unnecessary React Re-renders",
+        "content": "\n**HIGH — `PlannerView.tsx:108-123` — `blocksForDate`/`blocksForRange` re-executed on every state update**\n\nThese plain functions are called in the render path, not memoized:\n```typescript\nfunction blocksForDate(blocks: TimeBlock[], iso: string): TimeBlock[] {\n  return blocks\n    .filter((b) => b.startTime.startsWith(iso))  // iterates all blocks\n    .sort((a, b) => a.startTime.localeCompare(b.startTime))\n}\n\nfunction blocksForRange(blocks: TimeBlock[], from: string, days: number): TimeBlock[] {\n  return blocks\n    .filter((b) => {\n      const start = parseISO(b.startTime)  // date parse per-block\n      return start >= fromDate && start < toDate\n    })\n    .sort(...)\n}\n```\n`PlannerView` has 8+ `useState` values (FAB, sheets, swap modals, etc.). Every FAB open/close re-runs these over all week blocks. Fix:\n```typescript\nconst visibleBlocks = useMemo(\n  () => density === 'day'\n    ? blocksForDate(weekBlocks, activeDate)\n    : blocksForRange(weekBlocks, activeWeekStart, density === '3day' ? 3 : 7),\n  [weekBlocks, activeDate, activeWeekStart, density],\n)\n```\n\n**MEDIUM — No `React.memo` on list-rendered components**\n\n`grep -r \"React.memo\\|memo(\" apps/web` → zero results in list components like `MealCard`, `SupplementCard`, `GroceryItem`, `WorkoutCard`. Only `TimeBlockCard` is correctly memoized (`TimeBlockCard.tsx:117`). When a parent query refetches or any context updates, all list items re-render unconditionally. These components are pure (props-driven), so wrapping them is low risk and high reward:\n```typescript\n// components/nutrition/MealCard.tsx\nexport const MealCard = memo(function MealCard({ meal, ...props }: MealCardProps) {\n  // ...\n})\n```\n\n**MEDIUM — `useNutritionLogRange.ts` — non-stable `concurrency` dependency causes re-fetch**\n\n`concurrency` is in the `useEffect` dep array (line 72). If callers pass `concurrency={10}` as a literal, it's stable, but if they compute it (e.g. based on screen size), it triggers full re-fetch. The concurrency value doesn't need to restart the effect — it should be a `useRef`.\n\n---\n\n",
+        "level": 3
+      },
+      {
+        "title": "3. Caching Opportunities",
+        "content": "\n**HIGH — `mealImageSign.ts` — Module-level URL cache** (see fix in §1 above)\n\n**MEDIUM — `useNutritionLogRange.ts` — Replace with TanStack Query** (see fix in §1 above)\n\n**MEDIUM — Missing `staleTime` on planner queries in `PlannerView.tsx`**\n\nThe nutrition summary at line 177 has `staleTime: 60_000`, but the supplements queries (from the imports at lines 20-22: `useSupplementsGetLog`, `useSupplementsGetUserSupplements`) should be checked for default `staleTime: 0`. Default staleTime causes background refetches on every window focus — on the Planner page (the primary landing), this fires 4 queries on every tab switch:\n```typescript\n// Explicit staleTime avoids focus-triggered refetches on the landing page\nconst supplementsLog = useSupplementsGetLog(\n  { date: activeDate },\n  { query: { staleTime: 2 * 60_000 } }\n)\n```\n\n---\n\n",
+        "level": 3
+      },
+      {
+        "title": "4. Memory Leaks",
+        "content": "\n**No real leaks found in examined code.** All `useEffect` cleanups are correctly implemented:\n- `TopBar.tsx:40` — `window.removeEventListener` properly returned\n- `CascadeContext.tsx:71-76` — emitter `unsubscribe` returned\n- `PipelineProgress.tsx:92-96` — `cancelled = true; clearTimeout(timer)` returned\n- `PlannerView.tsx:125-135` — MediaQueryList listener properly removed\n\nThe `useNutritionLogRange.ts:33/69` cancellation pattern (`let cancelled = false; return () => { cancelled = true }`) is correct but the async operations don't abort in-flight HTTP requests. On rapid date range changes, previous requests complete and are silently dropped (correct), but they still consume network bandwidth. Using `AbortController` would be cleaner:\n```typescript\nconst controller = new AbortController()\n// pass controller.signal to fetch calls\nreturn () => { controller.abort() }\n```\n\n---\n\n",
+        "level": 3
+      },
+      {
+        "title": "5. Redundant Computations",
+        "content": "\n**MEDIUM — `toDailyMacros` in `PlannerView.tsx:78-106` — triple-unwrap logic runs on every render**\n\nThis function runs on every render to unwrap 3 possible API envelope shapes. It's called with `initialSummary` which is a stable prop, and `summaryQuery.data` which only changes when the query resolves. It should be memoized:\n```typescript\nconst dailyMacros = useMemo(\n  () => toDailyMacros(summaryQuery.data ?? initialSummary),\n  [summaryQuery.data, initialSummary]\n)\n```\n\n**LOW — `effectiveStatus` called per-block in TimeBlockCard without caching**\n\n`effectiveStatus(block, now)` calls `parseISO(block.startTime)` and compares against `new Date()` on every render (`TimeBlockCard.tsx:100-115`). Since `TimeBlockCard` is memoized, this only re-runs when the `block` or `now` prop changes — but `now` defaults to `new Date()` inside the component, which is always a new reference. Since the prop default is inside the function body, it won't cause spurious re-renders (memoization still works), but the time comparison has 1-minute granularity anyway. This is LOW severity — the memo wrapper handles it.\n\n---\n\n",
+        "level": 3
+      },
+      {
+        "title": "Summary Scorecard",
+        "content": "| Issue | File | Severity | Effort |\n|---|---|---|---|\n| S3 presign cache miss on every list fetch | `mealImageSign.ts:66` | HIGH | S |\n| 365 API calls for 1Y Progress view | `useNutritionLogRange.ts:42` | HIGH | M |\n| `blocksForDate`/`blocksForRange` un-memoized | `PlannerView.tsx:108` | HIGH | S |\n| No `React.memo` on list components | Multiple | MEDIUM | S |\n| `staleTime` missing on supplement queries | `PlannerView.tsx` | MEDIUM | S |\n| `toDailyMacros` not memoized | `PlannerView.tsx:78` | MEDIUM | S |\n| No `AbortController` in range fetcher | `useNutritionLogRange.ts:33` | LOW | S |\n\nThe two highest-ROI changes are the **S3 presign cache** (eliminates ~95% of AWS API calls on warm lists) and **migrating `useNutritionLogRange` to `useQueries`** (eliminates duplicate requests and adds automatic staling/caching for the Progress screen's heavy date-range queries).",
+        "level": 3
+      }
+    ],
+    "codeBlocks": [
+      {
+        "language": "typescript",
+        "code": "// Current: 1 GetObjectCommand per meal, every list fetch\nreturn Promise.all(\n  meals.map(async (m) => ({ ...m, imageUrl: await signMealImageKey(m.imageUrl) })),\n)"
+      },
+      {
+        "language": "typescript",
+        "code": "const signCache = new Map<string, { url: string; expiresAt: number }>()\n\nexport async function signMealImageKey(imageUrl: string | null): Promise<string | null> {\n  // ... existing guards ...\n  const cached = signCache.get(imageUrl)\n  if (cached && Date.now() < cached.expiresAt - 300_000) return cached.url\n  const url = await getSignedUrl(s3(), cmd, { expiresIn: PRESIGN_GET_TTL_SECONDS })\n  signCache.set(imageUrl, { url, expiresAt: Date.now() + PRESIGN_GET_TTL_SECONDS * 1000 })\n  return url\n}"
+      },
+      {
+        "language": "typescript",
+        "code": "const dates = enumerateDays(from, to);  // up to 365 items\nfor (let i = 0; i < dates.length; i += concurrency) {  // 37 sequential batches of 10\n  const settled = await Promise.allSettled(slice.map(async (date) => nutritionGetLog({ date })));\n}"
+      },
+      {
+        "language": "typescript",
+        "code": "import { useQueries } from '@tanstack/react-query'\n\nconst queries = useQueries({\n  queries: dates.map((date) => ({\n    queryKey: ['nutrition', 'log', date],\n    queryFn: () => nutritionGetLog({ date }),\n    staleTime: 5 * 60_000,\n    enabled,\n  })),\n})"
+      },
+      {
+        "language": "typescript",
+        "code": "function blocksForDate(blocks: TimeBlock[], iso: string): TimeBlock[] {\n  return blocks\n    .filter((b) => b.startTime.startsWith(iso))  // iterates all blocks\n    .sort((a, b) => a.startTime.localeCompare(b.startTime))\n}\n\nfunction blocksForRange(blocks: TimeBlock[], from: string, days: number): TimeBlock[] {\n  return blocks\n    .filter((b) => {\n      const start = parseISO(b.startTime)  // date parse per-block\n      return start >= fromDate && start < toDate\n    })\n    .sort(...)\n}"
+      },
+      {
+        "language": "typescript",
+        "code": "const visibleBlocks = useMemo(\n  () => density === 'day'\n    ? blocksForDate(weekBlocks, activeDate)\n    : blocksForRange(weekBlocks, activeWeekStart, density === '3day' ? 3 : 7),\n  [weekBlocks, activeDate, activeWeekStart, density],\n)"
+      },
+      {
+        "language": "typescript",
+        "code": "// components/nutrition/MealCard.tsx\nexport const MealCard = memo(function MealCard({ meal, ...props }: MealCardProps) {\n  // ...\n})"
+      },
+      {
+        "language": "typescript",
+        "code": "// Explicit staleTime avoids focus-triggered refetches on the landing page\nconst supplementsLog = useSupplementsGetLog(\n  { date: activeDate },\n  { query: { staleTime: 2 * 60_000 } }\n)"
+      },
+      {
+        "language": "typescript",
+        "code": "const controller = new AbortController()\n// pass controller.signal to fetch calls\nreturn () => { controller.abort() }"
+      },
+      {
+        "language": "typescript",
+        "code": "const dailyMacros = useMemo(\n  () => toDailyMacros(summaryQuery.data ?? initialSummary),\n  [summaryQuery.data, initialSummary]\n)"
+      }
+    ]
+  },
+  "rawOutputPreview": "Now I have real, verified findings. Let me compile the actual analysis.\n\n---\n\n## Performance Analysis — LifeOS / Ordex\n\n### 1. N+1 / Excessive Network Requests\n\n**HIGH — `mealImageSign.ts:66-68` — N parallel S3 presign calls, no caching**\n```typescript\n// Current: 1 GetObjectCommand per meal, every list fetch\nreturn Promise.all(\n  meals.map(async (m) => ({ ...m, imageUrl: await signMealImageKey(m.imageUrl) })),\n)\n```\nSigned URLs are valid for 3,600 seconds (line 19), but every `getMeals` call re-signs all keys from scratch. A 20-meal list fires 20 S3 API calls. Fix: cache signed URLs in a module-level `Map<key, {url, expiresAt}>` and only re-sign when within 5 min of expiry:\n```typescript\nconst signCache = new Map<string, { url: string; expiresAt: number }>()\n\nexport async function signMealImageKey(imageUrl: string | null): Promise<string | null> {\n  // ... existing guards ...\n  const cached = signCache.get(imageUrl)\n  if (cached && Date.now() < cached.expiresAt - 300_000) return cached.url\n  const url = await getSignedUrl(s3(), cmd, { expiresIn: PRESIGN_GET_TTL_SECONDS })\n  signCache.set(imageUrl, { url, expiresAt: Date.now() + PRESIGN_GET_TTL_SECONDS * 1000 })\n  return url\n}\n```\n\n**HIGH — `useNutritionLogRange.ts:39-56` — 365 API calls for 1Y Progress view, bypasses TanStack Query cache**\n\nThe hook fans out one HTTP call per day, batched by 10, but uses raw `useState/useEffect` — no TanStack Query caching. Every mount (switching tabs, navigating) re-fires all requests:\n```typescript\nconst dates = enumerateDays(from, to);  // up to 365 items\nfor (let i = 0; i < dates.length; i += concurrency) {  // 37 sequential batches of 10\n  const settled = await Promise.allSettled(slice.map(async (date) => nutritionGetLog({ date })));\n}\n```\nFix: Either (a) add a server-side range endpoint `GET /nutrition/log?from=&to=` that returns all days in one query, or (b) replace with `useQueries` from TanStack Query so results are individually cached and deduplicated:\n```typescript\nimpor",
+  "rawOutputLength": 8293
+}

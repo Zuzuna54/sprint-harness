@@ -1,0 +1,62 @@
+{
+  "sprint": "harness-truthful-docs-and-wiring-v1",
+  "verdict": "pass-with-notes",
+  "consensus_at": "2026-05-19T17:30:00Z",
+  "method": "Synthetic hive-mind: 5 worker votes derived from solution-sketches.md (recommendation = Sketch B) + architect-review.md (APPROVED WITH CONDITIONS, 3 conditions, 5 ADRs) + security-review.md (APPROVED WITH CONDITIONS, 9 attack surfaces S1-S9).",
+  "queens": ["strategic", "tactical"],
+  "votes": [
+    {
+      "worker": "strategic-queen",
+      "vote": "pass",
+      "rationale": "Sprint addresses the root cause (closure-sprint corner-cutting) by wiring all 43 deferred gates and forcing workers to fire from the canonical mutator. Eliminates the 'harness lies about what it verified' failure mode."
+    },
+    {
+      "worker": "tactical-queen",
+      "vote": "pass-with-notes",
+      "rationale": "5 ACs is tight scope; W4 wire-all-43 is the XL risk. Tactical recommendation: instrument verify gates (21) and deploy gates (5) first since they have explicit call-sites; wizard (14) + spec-lock (4) require touching skill flows which is higher friction.",
+      "concerns": ["W4 underestimates wizard gate friction"]
+    },
+    {
+      "worker": "architect-agent",
+      "vote": "pass-with-conditions",
+      "rationale": "Architecture sound. 3 conditions must hold by W5: (1) lockfile-unity proof via 20-writer stress test, (2) phase-workers.json includes graceful-degrade for daemon-down, (3) doc terminology contract documented in DEVELOPER.md and grep-verifiable.",
+      "concerns": [
+        "coupling advance-phase to ruflo daemon needs degrade path",
+        "verify-* scripts need start+end instrumentation not just end"
+      ]
+    },
+    {
+      "worker": "security-architect-agent",
+      "vote": "pass-with-conditions",
+      "rationale": "9 attack surfaces identified (S1-S9). All have a mitigation owner mapped to a Wave. APPROVED WITH CONDITIONS pending W1 lockfile fix + W2 worker JSON schema validation + W4 PII redaction on evidence paths.",
+      "concerns": [
+        "S1 symlink-race on lockfile path — must use mkdir -p $(dirname $LOCK) with restrictive umask",
+        "S4 malicious worker JSON spoofing predicate PASS — schema-validate worker output before recording state.worker_runs[]",
+        "S8 PII in verify-* evidence — pipe ALL evidence-path logs through sprint-pii-redact.sh",
+        "S9 deploy URLs / Pulumi outputs in evidence — record only artifact paths, not contents"
+      ]
+    },
+    {
+      "worker": "reviewer-agent",
+      "vote": "pass-with-notes",
+      "rationale": "Spec is honest about what closure sprint missed. Wave breakdown is logical. Effort estimate (25-29h) is realistic for one 2-week cycle if dogfooded.",
+      "concerns": [
+        "W5 dogfood success criterion '>=6 worker files' is gameable; should require non-empty worker_runs[] per phase per phase-workers.json"
+      ]
+    }
+  ],
+  "outcome": "PASS-WITH-CONDITIONS (4 of 5 votes pass; 1 pass-with-conditions). Architect + security conditions must be addressed during the build, not bypassed.",
+  "ship_gate_conditions": [
+    "C1 (architect): lockfile-unity 20-writer stress test passes by W1 close.",
+    "C2 (architect): phase-workers.json has graceful-degrade when ruflo daemon is down.",
+    "C3 (architect): DEVELOPER.md terminology contract is grep-verifiable.",
+    "C4 (security): worker JSON schema-validated before recording state.worker_runs[] (W2).",
+    "C5 (security): all verify-* evidence logs piped through sprint-pii-redact.sh (W4).",
+    "C6 (security): deploy gates record only artifact paths, not deploy URLs / Pulumi state contents (W4).",
+    "C7 (reviewer): W5 success criterion strengthened — non-empty worker_runs[] per phase, not just file count."
+  ],
+  "dissenting_concerns": [
+    "tactical-queen: W4 wizard gate instrumentation is underestimated in effort. Mitigation: time-box; cut to 'wired but not inject-proven' if needed.",
+    "reviewer-agent: W5 gameable success criterion. Addressed via C7 condition."
+  ]
+}

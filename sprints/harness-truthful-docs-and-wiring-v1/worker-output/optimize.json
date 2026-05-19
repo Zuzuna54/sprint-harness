@@ -1,0 +1,140 @@
+{
+  "timestamp": "2026-05-19T17:02:14.512Z",
+  "mode": "headless",
+  "workerType": "optimize",
+  "model": "sonnet",
+  "durationMs": 318090,
+  "executionId": "optimize_1779209816422_9opp2h",
+  "success": true,
+  "findings": {
+    "sections": [
+      {
+        "title": "Performance Analysis: LifeOS / Ordex",
+        "content": "\n",
+        "level": 2
+      },
+      {
+        "title": "1. N+1 Query Patterns",
+        "content": "\n",
+        "level": 3
+      },
+      {
+        "title": "**[HIGH] N+1 UPDATE in meal assignment — `meals.ts:551-558`**",
+        "content": "\nEvery pipeline run executes one `UPDATE` per meal assignment — typically 14 for a full week:\n\n```typescript\n// apps/lambdas/ai-scheduler-lambda/src/pipeline/stages/meals.ts:551-558\nfor (const a of assignments) {\n  const updated = await db\n    .update(timeBlocks)\n    .set({ linkedEntityId: a.meal.id, updatedAt: new Date() })\n    .where(and(eq(timeBlocks.id, a.placeholderId), lte(timeBlocks.updatedAt, pipelineStartedAt)))\n    .returning({ id: timeBlocks.id })\n  if (updated.length > 0) linkedCount += 1\n}\n```\n\n**Fix:** Batch into a single `UPDATE … CASE`:\n\n```typescript\n// Build a CASE/WHEN batch update\nimport { sql, inArray } from 'drizzle-orm'\n\nconst linkedCount = await db.transaction(async (tx) => {\n  const caseExpr = sql`CASE ${sql.join(\n    assignments.map((a) => sql`WHEN id = ${a.placeholderId} THEN ${a.meal.id}`),\n  )} END`\n  const updated = await tx\n    .update(timeBlocks)\n    .set({ linkedEntityId: caseExpr, updatedAt: new Date() })\n    .where(\n      and(\n        inArray(timeBlocks.id, assignments.map((a) => a.placeholderId)),\n        lte(timeBlocks.updatedAt, pipelineStartedAt),\n      ),\n    )\n    .returning({ id: timeBlocks.id })\n  return updated.length\n})\n```\n\nReduces 14 round-trips to 1. ~95% latency reduction for the meals stage.\n\n---\n\n",
+        "level": 4
+      },
+      {
+        "title": "**[HIGH] N+1 INSERT for grocery items — `aggregate.ts:262-287`**",
+        "content": "\nInserts each grocery item individually in a loop (typically 20-50 items per generated list):\n\n```typescript\n// apps/lambdas/ai-scheduler-lambda/src/pipeline/stages/aggregate.ts:262-287\nfor (const item of groceryItemsToInsert) {\n  await db.insert(groceryItems).values({\n    groceryListId,\n    ingredientId: item.ingredientId === '' ? null : item.ingredientId,\n    // ... 6 more fields\n  })\n}\n```\n\n**Fix:** Single bulk insert with Drizzle's array-values syntax:\n\n```typescript\nif (groceryListId && groceryItemsToInsert.length > 0) {\n  await db.insert(groceryItems).values(\n    groceryItemsToInsert.map((item) => ({\n      groceryListId,\n      ingredientId: item.ingredientId === '' ? null : item.ingredientId,\n      ingredientName: item.ingredientName,\n      quantity: String(item.quantity),\n      unit: item.unit,\n      status: 'NEED' as const,\n      estimatedCost: item.estimatedCost === null ? null : String(item.estimatedCost),\n      storeSection: assignStoreSection(item.category, item.ingredientName) as StoreSection,\n    })),\n  )\n}\n```\n\nReduces 30+ queries to 1 per pipeline run.\n\n---\n\n",
+        "level": 4
+      },
+      {
+        "title": "2. Unnecessary Re-renders",
+        "content": "\n",
+        "level": 3
+      },
+      {
+        "title": "**[MEDIUM] Inline IIFE not memoized — `PlannerView.tsx:193-203`**",
+        "content": "\n`supplementsSummary` is computed via an immediately-invoked function expression on every render, including renders triggered by unrelated state (e.g., `chatOpen`, `editingBlock`):\n\n```typescript\n// apps/lambdas/ai-scheduler-lambda/src/pipeline/stages/PlannerView.tsx:193-203\nconst supplementsSummary = (() => {\n  const us = userSupplementsQuery.data?.data?.data\n  const logs = supplementLogQuery.data?.data?.data\n  if (!Array.isArray(us)) return null\n  const total = us.length\n  const taken = Array.isArray(logs) ? logs.filter((l) => l.taken === true).length : 0\n  return { total, taken }\n})()\n```\n\nPlannerView has 12 `useState` calls and re-renders on every drag, modal open, and date change.\n\n**Fix:**\n\n```typescript\n// apps/web/components/planner/PlannerView.tsx\nconst supplementsSummary = useMemo(() => {\n  const us = userSupplementsQuery.data?.data?.data\n  const logs = supplementLogQuery.data?.data?.data\n  if (!Array.isArray(us)) return null\n  const total = us.length\n  const taken = Array.isArray(logs) ? logs.filter((l) => l.taken === true).length : 0\n  return { total, taken }\n}, [userSupplementsQuery.data, supplementLogQuery.data])\n```\n\n---\n\n",
+        "level": 4
+      },
+      {
+        "title": "**[LOW] Unmemoized derived arrays from memoized source — `ProgressView.tsx:126-127`**",
+        "content": "\n`achieved` and `upcoming` are derived inline from `milestones` (which is correctly `useMemo`'d), but they create new references on every render. Any `React.memo`-wrapped children that receive them will see a new prop identity even when the underlying milestones haven't changed:\n\n```typescript\n// apps/web/components/progress/ProgressView.tsx:126-127\nconst achieved = milestones.filter((m) => m.status === 'achieved').slice(0, 3)\nconst upcoming = milestones.find((m) => m.status === 'upcoming')\n```\n\n**Fix:**\n\n```typescript\nconst achieved = useMemo(\n  () => milestones.filter((m) => m.status === 'achieved').slice(0, 3),\n  [milestones],\n)\nconst upcoming = useMemo(\n  () => milestones.find((m) => m.status === 'upcoming'),\n  [milestones],\n)\n```\n\n---\n\n",
+        "level": 4
+      },
+      {
+        "title": "3. Caching Opportunities",
+        "content": "\n",
+        "level": 3
+      },
+      {
+        "title": "**[ALREADY DONE] SSM secret caching** ✓",
+        "content": "Module-level `cachedSecret` in `packages/auth-middleware/src/createAuthorizer.ts` and the `secretCache` Map pattern in Lambda handlers are correctly implemented per `rules/lambda.md`. No action needed.\n\n",
+        "level": 4
+      },
+      {
+        "title": "**[ALREADY DONE] `userSchedulingPrefs` aggregate** ✓",
+        "content": "Sprint `pipeline-realistic-scheduling` AC-48 already consolidated 4× redundant `fitness_profiles` SELECTs into a single `userSchedulingPrefs` loader. No action needed.\n\n",
+        "level": 4
+      },
+      {
+        "title": "**[MEDIUM] `useNutritionLogRange` fires N HTTP requests per mount**",
+        "content": "\nFor a 90-day window: `enumerateDays` generates 90 dates → 9 batches of 10 sequential fetches. Each batch awaits the previous, so a 90D progress view takes `9 × avg_request_latency` to load:\n\n```typescript\n// apps/web/hooks/useNutritionLogRange.ts:42-56\nfor (let i = 0; i < dates.length; i += concurrency) {\n  const slice = dates.slice(i, i + concurrency)\n  const settled = await Promise.allSettled(slice.map(async (date) => {\n    const res = await nutritionGetLog({ date })  // individual per-day call\n    // ...\n  }))\n}\n```\n\n**Fix (backend):** Add a `GET /nutrition/log?from=&to=` range endpoint to the nutrition Lambda that returns all logs in one query. The Drizzle query is trivial:\n\n```typescript\nawait db.select().from(nutritionLogs)\n  .where(and(\n    eq(nutritionLogs.userId, userId),\n    gte(nutritionLogs.logDate, from),\n    lte(nutritionLogs.logDate, to),\n    isNull(nutritionLogs.deletedAt),\n  ))\n```\n\nThen replace the fan-out hook with a single `useGetNutritionLogRange(from, to)` generated hook. This turns 90 requests into 1 for the 90D progress view.\n\nThe existing `useNutritionLogRange` hook at `apps/web/hooks/useNutritionLogRange.ts` has the correct cancellation pattern (`cancelled` flag, `return () => { cancelled = true }`), so there's no leak — just an architectural inefficiency.\n\n---\n\n",
+        "level": 4
+      },
+      {
+        "title": "4. Memory Leaks",
+        "content": "\n**None found.** All examined `useEffect` subscriptions have proper cleanup:\n\n- `useKeyboardShortcuts.ts:117-118` — `addEventListener` / `removeEventListener` ✓\n- `Greeting.tsx:38-39` — `setInterval` / `clearInterval` ✓\n- `PlannerView.tsx:209-215` — `window.addEventListener('open-nl')` / `removeEventListener` ✓\n- `useNutritionLogRange.ts:33,69-71` — `cancelled` flag prevents stale state updates ✓\n- `lib/cascade/pipelineCompletionWatcher.ts` — uses Supabase subscription with cleanup ✓\n\n---\n\n",
+        "level": 3
+      },
+      {
+        "title": "5. Redundant Computations",
+        "content": "\n",
+        "level": 3
+      },
+      {
+        "title": "**[MEDIUM] `extractWeekData` called twice per render — `PlannerView.tsx:228`**",
+        "content": "\n```typescript\n// apps/web/components/planner/PlannerView.tsx:222-228\nconst initialPayload = useMemo(\n  () => (weekStart === initialWeekStart ? extractWeekData(initialWeekData) : null),\n  [weekStart, initialWeekStart, initialWeekData],\n)\nconst weekQuery = usePlannerGetWeek({ weekStart })\nconst weekData = extractWeekData(weekQuery.data) ?? initialPayload  // ← called on every render\n```\n\n`extractWeekData(weekQuery.data)` runs on every render even when `weekQuery.data` hasn't changed.\n\n**Fix:**\n\n```typescript\nconst rawWeekData = useMemo(\n  () => extractWeekData(weekQuery.data),\n  [weekQuery.data],\n)\nconst weekData = rawWeekData ?? initialPayload\n```\n\n---\n\n",
+        "level": 4
+      },
+      {
+        "title": "Priority Summary",
+        "content": "| # | Severity | File | Issue | Fix effort |\n|---|----------|------|-------|------------|\n| 1 | **HIGH** | `pipeline/stages/meals.ts:551` | N+1 UPDATE per meal assignment | S — single CASE/WHEN batch |\n| 2 | **HIGH** | `pipeline/stages/aggregate.ts:262` | N+1 INSERT per grocery item | S — `db.insert().values([...])` |\n| 3 | **MEDIUM** | `hooks/useNutritionLogRange.ts:42` | 90 HTTP requests for 90D progress | M — add range endpoint to nutrition Lambda |\n| 4 | **MEDIUM** | `components/planner/PlannerView.tsx:193` | Supplement summary recomputed on every render | S — wrap in `useMemo` |\n| 5 | **MEDIUM** | `components/planner/PlannerView.tsx:228` | `extractWeekData` called unguarded | S — memoize the call |\n| 6 | **LOW** | `components/progress/ProgressView.tsx:126` | `achieved`/`upcoming` new references each render | S — wrap in `useMemo` |\n\nItems 1 and 2 are the highest-leverage fixes — they happen during every user's weekly pipeline generation and directly affect perceived onboarding/regen speed. Items 3-5 affect the Progress and Planner tabs on every navigation.",
+        "level": 3
+      }
+    ],
+    "codeBlocks": [
+      {
+        "language": "typescript",
+        "code": "// apps/lambdas/ai-scheduler-lambda/src/pipeline/stages/meals.ts:551-558\nfor (const a of assignments) {\n  const updated = await db\n    .update(timeBlocks)\n    .set({ linkedEntityId: a.meal.id, updatedAt: new Date() })\n    .where(and(eq(timeBlocks.id, a.placeholderId), lte(timeBlocks.updatedAt, pipelineStartedAt)))\n    .returning({ id: timeBlocks.id })\n  if (updated.length > 0) linkedCount += 1\n}"
+      },
+      {
+        "language": "typescript",
+        "code": "// Build a CASE/WHEN batch update\nimport { sql, inArray } from 'drizzle-orm'\n\nconst linkedCount = await db.transaction(async (tx) => {\n  const caseExpr = sql`CASE ${sql.join(\n    assignments.map((a) => sql`WHEN id = ${a.placeholderId} THEN ${a.meal.id}`),\n  )} END`\n  const updated = await tx\n    .update(timeBlocks)\n    .set({ linkedEntityId: caseExpr, updatedAt: new Date() })\n    .where(\n      and(\n        inArray(timeBlocks.id, assignments.map((a) => a.placeholderId)),\n        lte(timeBlocks.updatedAt, pipelineStartedAt),\n      ),\n    )\n    .returning({ id: timeBlocks.id })\n  return updated.length\n})"
+      },
+      {
+        "language": "typescript",
+        "code": "// apps/lambdas/ai-scheduler-lambda/src/pipeline/stages/aggregate.ts:262-287\nfor (const item of groceryItemsToInsert) {\n  await db.insert(groceryItems).values({\n    groceryListId,\n    ingredientId: item.ingredientId === '' ? null : item.ingredientId,\n    // ... 6 more fields\n  })\n}"
+      },
+      {
+        "language": "typescript",
+        "code": "if (groceryListId && groceryItemsToInsert.length > 0) {\n  await db.insert(groceryItems).values(\n    groceryItemsToInsert.map((item) => ({\n      groceryListId,\n      ingredientId: item.ingredientId === '' ? null : item.ingredientId,\n      ingredientName: item.ingredientName,\n      quantity: String(item.quantity),\n      unit: item.unit,\n      status: 'NEED' as const,\n      estimatedCost: item.estimatedCost === null ? null : String(item.estimatedCost),\n      storeSection: assignStoreSection(item.category, item.ingredientName) as StoreSection,\n    })),\n  )\n}"
+      },
+      {
+        "language": "typescript",
+        "code": "// apps/lambdas/ai-scheduler-lambda/src/pipeline/stages/PlannerView.tsx:193-203\nconst supplementsSummary = (() => {\n  const us = userSupplementsQuery.data?.data?.data\n  const logs = supplementLogQuery.data?.data?.data\n  if (!Array.isArray(us)) return null\n  const total = us.length\n  const taken = Array.isArray(logs) ? logs.filter((l) => l.taken === true).length : 0\n  return { total, taken }\n})()"
+      },
+      {
+        "language": "typescript",
+        "code": "// apps/web/components/planner/PlannerView.tsx\nconst supplementsSummary = useMemo(() => {\n  const us = userSupplementsQuery.data?.data?.data\n  const logs = supplementLogQuery.data?.data?.data\n  if (!Array.isArray(us)) return null\n  const total = us.length\n  const taken = Array.isArray(logs) ? logs.filter((l) => l.taken === true).length : 0\n  return { total, taken }\n}, [userSupplementsQuery.data, supplementLogQuery.data])"
+      },
+      {
+        "language": "typescript",
+        "code": "// apps/web/components/progress/ProgressView.tsx:126-127\nconst achieved = milestones.filter((m) => m.status === 'achieved').slice(0, 3)\nconst upcoming = milestones.find((m) => m.status === 'upcoming')"
+      },
+      {
+        "language": "typescript",
+        "code": "const achieved = useMemo(\n  () => milestones.filter((m) => m.status === 'achieved').slice(0, 3),\n  [milestones],\n)\nconst upcoming = useMemo(\n  () => milestones.find((m) => m.status === 'upcoming'),\n  [milestones],\n)"
+      },
+      {
+        "language": "typescript",
+        "code": "// apps/web/hooks/useNutritionLogRange.ts:42-56\nfor (let i = 0; i < dates.length; i += concurrency) {\n  const slice = dates.slice(i, i + concurrency)\n  const settled = await Promise.allSettled(slice.map(async (date) => {\n    const res = await nutritionGetLog({ date })  // individual per-day call\n    // ...\n  }))\n}"
+      },
+      {
+        "language": "typescript",
+        "code": "await db.select().from(nutritionLogs)\n  .where(and(\n    eq(nutritionLogs.userId, userId),\n    gte(nutritionLogs.logDate, from),\n    lte(nutritionLogs.logDate, to),\n    isNull(nutritionLogs.deletedAt),\n  ))"
+      },
+      {
+        "language": "typescript",
+        "code": "// apps/web/components/planner/PlannerView.tsx:222-228\nconst initialPayload = useMemo(\n  () => (weekStart === initialWeekStart ? extractWeekData(initialWeekData) : null),\n  [weekStart, initialWeekStart, initialWeekData],\n)\nconst weekQuery = usePlannerGetWeek({ weekStart })\nconst weekData = extractWeekData(weekQuery.data) ?? initialPayload  // ← called on every render"
+      },
+      {
+        "language": "typescript",
+        "code": "const rawWeekData = useMemo(\n  () => extractWeekData(weekQuery.data),\n  [weekQuery.data],\n)\nconst weekData = rawWeekData ?? initialPayload"
+      }
+    ]
+  },
+  "rawOutputPreview": "I have enough data now. Here's the comprehensive analysis:\n\n---\n\n## Performance Analysis: LifeOS / Ordex\n\n### 1. N+1 Query Patterns\n\n#### **[HIGH] N+1 UPDATE in meal assignment — `meals.ts:551-558`**\n\nEvery pipeline run executes one `UPDATE` per meal assignment — typically 14 for a full week:\n\n```typescript\n// apps/lambdas/ai-scheduler-lambda/src/pipeline/stages/meals.ts:551-558\nfor (const a of assignments) {\n  const updated = await db\n    .update(timeBlocks)\n    .set({ linkedEntityId: a.meal.id, updatedAt: new Date() })\n    .where(and(eq(timeBlocks.id, a.placeholderId), lte(timeBlocks.updatedAt, pipelineStartedAt)))\n    .returning({ id: timeBlocks.id })\n  if (updated.length > 0) linkedCount += 1\n}\n```\n\n**Fix:** Batch into a single `UPDATE … CASE`:\n\n```typescript\n// Build a CASE/WHEN batch update\nimport { sql, inArray } from 'drizzle-orm'\n\nconst linkedCount = await db.transaction(async (tx) => {\n  const caseExpr = sql`CASE ${sql.join(\n    assignments.map((a) => sql`WHEN id = ${a.placeholderId} THEN ${a.meal.id}`),\n  )} END`\n  const updated = await tx\n    .update(timeBlocks)\n    .set({ linkedEntityId: caseExpr, updatedAt: new Date() })\n    .where(\n      and(\n        inArray(timeBlocks.id, assignments.map((a) => a.placeholderId)),\n        lte(timeBlocks.updatedAt, pipelineStartedAt),\n      ),\n    )\n    .returning({ id: timeBlocks.id })\n  return updated.length\n})\n```\n\nReduces 14 round-trips to 1. ~95% latency reduction for the meals stage.\n\n---\n\n#### **[HIGH] N+1 INSERT for grocery items — `aggregate.ts:262-287`**\n\nInserts each grocery item individually in a loop (typically 20-50 items per generated list):\n\n```typescript\n// apps/lambdas/ai-scheduler-lambda/src/pipeline/stages/aggregate.ts:262-287\nfor (const item of groceryItemsToInsert) {\n  await db.insert(groceryItems).values({\n    groceryListId,\n    ingredientId: item.ingredientId === '' ? null : item.ingredientId,\n    // ... 6 more fields\n  })\n}\n```\n\n**Fix:** Single bulk insert with Drizzle's array-values syntax:\n\n`",
+  "rawOutputLength": 9007
+}

@@ -1,0 +1,25 @@
+{
+  "slug": "harness-deterministic-phases-v1-closure",
+  "closed_at": "2026-05-19",
+  "duration_calendar_days": 0.04,
+  "duration_active_hours": 1,
+  "acs_total": 6,
+  "acs_production": 6,
+  "acs_broken_with_followup": 0,
+  "verdict_split": { "Production": 6, "Broken-with-followup": 0 },
+  "commits": 5,
+  "files_touched": 24,
+  "files_mirrored_to_sprint_harness": 24,
+  "bypasses_used": 11,
+  "bypass_breakdown": {
+    "cleanup": 3,
+    "deploy": 5,
+    "closure_wave_d": 0,
+    "verify_deferred": 0
+  },
+  "deferred_gates_count": 18,
+  "patterns_extracted": 3,
+  "followups_filed": 7,
+  "push_to_origin": "deferred-gio-approval",
+  "notes": "Closure sprint for parent harness-deterministic-phases-v1. 53 leftover items grouped into 6 waves. All 18 verify gates correctly [DEFERRED] per T4. Real 4-way review + SPARC design + per-Wave proofs."
+}

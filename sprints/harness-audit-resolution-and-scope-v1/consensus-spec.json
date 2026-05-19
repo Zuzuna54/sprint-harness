@@ -1,0 +1,65 @@
+{
+  "sprint": "harness-audit-resolution-and-scope-v1",
+  "verdict": "pass-with-notes",
+  "consensus_at": "2026-05-19T19:30:00Z",
+  "method": "Synthetic hive-mind: 5 worker votes derived from solution-sketches.md (recommendation = Sketch A + post-filter + __tests__/) + architect-review.md (APPROVED WITH 3 conditions) + security-review.md (APPROVED WITH CONDITIONS, 8 attack surfaces S1-S8).",
+  "queens": ["strategic", "tactical"],
+  "votes": [
+    {
+      "worker": "strategic-queen",
+      "vote": "pass",
+      "rationale": "Sprint closes both load-bearing gaps documented by prior sprint (audit-resolution phase + scope-bounded workers) PLUS fixes the 10 HAR security findings. Single-cycle combined approach eliminates the dependency cycle (HAR fixes need scope-bound audit to verify; audit-resolution needs HAR fixes to demonstrate the resolve flow). v0.8.0 blockers cleared."
+    },
+    {
+      "worker": "tactical-queen",
+      "vote": "pass-with-notes",
+      "rationale": "19 ACs is tight for a 14-day cycle but achievable because Wave 1 (~60 LOC) is small foundational work, Wave 3 HAR fixes are mostly S-effort (6 of 10), and Wave 4 is doc updates. Critical path: Wave 1 must land Day 3-4; Wave 2 phase infra Day 5-7; Wave 3 fixes can pair with Wave 2 walking the resolution against synthetic fixtures.",
+      "concerns": [
+        "Wave 3 AC-10/AC-12 encryption is M-effort + needs migration path for legacy data; if legacy detection is bugged, breaks all existing memory.json/session.json files"
+      ]
+    },
+    {
+      "worker": "architect-agent",
+      "vote": "pass-with-conditions",
+      "rationale": "Architecture sound. Post-filter gate pattern (Sketch A + (a)) mirrors testgaps; AC-5 new phase requires 7-file update but recipe is documented. 3 conditions must hold by sprint-end: (1) audit-resolution exit predicate evaluable purely from state.json — no spec.md dep at exit, (2) sprint-audit-resolve.sh decisions atomically persisted so Ctrl-C resume is lossless, (3) sprint-audit-rerun.sh requires regression to appear TWICE consecutively before blocking (false-positive mitigation).",
+      "concerns": [
+        "AC-5 phase exit-predicate complexity — the resolved+deferred+accepted=total math needs a new predicate kind in phase-predicates.sh",
+        "AC-6 interactive UX fragility — operator Ctrl-C mid-walk must resume idempotently",
+        "AC-10/AC-12 encryption key rotation — store keyVersion in encrypted payload for future migration"
+      ]
+    },
+    {
+      "worker": "security-architect-agent",
+      "vote": "pass-with-conditions",
+      "rationale": "8 attack surfaces identified (S1-S8). All have mitigation owners mapped to specific ACs. APPROVED WITH CONDITIONS pending: (S1) encryption key file 0600 perms + crypto.randomBytes(32), (S2) sprint-audit-resolve.sh rationale piped through sprint-pii-redact.sh before atomic_update_state (mirror C5 from prior sprint), (S3) sprint-audit-rerun.sh wraps audit worker with `env -i HOME PATH SHELL` allowlist (mirror reuse-audit env-strip from .husky/post-commit:181), (S6) HAR-2/HAR-4 migration atomic — encrypted .tmp + O_EXCL + fsync + atomic_rename + delete plaintext only after rename success.",
+      "concerns": [
+        "S1 key file generation must use crypto.randomBytes — NEVER Math.random or Date.now",
+        "S2 rationale text from operator can contain accidentally-pasted secrets — PII redaction mandatory",
+        "S6 migration partial-write would leave plaintext + encrypted both on disk = data leak vector"
+      ]
+    },
+    {
+      "worker": "reviewer-agent",
+      "vote": "pass-with-notes",
+      "rationale": "Spec is sharp + builds directly on prior sprint's documented gaps. Per-wave commits + real proof files held up last sprint; same discipline expected here. C7-equivalent strengthening: dogfood walk in Wave 4 must verify state.audit_findings_resolved_count == audit_findings_total post-fix (i.e., the resolution pipeline actually drains).",
+      "concerns": [
+        "W4 dogfood C7-equivalent should require empty state.audit_findings_deferred[] for this specific sprint (this sprint's audit should produce 0 in-scope findings — proving scope-bounding works AND no new vulns introduced)"
+      ]
+    }
+  ],
+  "outcome": "PASS-WITH-CONDITIONS (5 votes: 2 pass + 3 pass-with-conditions/notes). Architect + security conditions must be addressed during the build, not bypassed.",
+  "ship_gate_conditions": [
+    "C1 (architect): audit-resolution exit predicate purely state.json — no spec.md dependency at predicate eval time.",
+    "C2 (architect): sprint-audit-resolve.sh decisions atomically persisted; Ctrl-C resume reads state to skip already-decided findings.",
+    "C3 (architect): sprint-audit-rerun.sh requires regression detection TWICE consecutively before blocking (false-positive mitigation).",
+    "C4 (security): encryption key file 0600 perms + crypto.randomBytes(32) only — never Math.random/Date.now.",
+    "C5 (security): sprint-audit-resolve.sh rationale piped through sprint-pii-redact.sh before atomic_update_state.",
+    "C6 (security): sprint-audit-rerun.sh wraps audit worker invocation with `env -i HOME PATH SHELL` allowlist.",
+    "C7 (security): HAR-2/HAR-4 legacy-plaintext migration atomic (encrypted .tmp + O_EXCL + fsync + atomic_rename + delete plaintext only after rename succeeds).",
+    "C8 (reviewer): W4 dogfood proves state.audit_findings_resolved_count == audit_findings_total AND audit_findings_deferred[] is empty for this sprint (verifies scope-bounding eliminated noise AND HAR fixes worked)."
+  ],
+  "dissenting_concerns": [
+    "tactical-queen: 19 ACs is tight for 14-day cycle. Mitigation: per-wave commits + Wave 3 HAR fixes are mostly S-effort.",
+    "architect-agent: AC-5 phase exit predicate complexity. Mitigation: new audit_resolution_complete predicate kind in phase-predicates.sh."
+  ]
+}

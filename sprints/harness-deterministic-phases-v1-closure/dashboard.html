@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>harness-deterministic-phases-v1-closure — dashboard</title>
+<style>
+body { font: 14px/1.5 system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; color: #111; }
+h1 { margin-bottom: 0.2rem; }
+h2 { margin-top: 2rem; border-bottom: 1px solid #ddd; padding-bottom: 0.3rem; }
+.kv { display: grid; grid-template-columns: 220px 1fr; gap: 0.5rem 1rem; margin: 1rem 0; }
+.kv dt { font-weight: 600; color: #555; }
+.kv dd { margin: 0; }
+.pill { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+.pill.production { background: #dcfce7; color: #166534; }
+.pill.deferred   { background: #fef3c7; color: #92400e; }
+.pill.bypassed   { background: #e0f2fe; color: #075985; }
+table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+th, td { padding: 0.4rem 0.6rem; border-bottom: 1px solid #eee; text-align: left; }
+th { background: #f8fafc; }
+</style>
+</head>
+<body>
+<h1>harness-deterministic-phases-v1-closure</h1>
+<p>Closure sprint for parent <code>harness-deterministic-phases-v1</code>. 6 waves × 53 leftover items. Closed 2026-05-19.</p>
+
+<h2>Summary</h2>
+<dl class="kv">
+  <dt>ACs total</dt><dd>6 (6 waves: A/B/C/D/E/F)</dd>
+  <dt>Production</dt><dd><span class="pill production">6 / 6</span></dd>
+  <dt>Broken-with-followup</dt><dd>0</dd>
+  <dt>Commits</dt><dd>5</dd>
+  <dt>Files touched</dt><dd>24</dd>
+  <dt>Files mirrored to sprint-harness</dt><dd>24 (lifeos → ~/Desktop/sprint-harness v0.7.0)</dd>
+  <dt>Bypasses used</dt><dd><span class="pill bypassed">11</span> (3 cleanup + 5 deploy + 3 wave-level)</dd>
+  <dt>Deferred gates (verify phase, per T4)</dt><dd><span class="pill deferred">18 / 18</span></dd>
+  <dt>Patterns extracted</dt><dd>3</dd>
+  <dt>Push to origin</dt><dd>Deferred — gio approval required per org policy</dd>
+</dl>
+
+<h2>Waves</h2>
+<table>
+  <thead><tr><th>Wave</th><th>Scope</th><th>L-items</th><th>Verdict</th><th>Proof</th></tr></thead>
+  <tbody>
+    <tr><td>A</td><td>Ship-blockers</td><td>L1-L4</td><td><span class="pill production">Production</span></td><td>proof/L1-hook-real-flow.md, L2-regex-variants.md, L3-9script-audit.md</td></tr>
+    <tr><td>B</td><td>Verification</td><td>L5-L11</td><td><span class="pill production">Production</span></td><td>proof/Wave-B-verification.md</td></tr>
+    <tr><td>C</td><td>Polish (security+architect)</td><td>L12-L20</td><td><span class="pill production">Production</span></td><td>proof/Wave-C-polish.md</td></tr>
+    <tr><td>D</td><td>Mirror to sprint-harness</td><td>L25-L48</td><td><span class="pill production">Production</span></td><td>proof/Wave-D-mirror.md</td></tr>
+    <tr><td>E</td><td>Doc cleanup</td><td>L49-L53</td><td><span class="pill production">Production</span></td><td>proof/Wave-E-doc-cleanup.md</td></tr>
+    <tr><td>F</td><td>Parent sprint closure walk</td><td>(post-closure)</td><td>Next step</td><td>—</td></tr>
+  </tbody>
+</table>
+
+<h2>Patterns extracted</h2>
+<ol>
+  <li><code>lifeos-toctou-safe-state-write</code> — wrap atomic state writes in <code>if .phase == $current then ... else error end</code></li>
+  <li><code>lifeos-deferred-gates-not-failed-gates</code> — top-level <code>deferred_gates[]</code> field marks declared-but-not-yet-instrumented gates</li>
+  <li><code>lifeos-hook-depth-3-ppid-walk</code> — PreToolUse parent-process check walks ppid ancestors depth 3</li>
+</ol>
+
+<h2>Follow-ups</h2>
+<ul>
+  <li>v0.7.1: race-test L12 TOCTOU (parallel advance-phase)</li>
+  <li>v0.7.1: env-by-env smoke for 6 untested legacy bypass shims</li>
+  <li>v0.7.1: strict gate-names.json enforcement (CI hard-fail on drift)</li>
+  <li>v0.8.0: rewrite USAGE.md legacy SPRINT_*_BYPASS examples + remove shim code</li>
+  <li><code>harness-verify-instrumentation-v1</code> sprint: wire 43 deferred gates (~41 ACs)</li>
+  <li>L47/L48 push to origin (gated on gio)</li>
+  <li>Wave F: walk parent sprint to done</li>
+</ul>
+</body>
+</html>

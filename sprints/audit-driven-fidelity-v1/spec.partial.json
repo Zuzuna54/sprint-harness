@@ -1,0 +1,175 @@
+{
+  "slug": "audit-driven-fidelity-v1",
+  "started_at": "2026-05-19T14:14:54Z",
+  "current_section": "complete",
+  "sections_status": {
+    "A": "complete",
+    "B": "complete",
+    "C": "complete",
+    "D": "complete",
+    "E": "complete",
+    "F": "complete",
+    "G": "complete",
+    "H": "complete",
+    "I": "complete",
+    "J": "complete"
+  },
+  "sections_answers": {
+    "A": {
+      "A1": "Two fresh onboardings (Levan + Davit, 2026-05-19) and a 1500-line backend log dump surfaced 58 distinct defects spanning every layer: wizard fields silently dropped before reaching the DB (weekend wake/sleep, medication dose/severity, share_with_ai_scheduler missing), pipeline emits zero-duration MEAL/ACTIVITY/SUPPLEMENT/WIND_DOWN blocks because anchors collide at the same minute, WORK day duration is 200min/day instead of the user-stated 480, AM workouts are scheduled BEFORE wake_time, the workouts stage throws PG 23505 on every pipeline run (HF-C only fixed weekShape), all 174 time_blocks are unlinked, response contracts on supplements/grocery/pantry endpoints fail Zod parse on every request, AI feedback Gemini calls 100% timeout at 600ms forcing rule fallback, and the prior pipeline-onboarding-fidelity sprint backfill contains 6 inaccurate Production claims.",
+      "A2": "Three personas all bleed: (1) new onboarders like Davit lose 60% of their stated profile to silent drops + get a schedule with all blocks unlinked, all meals zero-duration, all workouts wrong-duration; (2) returning users hit the supplement contract-mismatch warnings on every page load (UI works but logs are noise); (3) operators (Gio + Zefyra) can no longer trust state.json verdicts because the prior sprint claimed 21/21 Production while 6 ACs are factually broken on live data. Trust in the audit trail is the deepest wound.",
+      "A3": "Davit was the first real user onboarded post pipeline-onboarding-fidelity ship. His generated week 2026-05-18 ran 73ms total, marked partial with 15 verify violations including 25 unlinked time_blocks. Levan ran an MANUAL retry that rubber-stamped 91ms completed but produced 29 verify violations. Both pipelines failed workouts stage with PG 23505 despite HF-C shipping. The trigger: we cannot onboard a second beta user with a straight face until these are closed.",
+      "A4": "This is BOTH strategic and tactical. Strategic: the 10-min/day promise depends on the generated schedule being CORRECT — a planner full of zero-duration meals and pre-wake workouts violates the brand promise. Tactical: 58 ACs is broad but each is small. The right metaphor is a 21-day fidelity audit pass before opening beta.",
+      "A5": "Three weeks from now, a synthetic-Davit equivalent runs ONBOARDING pipeline and: (a) all stages complete, (b) verify reports 0 violations, (c) every emitted time_block has correct duration and an anchor that respects user wake/sleep/meal times, (d) every MEAL/SUPPLEMENT/WORKOUT block has linked_entity_id, (e) weekend_wake_time persists when toggled, (f) 0 response-contract-mismatch warnings in dev log, (g) AI feedback returns source=gemini 80%+ of calls, (h) backfill state.json claims match live DB reality.",
+      "flags": {
+        "backend_only": false,
+        "frontend_only": false,
+        "pure_refactor": false,
+        "no_schema_change": false,
+        "no_ui": false,
+        "strategic": true
+      }
+    },
+    "B": {
+      "B1": "Tax model = data fidelity. Every wizard input lands in its DB column with no silent drop; every emitted time_block has a duration > 0 and an anchor derived from user prefs; every cross-stage entity has a linked_entity_id where applicable. Verify reports 0 violations on a clean ONBOARDING run.",
+      "B2": "Domain rules: (a) freeform text never reaches dietary_restrictions[] (DB CHECK constraint), (b) workouts stage time_blocks emission uses ON CONFLICT DO NOTHING like weekShape, (c) pipeline retry detects no-op stages and either runs them or hard-fails (never rubber-stamps), (d) AM workouts NEVER start before fitness_profile.wake_time, (e) WORK block duration = work_schedules.hours_per_week / weekday_count, (f) reminder blocks (5-min SUPPLEMENT) cant collide with their parent block (MEAL with-meal supplement gets +5min buffer).",
+      "B3": "Invariants: every emit must read durations + anchors from fitness_profile/user_supplements (no hard-coded MEAL=30 / SUPPLEMENT=5 / CARDIO=30 / WORK_DAILY=200). Migration history is monotonic + idempotent. Backfill state.json claims match column existence in pg_catalog.",
+      "flags": {
+        "pure_refactor": false
+      }
+    },
+    "C": {
+      "C1": "Schema changes (5 migrations, all additive/CHECK): (1) fitness_profiles: extend Zod schema to accept weekend_wake_time + weekend_sleep_time + weekend_work (columns exist, only Zod follow-up missed). (2) user_medical_conditions: add share_with_ai_scheduler bool NOT NULL DEFAULT false. (3) user_medications: same column. (4) ADD CHECK CONSTRAINT on fitness_profiles.dietary_restrictions array elements ∈ dietary_restriction_enum (or trigger). (5) age column either compute from DOB via stored generated column or drop both duplicates.",
+      "C2": "Source-of-truth choices: (a) training_frequency lives in fitness_profiles only; goal_settings.training_frequency_per_week column drops. (b) cook_at_home lives in goal_settings only; fitness_profiles.cook_at_home drops if duplicate. (c) macro target columns in goal_settings (protein/carbs/fats_target_g) drop after consumer audit confirms zero readers.",
+      "C3": "RLS: dietary_restrictions_audit (W1.6 follow-up) needs service-role-only policy. New share_with_ai_scheduler columns inherit existing user-id-keyed policies on parent tables.",
+      "flags": {
+        "no_schema_change": false
+      }
+    },
+    "D": {
+      "D1": "Existing routes modified (no new routes): (1) PUT /workouts/fitness-profile Zod: add weekendWakeTime/weekendSleepTime/weekendWork. (2) POST /auth/medical-conditions Zod: add severity + diagnosed_date + share_with_ai_scheduler. (3) POST /auth/medications Zod: add structured dose_amount + dose_unit + frequency + share_with_ai_scheduler. (4) GET /supplements/user/:id response: nullable updatedAt. (5) GET /supplements/inventory: same nullable pattern as HF-A. (6) GET /grocery/lists/:id: nullable estimatedCost + select items.listId+name. (7) GET /grocery/pantry: NumericFromDb transform for numeric-string columns. (8) PUT /grocery/items/:id: same fixes. (9) POST /ai/feedback: configurable timeout (default 1500ms locally, env-driven prod).",
+      "D2": "AI feedback resilience: extend AbortController timeout from 600ms→2000ms locally (env LIFEOS_AI_FEEDBACK_TIMEOUT_MS). Add exponential backoff on circuit-breaker re-open. Add p95 latency metric to existing CloudWatch namespace.",
+      "flags": {}
+    },
+    "E": {
+      "E1": "Onboarding step 10 (foundation-medical) extension: per-condition severity dropdown (mild/moderate/severe) + diagnosed-date input + share_with_ai_scheduler toggle. Per-medication dose_amount + dose_unit + frequency structured form (replace freeform dosage string).",
+      "E2": "Frontend null-meal-id fix: MealSwapModal + meal-detail route guard fetcher (do not fire query when id is falsy/string-null). Add useQuery enabled-gate.",
+      "flags": {}
+    },
+    "F": {
+      "F1": "Wizard flow updates: when 09-foundation-days has weekdays_same_as_weekends=false, require non-empty weekend_wake_time + weekend_sleep_time before advance. Step 10 medications must show severity+date fields when at least one condition is added; cant skip-advance with incomplete medical.",
+      "F2": "Live feedback updates: when AI feedback returns source=rule, surface micro-indicator (small dot) in LiveFeedbackRow so user/team knows fallback fired. Currently silent.",
+      "flags": {}
+    },
+    "G": {
+      "G1": "No new brand/visual work. Existing tokens used. Severity dropdown + numeric stepper use existing primitives (NumericWithUnit, ChipMultiSelect).",
+      "flags": {
+        "no_ui_brand_change": true
+      }
+    },
+    "H": {
+      "H1": "Modules: ai-scheduler-lambda (pipeline stages: foundation/weekShape/workouts/meals/supplements/aggregate/verify + medicalContext.ts), workouts-lambda (fitness-profile PUT), auth-lambda (medical-conditions/medications POST + work-schedule), supplements-lambda (4 GET routes), grocery-lambda (3 GET + 1 PUT route), nutrition-lambda (meal-id guards + cold-fallback ingredient-linkage), apps/web/onboarding (steps 09 + 10 + supplements + AI-feedback row), packages/db (5 migrations), packages/types (HF-A pattern extensions).",
+      "H2": "External: Gemini Flash + Pro (timeout config + circuit breaker). No new external integrations. RevenueCat/Sentry/Vercel unchanged.",
+      "flags": {}
+    },
+    "I": {
+      "AC-W1-1": "R-O1: Add weekendWakeTime/weekendSleepTime/weekendWork to UpdateFitnessProfileSchema (PUT /workouts/fitness-profile). Drop the comment-only TODO at fitnessProfile.ts:154. Test: PUT a profile with weekdays_same_as_weekends=false and weekend times → row reflects them.",
+      "AC-W1-2": "R-O2: Add severity + diagnosed_date to user_medical_conditions. UI step 10 surfaces dropdowns. POST /auth/medical-conditions accepts and persists. Migration adds NOT NULL columns where needed.",
+      "AC-W1-3": "R-O3: Structured medication dose_amount + dose_unit + frequency (replace freeform string). Onboarding form + POST /auth/medications + Zod alignment. Test: Davits onboarding equivalent produces non-NULL rows.",
+      "AC-W1-4": "R-O4: Either compute fitness_profiles.age as PG GENERATED COLUMN from date_of_birth, OR drop both age columns. Pick generated-column for backwards-compat. user_profiles.age stays as cache.",
+      "AC-W1-5": "R-O5: Block freeform text in fitness_profiles.dietary_restrictions array. Migration adds CHECK constraint using dietary_restriction_enum cast on each array element OR trigger that rejects writes outside whitelist.",
+      "AC-W1-6": "R-O6: Migration adds share_with_ai_scheduler bool NOT NULL DEFAULT false on user_medical_conditions + user_medications. UI step 10 toggle. medicalContext.ts filters by the column.",
+      "AC-W1-7": "R-O7: Wire onboarding capture for exercises_to_avoid + biggest_previous_quit_reason + excluded_muscle_groups + excluded_movement_patterns. Either add 1 small step or merge into existing screens.",
+      "AC-W1-8": "R-O8: Pick training_frequency source-of-truth (fitness_profiles). Migration drops goal_settings.training_frequency_per_week. Update 5 readers via grep.",
+      "AC-W1-9": "R-C1: nullable updatedAt on GET /supplements/user/:id Zod response.",
+      "AC-W1-10": "R-C2: HF-A pattern applied to GET /supplements/inventory Zod response (7 fields nullable).",
+      "AC-W1-11": "R-C3: GET /grocery/lists/:id Zod: nullable estimatedCost; items query selects listId+name.",
+      "AC-W1-12": "R-C4: PUT /grocery/items/:id Zod response same fix.",
+      "AC-W1-13": "R-C5: GET /grocery/pantry NumericFromDb transform (postgres-js numeric→string coercion).",
+      "AC-W1-14": "R-F1: Extend POST /ai/feedback timeout 600ms→1500ms baseline + env LIFEOS_AI_FEEDBACK_TIMEOUT_MS override.",
+      "AC-W1-15": "R-F2: Exponential backoff in circuit breaker (10/60s → 30s/60s/120s with reset on first success).",
+      "AC-W1-16": "R-F3: POST /ai/feedback debounce on frontend + reject input < 20 with friendly UX, not 400.",
+      "AC-W1-17": "R-F4: CloudWatch dashboard panel for p95 feedback latency + Gemini-vs-rule source ratio.",
+      "AC-W1-18": "R-N1: Frontend null-meal-id guard. useQuery({enabled: id !== \"null\" && !!id}) on /nutrition/meals/:id and /nutrition/meals/:id/schedule fetchers.",
+      "AC-W2-D1": "R-D1: refactor weekShape.ts/workouts.ts block-emitter to honor user pref (full text in master-requirements.md). Live test against synthetic-Davit fixture asserts duration matches stated pref.",
+      "AC-W2-D2": "R-D2: refactor weekShape.ts/workouts.ts block-emitter to honor user pref (full text in master-requirements.md). Live test against synthetic-Davit fixture asserts duration matches stated pref.",
+      "AC-W2-D3": "R-D3: refactor weekShape.ts/workouts.ts block-emitter to honor user pref (full text in master-requirements.md). Live test against synthetic-Davit fixture asserts duration matches stated pref.",
+      "AC-W2-D4": "R-D4: refactor weekShape.ts/workouts.ts block-emitter to honor user pref (full text in master-requirements.md). Live test against synthetic-Davit fixture asserts duration matches stated pref.",
+      "AC-W2-D5": "R-D5: refactor weekShape.ts/workouts.ts block-emitter to honor user pref (full text in master-requirements.md). Live test against synthetic-Davit fixture asserts duration matches stated pref.",
+      "AC-W2-D6": "R-D6: refactor weekShape.ts/workouts.ts block-emitter to honor user pref (full text in master-requirements.md). Live test against synthetic-Davit fixture asserts duration matches stated pref.",
+      "AC-W2-D7": "R-D7: refactor weekShape.ts/workouts.ts block-emitter to honor user pref (full text in master-requirements.md). Live test against synthetic-Davit fixture asserts duration matches stated pref.",
+      "AC-W2-D8": "R-D8: refactor weekShape.ts/workouts.ts block-emitter to honor user pref (full text in master-requirements.md). Live test against synthetic-Davit fixture asserts duration matches stated pref.",
+      "AC-W2-D9": "R-D9: refactor weekShape.ts/workouts.ts block-emitter to honor user pref (full text in master-requirements.md). Live test against synthetic-Davit fixture asserts duration matches stated pref.",
+      "AC-W2-A1": "R-A1: replace hard-coded anchor in weekShape.ts with user-pref-derived value (full text + line refs in master-requirements.md).",
+      "AC-W2-A2": "R-A2: replace hard-coded anchor in weekShape.ts with user-pref-derived value (full text + line refs in master-requirements.md).",
+      "AC-W2-A3": "R-A3: replace hard-coded anchor in weekShape.ts with user-pref-derived value (full text + line refs in master-requirements.md).",
+      "AC-W2-A4": "R-A4: replace hard-coded anchor in weekShape.ts with user-pref-derived value (full text + line refs in master-requirements.md).",
+      "AC-W2-A5": "R-A5: replace hard-coded anchor in weekShape.ts with user-pref-derived value (full text + line refs in master-requirements.md).",
+      "AC-W2-A6": "R-A6: replace hard-coded anchor in weekShape.ts with user-pref-derived value (full text + line refs in master-requirements.md).",
+      "AC-W2-A7": "R-A7: replace hard-coded anchor in weekShape.ts with user-pref-derived value (full text + line refs in master-requirements.md).",
+      "AC-W2-A8": "R-A8: replace hard-coded anchor in weekShape.ts with user-pref-derived value (full text + line refs in master-requirements.md).",
+      "AC-W2-A9": "R-A9: replace hard-coded anchor in weekShape.ts with user-pref-derived value (full text + line refs in master-requirements.md).",
+      "AC-W2-A10": "R-A10: replace hard-coded anchor in weekShape.ts with user-pref-derived value (full text + line refs in master-requirements.md).",
+      "AC-W2-A11": "R-A11: replace hard-coded anchor in weekShape.ts with user-pref-derived value (full text + line refs in master-requirements.md).",
+      "AC-W2-A12": "R-A12: replace hard-coded anchor in weekShape.ts with user-pref-derived value (full text + line refs in master-requirements.md).",
+      "AC-W2-L1": "R-L1: fix linkage/duplicate-key issue in pipeline stage (full text in master-requirements.md). Includes workouts-stage ON CONFLICT, retry no-op detection, cold-fallback ingredient-linkage, supplements time_block emission gating, and token-count aggregation.",
+      "AC-W2-L2": "R-L2: fix linkage/duplicate-key issue in pipeline stage (full text in master-requirements.md). Includes workouts-stage ON CONFLICT, retry no-op detection, cold-fallback ingredient-linkage, supplements time_block emission gating, and token-count aggregation.",
+      "AC-W2-L3": "R-L3: fix linkage/duplicate-key issue in pipeline stage (full text in master-requirements.md). Includes workouts-stage ON CONFLICT, retry no-op detection, cold-fallback ingredient-linkage, supplements time_block emission gating, and token-count aggregation.",
+      "AC-W2-L4": "R-L4: fix linkage/duplicate-key issue in pipeline stage (full text in master-requirements.md). Includes workouts-stage ON CONFLICT, retry no-op detection, cold-fallback ingredient-linkage, supplements time_block emission gating, and token-count aggregation.",
+      "AC-W2-L5": "R-L5: fix linkage/duplicate-key issue in pipeline stage (full text in master-requirements.md). Includes workouts-stage ON CONFLICT, retry no-op detection, cold-fallback ingredient-linkage, supplements time_block emission gating, and token-count aggregation.",
+      "AC-W2-L6": "R-L6: fix linkage/duplicate-key issue in pipeline stage (full text in master-requirements.md). Includes workouts-stage ON CONFLICT, retry no-op detection, cold-fallback ingredient-linkage, supplements time_block emission gating, and token-count aggregation.",
+      "AC-W2-V1": "R-V1: verify rule fix (macro_band actually balances, unlinked categorizes by type, zero-buffer rule reconciles with duration fix).",
+      "AC-W2-V2": "R-V2: verify rule fix (macro_band actually balances, unlinked categorizes by type, zero-buffer rule reconciles with duration fix).",
+      "AC-W2-V3": "R-V3: verify rule fix (macro_band actually balances, unlinked categorizes by type, zero-buffer rule reconciles with duration fix).",
+      "AC-W3-B1": "R-B1: correct prior backfill inaccuracy (R-B1 in master-requirements.md).",
+      "AC-W3-B2": "R-B2: correct prior backfill inaccuracy (R-B2 in master-requirements.md).",
+      "AC-W3-B3": "R-B3: correct prior backfill inaccuracy (R-B3 in master-requirements.md).",
+      "AC-W3-B4": "R-B4: correct prior backfill inaccuracy (R-B4 in master-requirements.md).",
+      "AC-W3-B5": "R-B5: correct prior backfill inaccuracy (R-B5 in master-requirements.md).",
+      "AC-W3-B6": "R-B6: correct prior backfill inaccuracy (R-B6 in master-requirements.md).",
+      "AC-W3-X1": "R-X1: cross-cutting fix (commit untracked sprint dir / git-status preflight / RLS audit / migrate-remote operator approval).",
+      "AC-W3-X2": "R-X2: cross-cutting fix (commit untracked sprint dir / git-status preflight / RLS audit / migrate-remote operator approval).",
+      "AC-W3-X3": "R-X3: cross-cutting fix (commit untracked sprint dir / git-status preflight / RLS audit / migrate-remote operator approval).",
+      "AC-W3-X4": "R-X4: cross-cutting fix (commit untracked sprint dir / git-status preflight / RLS audit / migrate-remote operator approval)."
+    },
+    "J": {
+      "J1": "Top risks: (1) CHECK constraint on dietary_restrictions[] may reject existing Levan+Davit rows containing freeform text — need pre-migration cleanup. (2) Generated age column on fitness_profiles needs all readers re-verified (9 already found). (3) Wave-2 weekShape refactor is high-risk surface — emit-emitter changes can ripple into verify violations; mitigate by tight regression tests against snapshot fixtures of Davits week. (4) AI feedback timeout extension may surface rate-limit issues with Gemini that 600ms previously masked. (5) Untracked pipeline-onboarding-fidelity sprint dir loses the backfill if git clean -fd fires — commit immediately as R-X1.",
+      "J2": "Security: dietary_restrictions_audit RLS service-role-only confirmed in migration; share_with_ai_scheduler defaults false (PII safe). No new PII surfaces. medicalContext.ts prompt construction gated by new boolean.",
+      "J3": "Rollback per wave: Wave 1 — per-commit git revert; Wave 2 — feature flag LIFEOS_PIPELINE_EMISSION_V2 (default off, flip-to-on at Wave-2-end via dev-server validation against Davit synthetic fixture); Wave 3 — paperwork-only, no rollback needed. Migration rollback: each migration reversible (0078-0082) with explicit DROP-rollback in same file.",
+      "flags": {}
+    }
+  },
+  "recalled_patterns": [
+    {
+      "key": "lifeos-pipeline-onboarding-fidelity-prior",
+      "score": 0.71,
+      "accepted": true,
+      "applied_to": "A1 problem statement carryover",
+      "section": "A",
+      "recorded_at": "2026-05-19T14:15:58.313Z"
+    }
+  ],
+  "codebase_refs": [],
+  "coherence_checks": [
+    {
+      "after_section": "C",
+      "passed": true,
+      "notes": "Spec internally consistent: A1 problem statement enumerates 58 defects; B1 success criterion is verifiable; C1 migration list covers the persistence-layer ACs in A1.",
+      "at": "2026-05-19T14:16:27.702Z"
+    },
+    {
+      "after_section": "F",
+      "passed": true,
+      "notes": "Wizard UX changes (F1) require Zod schema additions (D1); both align. Frontend null-id guard (E2) covers the 12+ log occurrences flagged in A1.",
+      "at": "2026-05-19T14:16:49.357Z"
+    },
+    {
+      "after_section": "I",
+      "passed": true,
+      "notes": "58 ACs map 1:1 to R-IDs in docs/sprints/_index/master-requirements-2026-05-19.md. Wave-1 mechanical (18 ACs), Wave-2 deep (30 ACs), Wave-3 paperwork+cross (10 ACs). All 21 days × 7 days/wave = 21d appetite.",
+      "at": "2026-05-19T14:17:40.781Z"
+    }
+  ],
+  "skip_reasons": {},
+  "wizard_mode": "autopilot"
+}

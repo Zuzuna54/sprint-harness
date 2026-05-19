@@ -1,0 +1,57 @@
+{
+  "timestamp": "2026-05-19T16:10:29.057Z",
+  "mode": "headless",
+  "workerType": "predict",
+  "model": "haiku",
+  "durationMs": 25158,
+  "executionId": "predict_1779207003899_eyglle",
+  "success": true,
+  "findings": {
+    "filesToPreload": [
+      "apps/lambdas/ai-scheduler-lambda/src/pipeline/stages/foundation.ts",
+      "apps/lambdas/ai-scheduler-lambda/src/pipeline/userSchedulingPrefs.ts",
+      "apps/web/components/planner/WeeklyCalendar.tsx",
+      "apps/web/components/nutrition/MacroRing.tsx",
+      "apps/web/components/workouts/WorkoutLogger.tsx",
+      ".claude/helpers/github-safe.js",
+      "docs/sprints/pipeline-v2-visibility/spec.md",
+      "docs/sprints/pipeline-v2-visibility/state.json",
+      "packages/db/src/schema.ts"
+    ],
+    "testsToRun": [
+      "apps/lambdas/ai-scheduler-lambda/__tests__/userSchedulingPrefs.test.ts",
+      "apps/lambdas/ai-scheduler-lambda/src/pipeline/stages/__tests__/foundation.test.ts",
+      "apps/web/src/__tests__/WeeklyCalendar.test.tsx",
+      "apps/web/src/__tests__/MacroRing.test.tsx",
+      "apps/web/src/__tests__/WorkoutLogger.test.tsx",
+      "apps/lambdas/workouts-lambda/__tests__/sessions.test.ts"
+    ],
+    "docsToReference": [
+      "docs/sprints/pipeline-v2-visibility/spec.md",
+      "docs/sprints/USAGE.md",
+      "CLAUDE.md (Key Constraints: TDD-first, RLS, soft delete, validation everywhere)",
+      ".claude/rules/security.md (Input Validation, PII Truncation, Secret Management)",
+      ".claude/projects/-Users-gio-Desktop-lifeos/memory/reference_pipeline_realistic_scheduling_runbook.md",
+      ".claude/projects/-Users-gio-Desktop-lifeos/memory/feedback_two_verdict_policy.md"
+    ],
+    "confidence": 0.84,
+    "context": {
+      "activeSprintBranch": "sprint/pipeline-v2-visibility",
+      "recentPattern": "Pipeline foundation + scheduler prefs integration + frontend visibility layer",
+      "criticalBlockers": [
+        "CRITICAL: Command injection in .claude/helpers/github-safe.js (line 31) — args not escaped, blocks safe GitHub operations",
+        "CRITICAL: apps/web/src has ZERO tests — entire frontend untested, violates TDD-first in CLAUDE.md",
+        "HIGH: N+1 query patterns in workouts-lambda/sessions.ts (4 instances) — performance audit identified in predictions"
+      ],
+      "nextLikelyTasks": [
+        "1. Fix command injection in github-safe.js (security gate blocker)",
+        "2. Add RTL tests for WeeklyCalendar/MacroRing/WorkoutLogger (TDD compliance)",
+        "3. Add test for userSchedulingPrefs.ts (AC-31 goalsRankedOrder fallback, AC-33 Katch-McArdle)",
+        "4. Batch N+1 queries in sessions.ts (performance regression prevention)"
+      ],
+      "deploymentReadiness": "pipeline-v2-visibility ready to ship pending test coverage + security fixes"
+    }
+  },
+  "rawOutputPreview": "```json\n{\n  \"filesToPreload\": [\n    \"apps/lambdas/ai-scheduler-lambda/src/pipeline/stages/foundation.ts\",\n    \"apps/lambdas/ai-scheduler-lambda/src/pipeline/userSchedulingPrefs.ts\",\n    \"apps/web/components/planner/WeeklyCalendar.tsx\",\n    \"apps/web/components/nutrition/MacroRing.tsx\",\n    \"apps/web/components/workouts/WorkoutLogger.tsx\",\n    \".claude/helpers/github-safe.js\",\n    \"docs/sprints/pipeline-v2-visibility/spec.md\",\n    \"docs/sprints/pipeline-v2-visibility/state.json\",\n    \"packages/db/src/schema.ts\"\n  ],\n  \"testsToRun\": [\n    \"apps/lambdas/ai-scheduler-lambda/__tests__/userSchedulingPrefs.test.ts\",\n    \"apps/lambdas/ai-scheduler-lambda/src/pipeline/stages/__tests__/foundation.test.ts\",\n    \"apps/web/src/__tests__/WeeklyCalendar.test.tsx\",\n    \"apps/web/src/__tests__/MacroRing.test.tsx\",\n    \"apps/web/src/__tests__/WorkoutLogger.test.tsx\",\n    \"apps/lambdas/workouts-lambda/__tests__/sessions.test.ts\"\n  ],\n  \"docsToReference\": [\n    \"docs/sprints/pipeline-v2-visibility/spec.md\",\n    \"docs/sprints/USAGE.md\",\n    \"CLAUDE.md (Key Constraints: TDD-first, RLS, soft delete, validation everywhere)\",\n    \".claude/rules/security.md (Input Validation, PII Truncation, Secret Management)\",\n    \".claude/projects/-Users-gio-Desktop-lifeos/memory/reference_pipeline_realistic_scheduling_runbook.md\",\n    \".claude/projects/-Users-gio-Desktop-lifeos/memory/feedback_two_verdict_policy.md\"\n  ],\n  \"confidence\": 0.84,\n  \"context\": {\n    \"activeSprintBranch\": \"sprint/pipeline-v2-visibility\",\n    \"recentPattern\": \"Pipeline foundation + scheduler prefs integration + frontend visibility layer\",\n    \"criticalBlockers\": [\n      \"CRITICAL: Command injection in .claude/helpers/github-safe.js (line 31) — args not escaped, blocks safe GitHub operations\",\n      \"CRITICAL: apps/web/src has ZERO tests — entire frontend untested, violates TDD-first in CLAUDE.md\",\n      \"HIGH: N+1 query patterns in workouts-lambda/sessions.ts (4 instances) — performance audit identified in predictions\"\n    ],\n ",
+  "rawOutputLength": 2905
+}

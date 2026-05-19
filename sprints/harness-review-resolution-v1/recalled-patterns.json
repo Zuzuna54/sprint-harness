@@ -1,0 +1,92 @@
+[
+  {
+    "key": "lifeos-audit-finding-explicit-triage",
+    "score": 0.82,
+    "namespace": "default",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T19:09:56.122Z"
+  },
+  {
+    "key": "pattern_1778964834312_ee577055220ab5f8",
+    "score": 0.69,
+    "namespace": "pattern",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T19:09:56.123Z"
+  },
+  {
+    "key": "lifeos-signed-get-url-private-bucket",
+    "score": 0.64,
+    "namespace": "patterns",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T19:09:56.123Z"
+  },
+  {
+    "key": "lifeos-scope-bound-at-gate-eval",
+    "score": 0.63,
+    "namespace": "default",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T19:09:56.123Z"
+  },
+  {
+    "key": "lifeos-procedure-phantom-sweep",
+    "score": 0.61,
+    "namespace": "procedures",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T19:09:56.123Z"
+  },
+  {
+    "key": "lifeos-sprint-harness-extraction",
+    "score": 0.6,
+    "namespace": "project",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T19:09:56.123Z"
+  },
+  {
+    "key": "lifeos-sprint-pipeline-realistic-scheduling-delivered",
+    "score": 0.6,
+    "namespace": "project",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T19:09:56.123Z"
+  },
+  {
+    "key": "pattern_1778965551611_69c3842f60a5b120",
+    "score": 0.6,
+    "namespace": "pattern",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T19:09:56.123Z"
+  },
+  {
+    "key": "swarm-lessons",
+    "score": 0.57,
+    "namespace": "patterns",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T19:09:56.123Z"
+  },
+  {
+    "key": "pattern-doctor-surface-verify",
+    "score": 0.57,
+    "namespace": "patterns",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T19:09:56.123Z"
+  }
+]

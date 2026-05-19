@@ -1,0 +1,78 @@
+{
+  "timestamp": "2026-05-19T20:03:17.397Z",
+  "mode": "headless",
+  "workerType": "testgaps",
+  "model": "sonnet",
+  "durationMs": 275049,
+  "executionId": "testgaps_1779220722348_hxn94r",
+  "success": true,
+  "findings": {
+    "sections": [
+      {
+        "title": "1. Completely Untested Files",
+        "content": "\nAll Lambda handlers lack test harnesses:\n\n| Lambda | Routes | Key Untested Logic |\n|--------|--------|--------------------|\n| `planner-lambda` | ~15 | Time blocks, reflections, module pauses |\n| `nutrition-lambda` | ~12 | Meal CRUD, AI meal generation, prep sessions |\n| `workouts-lambda` | ~14 | Plan generation, session logging, body measurements |\n| `supplements-lambda` | ~8 | Compliance tracking, schedule, inventory |\n| `uploads-lambda` | — | S3 presign, OCR receipt/whiteboard import |\n| `auth-middleware` | — | JWT verification, SSM secret caching |\n\n---\n\n",
+        "level": 2
+      },
+      {
+        "title": "2. Partially Tested Files — Missing Functions",
+        "content": "\n**`apps/lambdas/health-lambda/src/handler.ts`** (73 assertions, but gaps):\n```typescript\ndescribe('HealthKit concurrent sync', () => {\n  it('handles simultaneous SLEEP + WEIGHT events on same date', async () => {\n    // Assert both write without race condition\n  })\n  it('rejects write-back data older than 30 days', async () => {\n    // Assert 400 or filtered response\n  })\n})\n```\n\n**`apps/lambdas/finances-lambda/src/handler.ts`** (26 tests, but gaps):\n```typescript\nit('monthly projection handles fractional week (4.33x multiplier)', async () => {\n  // Assert Math.round precision edge case\n})\nit('rejects cost entry from a different user', async () => {\n  // Verify 404, not 403 — RLS boundary\n})\n```\n\n**`packages/utils/src/lambdaUtils.ts`**:\n```typescript\ndescribe('validateBody edge cases', () => {\n  it('flattens deeply nested Zod errors into readable message', () => { })\n  it('getUserId returns 401 on malformed authorizer context', () => { })\n  it('CORS falls back when FRONTEND_URL env is undefined', () => { })\n})\n```\n\n---\n\n",
+        "level": 2
+      },
+      {
+        "title": "3. Missing Error Handling Tests",
+        "content": "\n**Gemini API integration** (`ai-scheduler-lambda`, `nutrition-lambda`):\n```typescript\nit('falls back to rule-based schedule on Gemini 30s timeout', async () => {\n  vi.mocked(geminiClient.generate).mockRejectedValue(new Error('timeout'))\n  // Assert rule-based schedule returned, not 500\n})\nit('handles malformed JSON in Gemini response body', async () => {\n  vi.mocked(geminiClient.generate).mockResolvedValue('not valid json')\n  // Assert parsing error caught, fallback triggered\n})\nit('propagates 500 on rate limit (429) without retry loop', async () => { })\n```\n\n**Health hints generation** (`health-lambda GET /hints`):\n```typescript\nit('averages correctly when fewer than 7 days logged', async () => {\n  // Guard against division-by-zero; assert partial-week average\n})\nit('excludes already-dismissed hints from new generation batch', async () => { })\n```\n\n**Finances summary aggregation** (`finances-lambda GET /summary`):\n```typescript\nit('returns 0 totals when no cost entries exist for month', async () => { })\nit('handles from > to date range gracefully', async () => {\n  // Expect 400 or empty result, not DB error\n})\n```\n\n---\n\n",
+        "level": 2
+      },
+      {
+        "title": "4. Missing Integration Test Scenarios",
+        "content": "\n**Health → Workouts data flow:**\n```typescript\nit('reduces workout volume the day after poor sleep (quality ≤ 2)', async () => {\n  await postHealthLog({ sleepQuality: 1 })\n  const workout = await getScheduledWorkout({ date: tomorrow })\n  expect(workout.volume).toBeLessThan(baselineVolume)\n})\n```\n\n**Grocery → Finances cost linkage:**\n```typescript\nit('auto-creates cost_entry with referenceId when grocery item added', async () => {\n  const item = await postGroceryItem({ estimatedCost: 5.99 })\n  const entry = await getCostEntry({ referenceId: item.id })\n  expect(entry).toBeDefined()\n})\n```\n\n**Meal prep session progress:**\n```typescript\nit('marks session COMPLETED when all steps checked off', async () => {\n  const session = await createPrepSession({ steps: ['chop', 'cook'] })\n  await completeStep(session.id, 'chop')\n  await completeStep(session.id, 'cook')\n  expect((await getSession(session.id)).status).toBe('COMPLETED')\n})\n```\n\n---\n\n",
+        "level": 2
+      },
+      {
+        "title": "5. Priority Ranking (Top 10)",
+        "content": "| # | Gap | Why Critical |\n|---|-----|--------------|\n| 1 | `auth-middleware` JWT verification | Gates all API access; zero coverage |\n| 2 | `planner-lambda` handler router | 15 routes, no test harness at all |\n| 3 | Gemini timeout/malformed-JSON fallback | Silent failure path in production |\n| 4 | Workout HealthKit conflict detection race | Concurrent writes → data corruption |\n| 5 | Finances monthly projection rounding | Off-by-one on 4.33x multiplier |\n| 6 | Nutrition Gemini generation failure | AI meal gen can silently 500 |\n| 7 | Health hints with <7 days logged | Division-by-zero risk |\n| 8 | Health → Workouts cross-lambda flow | Core product promise untested end-to-end |\n| 9 | Uploads OCR receipt/whiteboard | No coverage on S3 presign + parse |\n| 10 | Supplements compliance % aggregation | Aggregation math completely uncovered |\n\n**Biggest structural gap:** Lambda handlers use a shared `validateBody` / `getUserId` / `error()` pattern from `lambdaUtils`, but that package itself has no edge-case tests — a single fix there protects all lambdas simultaneously. Start there before adding per-route tests.",
+        "level": 2
+      }
+    ],
+    "codeBlocks": [
+      {
+        "language": "typescript",
+        "code": "describe('HealthKit concurrent sync', () => {\n  it('handles simultaneous SLEEP + WEIGHT events on same date', async () => {\n    // Assert both write without race condition\n  })\n  it('rejects write-back data older than 30 days', async () => {\n    // Assert 400 or filtered response\n  })\n})"
+      },
+      {
+        "language": "typescript",
+        "code": "it('monthly projection handles fractional week (4.33x multiplier)', async () => {\n  // Assert Math.round precision edge case\n})\nit('rejects cost entry from a different user', async () => {\n  // Verify 404, not 403 — RLS boundary\n})"
+      },
+      {
+        "language": "typescript",
+        "code": "describe('validateBody edge cases', () => {\n  it('flattens deeply nested Zod errors into readable message', () => { })\n  it('getUserId returns 401 on malformed authorizer context', () => { })\n  it('CORS falls back when FRONTEND_URL env is undefined', () => { })\n})"
+      },
+      {
+        "language": "typescript",
+        "code": "it('falls back to rule-based schedule on Gemini 30s timeout', async () => {\n  vi.mocked(geminiClient.generate).mockRejectedValue(new Error('timeout'))\n  // Assert rule-based schedule returned, not 500\n})\nit('handles malformed JSON in Gemini response body', async () => {\n  vi.mocked(geminiClient.generate).mockResolvedValue('not valid json')\n  // Assert parsing error caught, fallback triggered\n})\nit('propagates 500 on rate limit (429) without retry loop', async () => { })"
+      },
+      {
+        "language": "typescript",
+        "code": "it('averages correctly when fewer than 7 days logged', async () => {\n  // Guard against division-by-zero; assert partial-week average\n})\nit('excludes already-dismissed hints from new generation batch', async () => { })"
+      },
+      {
+        "language": "typescript",
+        "code": "it('returns 0 totals when no cost entries exist for month', async () => { })\nit('handles from > to date range gracefully', async () => {\n  // Expect 400 or empty result, not DB error\n})"
+      },
+      {
+        "language": "typescript",
+        "code": "it('reduces workout volume the day after poor sleep (quality ≤ 2)', async () => {\n  await postHealthLog({ sleepQuality: 1 })\n  const workout = await getScheduledWorkout({ date: tomorrow })\n  expect(workout.volume).toBeLessThan(baselineVolume)\n})"
+      },
+      {
+        "language": "typescript",
+        "code": "it('auto-creates cost_entry with referenceId when grocery item added', async () => {\n  const item = await postGroceryItem({ estimatedCost: 5.99 })\n  const entry = await getCostEntry({ referenceId: item.id })\n  expect(entry).toBeDefined()\n})"
+      },
+      {
+        "language": "typescript",
+        "code": "it('marks session COMPLETED when all steps checked off', async () => {\n  const session = await createPrepSession({ steps: ['chop', 'cook'] })\n  await completeStep(session.id, 'chop')\n  await completeStep(session.id, 'cook')\n  expect((await getSession(session.id)).status).toBe('COMPLETED')\n})"
+      }
+    ]
+  },
+  "rawOutputPreview": "Here's the test coverage gap analysis across the LifeOS codebase:\n\n---\n\n## 1. Completely Untested Files\n\nAll Lambda handlers lack test harnesses:\n\n| Lambda | Routes | Key Untested Logic |\n|--------|--------|--------------------|\n| `planner-lambda` | ~15 | Time blocks, reflections, module pauses |\n| `nutrition-lambda` | ~12 | Meal CRUD, AI meal generation, prep sessions |\n| `workouts-lambda` | ~14 | Plan generation, session logging, body measurements |\n| `supplements-lambda` | ~8 | Compliance tracking, schedule, inventory |\n| `uploads-lambda` | — | S3 presign, OCR receipt/whiteboard import |\n| `auth-middleware` | — | JWT verification, SSM secret caching |\n\n---\n\n## 2. Partially Tested Files — Missing Functions\n\n**`apps/lambdas/health-lambda/src/handler.ts`** (73 assertions, but gaps):\n```typescript\ndescribe('HealthKit concurrent sync', () => {\n  it('handles simultaneous SLEEP + WEIGHT events on same date', async () => {\n    // Assert both write without race condition\n  })\n  it('rejects write-back data older than 30 days', async () => {\n    // Assert 400 or filtered response\n  })\n})\n```\n\n**`apps/lambdas/finances-lambda/src/handler.ts`** (26 tests, but gaps):\n```typescript\nit('monthly projection handles fractional week (4.33x multiplier)', async () => {\n  // Assert Math.round precision edge case\n})\nit('rejects cost entry from a different user', async () => {\n  // Verify 404, not 403 — RLS boundary\n})\n```\n\n**`packages/utils/src/lambdaUtils.ts`**:\n```typescript\ndescribe('validateBody edge cases', () => {\n  it('flattens deeply nested Zod errors into readable message', () => { })\n  it('getUserId returns 401 on malformed authorizer context', () => { })\n  it('CORS falls back when FRONTEND_URL env is undefined', () => { })\n})\n```\n\n---\n\n## 3. Missing Error Handling Tests\n\n**Gemini API integration** (`ai-scheduler-lambda`, `nutrition-lambda`):\n```typescript\nit('falls back to rule-based schedule on Gemini 30s timeout', async () => {\n  vi.mocked(geminiClient.generate).mockRejected",
+  "rawOutputLength": 5072
+}

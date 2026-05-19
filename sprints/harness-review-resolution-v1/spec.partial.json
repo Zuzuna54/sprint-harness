@@ -1,0 +1,205 @@
+{
+  "slug": "harness-review-resolution-v1",
+  "started_at": "2026-05-19T19:06:30Z",
+  "current_section": "complete",
+  "sections_status": {
+    "A": "complete",
+    "B": "skipped",
+    "C": "skipped",
+    "D": "skipped",
+    "E": "skipped",
+    "F": "skipped",
+    "G": "skipped",
+    "H": "complete",
+    "I": "complete",
+    "J": "complete"
+  },
+  "sections_answers": {
+    "A": {
+      "A1": "Current state: audit-resolution phase (v0.7.2) triages ONLY daemon-worker audit findings. Knip (verify-knip) and Sonar (verify-sonar) produce structured findings too but are recorded as advisory-only — no triage workflow, no Fix/Defer/Accept, no follow-up tracking. Generalize the audit-resolution infrastructure to handle all 3 finding-producers under a unified review-resolution phase before knip/sonar accumulate into legacy debt.",
+      "A2": "Persona: future operators (Claude + gio) running sprints. They get audit + knip + sonar findings during verifying. Without unified triage, operators ignore knip/sonar advisory until they grow into thousands like the .claude/helpers/*.js audit findings did. Goal: prevent the same accumulation in dead-code + code-quality lanes.",
+      "A3": "Trigger: harness-audit-resolution-and-scope-v1 closed 2026-05-19. Operator (gio) asked: where do knip + sonar fit? The audit-resolution flow works great for audit findings — we need the same discipline for knip + sonar BEFORE we accrue debt. Generalize NOW while the audit-resolution patterns are fresh + the 8 ship-conditions are proven.",
+      "A4": "Strategic. The 10-min/day promise depends on actionable signal across ALL finding lanes, not just security. Knip dead-code drags down navigation; sonar quality drags down readability. Without unified triage, operators desensitize.",
+      "A5": "Two weeks from now: (1) review-resolution phase supersedes audit-resolution (back-compat alias). (2) state.review_findings[] with producer-tagged entries. (3) sprint-review-resolve.sh handles 3 producers uniformly. (4) Exit predicate: resolved + deferred + accepted == total across all producers. (5) Knip + sonar become producing (not advisory). (6) Docs updated. (7) Dogfood walk through this very phase.",
+      "flags": {
+        "backend_only": true,
+        "frontend_only": false,
+        "pure_refactor": false,
+        "no_schema_change": true,
+        "no_ui": true,
+        "strategic": true
+      }
+    },
+    "H": {
+      "H1": "Modules touched: scripts/lib/phase-manifest.json (add review-resolution phase as alias/superset to audit-resolution); scripts/lib/phase-predicates.sh (new predicate kind review_resolution_complete OR extend audit_resolution_complete); NEW scripts/sprint-review-resolve.sh + sprint-review-rerun.sh; back-compat alias for audit-resolve/rerun scripts. scripts/sprint-deadcode-delete.mjs adds --json producer mode. scripts/sprint-sonar-parse.mjs adds --json producer mode. scripts/sprint-verify.sh records knip+sonar producers into state.review_findings[]. NEW docs/sprints/_templates/review-resolutions.md. 4 docs (USAGE/QUICKSTART/DEVELOPER/SCRIPTS).",
+      "H2": "External deps: zero new. Reuses existing knip (already a dep via sprint-deadcode-delete.mjs), sonar (already integrated via sprint-sonar-parse.mjs), node built-in jq processing, ruflo daemon audit worker.",
+      "H3": "Event flow: verifying entry → 3 producers fire (audit worker existing + knip new producer mode + sonar new producer mode) → each writes producer-tagged findings to state.review_findings[] → advance to review-resolution → sprint-review-resolve.sh walks aggregated list across all producers → operator Fix/Defer/Accept regardless of producer → exit predicate validates resolved+deferred+accepted=total across union."
+    },
+    "I": {
+      "AC-1": {
+        "title": "Generalize: audit-resolution → review-resolution",
+        "description": "Add review-resolution to manifest as superset. audit-resolution stays as legacy alias. New review_findings[{producer, har_id, severity, file, line, description, status}] aggregating audit + knip + sonar. Existing audit_findings views aliased.",
+        "files_touched": ["scripts/lib/phase-manifest.json", "scripts/lib/phase-predicates.sh"],
+        "verification": "validate-phase-manifest passes; back-compat with prior sprints.",
+        "complex": true
+      },
+      "AC-2": {
+        "title": "sprint-review-resolve.sh + audit-resolve alias",
+        "description": "NEW multi-producer interactive walker. Reads review_findings. --status breakdown per producer. --finding HAR-N action across producers.",
+        "files_touched": ["scripts/sprint-review-resolve.sh"],
+        "verification": "--status against fixture sprint shows audit + knip + sonar counts.",
+        "complex": true
+      },
+      "AC-3": {
+        "title": "sprint-review-rerun.sh — re-fire all producers",
+        "description": "Generalize sprint-audit-rerun.sh. Re-fires audit + knip + sonar env-stripped. Per-producer baseline diff. FIXED/REGRESSION/UNCHANGED per producer. Twice-consecutive regression threshold preserved.",
+        "files_touched": ["scripts/sprint-review-rerun.sh"],
+        "verification": "Smoke after no-op + synthetic regression in knip producer.",
+        "complex": true
+      },
+      "AC-4": {
+        "title": "Knip --json producer mode",
+        "description": "sprint-deadcode-delete.mjs --check --json emits structured findings. sprint-verify.sh appends to review_findings[]. Output also lands at worker-output/knip.json.",
+        "files_touched": ["scripts/sprint-deadcode-delete.mjs", "scripts/sprint-verify.sh"],
+        "verification": "--check --json schema-valid output; verify records into review_findings.",
+        "complex": true
+      },
+      "AC-5": {
+        "title": "Sonar --json producer mode",
+        "description": "sprint-sonar-parse.mjs --json emits structured findings. Severity map blocker/critical=high, major=medium, minor=low. Vacuous PASS when no recent scan.",
+        "files_touched": ["scripts/sprint-sonar-parse.mjs", "scripts/sprint-verify.sh"],
+        "verification": "--json against cached fixture schema-valid; empty fixture vacuous PASS.",
+        "complex": true
+      },
+      "AC-6": {
+        "title": "_templates/review-resolutions.md",
+        "description": "Generalize template. Per-producer section. Per-finding HAR-N with producer tag.",
+        "files_touched": ["docs/sprints/_templates/review-resolutions.md"],
+        "verification": "Template seeded on review-resolution phase entry.",
+        "complex": false
+      },
+      "AC-7": {
+        "title": "Docs + dogfood",
+        "description": "USAGE/QUICKSTART/DEVELOPER/SCRIPTS updated for v0.7.3. Producer-pipeline diagram. Dogfood: walk this sprint through review-resolution.",
+        "files_touched": [
+          "docs/sprints/USAGE.md",
+          "docs/sprints/QUICKSTART.md",
+          "docs/sprints/DEVELOPER.md",
+          "docs/sprints/SCRIPTS.md"
+        ],
+        "verification": "doc_drift=0; final jq phase=done.",
+        "complex": false
+      }
+    },
+    "J": {
+      "J1": "Risks: (1) Backward-compat for prior audit_findings views — alias via jq filter. (2) Knip false-positives (dynamic imports, codegen). Mitigation: knip.json exclusions respected. (3) Sonar may not have recent scan — vacuous PASS. (4) Phase rename — keep both audit-resolution and review-resolution valid; predicate works on either.",
+      "J2": "Security: knip/sonar findings only contain file paths (no PII). Triage rationales still PII-redacted via existing C5 path. Producer outputs land in worker-output/ committed audit trail.",
+      "J3": "Rollback: per-AC commits. AC-1 manifest revert is single-file. AC-4/AC-5 producer changes revert per script. AC-7 doc edits regenerable.",
+      "J4": "Out of scope: ESLint findings producer (already blocking via verify-lint). TypeScript producer (blocking via verify-typecheck). Task-sub-agent gates (api-contract / debug-rls / module-status / aidefence) — separate appetite if needed.",
+      "J5": "lax"
+    }
+  },
+  "recalled_patterns": [
+    {
+      "key": "lifeos-audit-finding-explicit-triage",
+      "score": 0.82,
+      "namespace": "default",
+      "accepted": true,
+      "applied_to": "auto-backfill at assemble",
+      "section": "auto",
+      "recorded_at": "2026-05-19T19:09:56.122Z"
+    },
+    {
+      "key": "pattern_1778964834312_ee577055220ab5f8",
+      "score": 0.69,
+      "namespace": "pattern",
+      "accepted": true,
+      "applied_to": "auto-backfill at assemble",
+      "section": "auto",
+      "recorded_at": "2026-05-19T19:09:56.123Z"
+    },
+    {
+      "key": "lifeos-signed-get-url-private-bucket",
+      "score": 0.64,
+      "namespace": "patterns",
+      "accepted": true,
+      "applied_to": "auto-backfill at assemble",
+      "section": "auto",
+      "recorded_at": "2026-05-19T19:09:56.123Z"
+    },
+    {
+      "key": "lifeos-scope-bound-at-gate-eval",
+      "score": 0.63,
+      "namespace": "default",
+      "accepted": true,
+      "applied_to": "auto-backfill at assemble",
+      "section": "auto",
+      "recorded_at": "2026-05-19T19:09:56.123Z"
+    },
+    {
+      "key": "lifeos-procedure-phantom-sweep",
+      "score": 0.61,
+      "namespace": "procedures",
+      "accepted": true,
+      "applied_to": "auto-backfill at assemble",
+      "section": "auto",
+      "recorded_at": "2026-05-19T19:09:56.123Z"
+    },
+    {
+      "key": "lifeos-sprint-harness-extraction",
+      "score": 0.6,
+      "namespace": "project",
+      "accepted": true,
+      "applied_to": "auto-backfill at assemble",
+      "section": "auto",
+      "recorded_at": "2026-05-19T19:09:56.123Z"
+    },
+    {
+      "key": "lifeos-sprint-pipeline-realistic-scheduling-delivered",
+      "score": 0.6,
+      "namespace": "project",
+      "accepted": true,
+      "applied_to": "auto-backfill at assemble",
+      "section": "auto",
+      "recorded_at": "2026-05-19T19:09:56.123Z"
+    },
+    {
+      "key": "pattern_1778965551611_69c3842f60a5b120",
+      "score": 0.6,
+      "namespace": "pattern",
+      "accepted": true,
+      "applied_to": "auto-backfill at assemble",
+      "section": "auto",
+      "recorded_at": "2026-05-19T19:09:56.123Z"
+    },
+    {
+      "key": "swarm-lessons",
+      "score": 0.57,
+      "namespace": "patterns",
+      "accepted": true,
+      "applied_to": "auto-backfill at assemble",
+      "section": "auto",
+      "recorded_at": "2026-05-19T19:09:56.123Z"
+    },
+    {
+      "key": "pattern-doctor-surface-verify",
+      "score": 0.57,
+      "namespace": "patterns",
+      "accepted": true,
+      "applied_to": "auto-backfill at assemble",
+      "section": "auto",
+      "recorded_at": "2026-05-19T19:09:56.123Z"
+    }
+  ],
+  "codebase_refs": [],
+  "coherence_checks": [],
+  "skip_reasons": {
+    "B": "harness-infra: generalize audit-resolution to review-resolution; no new domain logic",
+    "C": "no_schema_change: state.review_findings additive via atomic_update_state",
+    "D": "no HTTP API surface",
+    "E": "no_ui per A flags",
+    "F": "no_ui per A flags",
+    "G": "no_ui per A flags"
+  },
+  "wizard_mode": "autopilot"
+}

@@ -1,0 +1,76 @@
+{
+  "overrides": [
+    {
+      "ts": "2026-05-19T14:38:08.982Z",
+      "ppid": 61379,
+      "tty": "",
+      "via": "SPRINT_SLUG_OVERRIDE"
+    },
+    {
+      "ts": "2026-05-19T14:38:09.023Z",
+      "ppid": 61386,
+      "tty": "",
+      "via": "SPRINT_SLUG_OVERRIDE"
+    },
+    {
+      "ts": "2026-05-19T14:38:09.062Z",
+      "ppid": 61391,
+      "tty": "",
+      "via": "SPRINT_SLUG_OVERRIDE"
+    },
+    {
+      "ts": "2026-05-19T14:38:09.099Z",
+      "ppid": 61396,
+      "tty": "",
+      "via": "SPRINT_SLUG_OVERRIDE"
+    },
+    {
+      "ts": "2026-05-19T14:38:09.137Z",
+      "ppid": 61401,
+      "tty": "",
+      "via": "SPRINT_SLUG_OVERRIDE"
+    },
+    {
+      "ts": "2026-05-19T14:38:09.173Z",
+      "ppid": 61406,
+      "tty": "",
+      "via": "SPRINT_SLUG_OVERRIDE"
+    },
+    {
+      "ts": "2026-05-19T14:40:08.718Z",
+      "ppid": 61974,
+      "tty": "",
+      "via": "SPRINT_SLUG_OVERRIDE"
+    },
+    {
+      "ts": "2026-05-19T14:40:08.757Z",
+      "ppid": 61979,
+      "tty": "",
+      "via": "SPRINT_SLUG_OVERRIDE"
+    },
+    {
+      "ts": "2026-05-19T14:40:09.130Z",
+      "ppid": 62004,
+      "tty": "",
+      "via": "SPRINT_SLUG_OVERRIDE"
+    },
+    {
+      "ts": "2026-05-19T14:40:09.277Z",
+      "ppid": 62022,
+      "tty": "",
+      "via": "SPRINT_SLUG_OVERRIDE"
+    },
+    {
+      "ts": "2026-05-19T14:40:35.586Z",
+      "ppid": 62135,
+      "tty": "",
+      "via": "SPRINT_SLUG_OVERRIDE"
+    },
+    {
+      "ts": "2026-05-19T14:40:35.660Z",
+      "ppid": 62151,
+      "tty": "",
+      "via": "SPRINT_SLUG_OVERRIDE"
+    }
+  ]
+}

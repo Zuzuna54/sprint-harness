@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="refresh" content="60" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sprint Dashboard: audit-driven-fidelity-v1</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Mono", Monaco, monospace;
+      background: #0a0a0a;
+      color: #e0e0e0;
+      max-width: 1100px;
+      margin: 2rem auto;
+      padding: 0 1.5rem;
+      line-height: 1.6;
+    }
+    h1, h2, h3 { color: #fff; font-weight: 600; }
+    h1 { border-bottom: 1px solid #333; padding-bottom: 0.5rem; }
+    .meta { color: #888; font-size: 0.9rem; }
+    .grid { display: grid; gap: 1.5rem; grid-template-columns: 1fr 1fr; margin: 1.5rem 0; }
+    .card {
+      background: #141414;
+      border: 1px solid #222;
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+    }
+    .card.full { grid-column: 1 / -1; }
+    .progress-bar {
+      width: 100%; height: 24px;
+      background: #222; border-radius: 4px;
+      overflow: hidden; margin: 0.5rem 0;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4ade80, #22d3ee);
+      width: 100%;
+      transition: width 0.3s;
+    }
+    .phase-list {
+      display: flex; gap: 0.5rem; flex-wrap: wrap; font-size: 0.85rem;
+      margin-top: 0.5rem;
+    }
+    .phase-pill {
+      padding: 0.2rem 0.6rem; border-radius: 999px;
+      border: 1px solid #333; color: #666;
+    }
+    .phase-pill.done { background: #14532d; color: #4ade80; border-color: #166534; }
+    .phase-pill.current { background: #1e3a8a; color: #93c5fd; border-color: #1d4ed8; font-weight: 600; }
+    .ac-list { list-style: none; padding: 0; }
+    .ac-item {
+      display: flex; align-items: center; gap: 0.6rem;
+      padding: 0.4rem 0; border-bottom: 1px solid #1a1a1a;
+    }
+    .ac-item:last-child { border-bottom: none; }
+    .ac-check { font-size: 1.1rem; width: 1.2rem; }
+    .ac-id { font-weight: 600; min-width: 4rem; }
+    .ac-tag {
+      font-size: 0.75rem; padding: 0.1rem 0.4rem; border-radius: 3px;
+      background: #2c1810; color: #fbbf24;
+    }
+    .drift-timeline {
+      display: flex; align-items: flex-end; gap: 4px;
+      height: 80px; margin-top: 0.5rem; padding: 0.5rem;
+      background: #0d0d0d; border-radius: 4px;
+    }
+    .drift-bar {
+      flex: 1; min-width: 6px;
+      background: #4ade80;
+      border-radius: 2px 2px 0 0;
+      transition: height 0.3s;
+    }
+    .drift-bar.low { background: #ef4444; }
+    .hill-svg { width: 100%; height: 180px; }
+    .hill-svg path { fill: none; stroke: #555; stroke-width: 2; }
+    .hill-dot { fill: #4ade80; }
+    .hill-dot.complex { fill: #f59e0b; }
+    .hill-dot.todo { fill: #6b7280; }
+    code { background: #1a1a1a; padding: 0.1rem 0.3rem; border-radius: 3px; }
+    .footer { color: #555; font-size: 0.85rem; margin-top: 2rem; text-align: center; }
+  </style>
+</head>
+<body>
+  <h1>🚀 Sprint: audit-driven-fidelity-v1</h1>
+  <div class="meta">
+    Phase: <code>done</code> · Day 5/21 ·
+    Gates: [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object] ·
+    Auto-refresh: 60s
+  </div>
+
+  <div class="card full">
+    <h3>Phase progression</h3>
+    <div class="progress-bar"><div class="progress-fill"></div></div>
+    <div class="phase-list">
+      <span class="phase-pill done">spec-wizard</span><span class="phase-pill done">spec-locked</span><span class="phase-pill done">design-locked</span><span class="phase-pill done">building</span><span class="phase-pill done">verifying</span><span class="phase-pill done">pre-deploy</span><span class="phase-pill done">deploying</span><span class="phase-pill current">done</span>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h3>Hill chart</h3>
+      <svg class="hill-svg" viewBox="0 0 600 180" preserveAspectRatio="xMidYMid meet">
+        <path d="M 30 150 Q 300 -20, 570 150" />
+        <text x="30" y="170" fill="#888" font-size="11">Figuring out</text>
+        <text x="500" y="170" fill="#888" font-size="11">Making it happen</text>
+        
+      </svg>
+      <div class="meta">
+        🟢 done (0) ·
+        🟠 complex (0) ·
+        ⚪ in progress (0)
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Acceptance criteria (0/0)</h3>
+      <ul class="ac-list">
+        <li class="ac-item"><em>No ACs yet — wizard still running?</em></li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h3>Drift timeline (last 0 commits)</h3>
+      <div class="drift-timeline">
+        <span style="color:#666; font-size: 0.85rem;">No drift events yet</span>
+      </div>
+      <div class="meta">Threshold: 0.75 (bars below this are red — drift detected)</div>
+    </div>
+
+    <div class="card">
+      <h3>Drift events (recent)</h3>
+      <em style="color:#666">None — sprint stayed within spec.</em>
+    </div>
+  </div>
+
+  <div class="card full">
+    <h3>Files touched (claims scope)</h3>
+    <ul style="font-family: monospace; font-size: 0.85rem;">
+      <li>medicalContext.ts</li>
+    </ul>
+  </div>
+
+  <div class="footer">
+    Auto-refreshes every 60 seconds. Updated: 2026-05-19T16:27:23.884Z<br>
+    Source: <code>docs/sprints/audit-driven-fidelity-v1/dashboard.html</code> ·
+    Regenerate: <code>node scripts/sprint-dashboard.mjs audit-driven-fidelity-v1</code>
+  </div>
+</body>
+</html>

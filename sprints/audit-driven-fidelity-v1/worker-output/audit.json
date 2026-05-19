@@ -1,0 +1,82 @@
+{
+  "timestamp": "2026-05-19T16:19:16.711Z",
+  "mode": "headless",
+  "workerType": "audit",
+  "model": "haiku",
+  "durationMs": 30778,
+  "executionId": "audit_1779207525933_erefe9",
+  "success": true,
+  "findings": {
+    "vulnerabilities": [
+      {
+        "severity": "high",
+        "file": ".claude/helpers/github-safe.js",
+        "line": 52,
+        "description": "Command injection risk: Uses execSync with string concatenation (newArgs.join(' ')) without proper shell escaping. Malicious input in argument values could break out and execute arbitrary commands."
+      },
+      {
+        "severity": "high",
+        "file": ".claude/helpers/memory.js",
+        "line": 18,
+        "description": "Insecure data storage: JSON file stored without file permissions validation. Sensitive data written to disk in plaintext and readable by any user on the system (depending on umask)."
+      },
+      {
+        "severity": "high",
+        "file": ".claude/helpers/session.js",
+        "line": 7,
+        "description": "Weak session identifier generation: Uses Date.now() for session IDs (sessionId format: 'session-{timestamp}'). Timestamps are predictable and can be enumerated by attackers to predict valid session IDs."
+      },
+      {
+        "severity": "medium",
+        "file": ".claude/helpers/github-safe.js",
+        "line": 40,
+        "description": "Insecure temporary file creation: Temporary files created with mode based on default umask without explicitly setting 0600 permissions. Other users may be able to read sensitive content (body text, GitHub tokens, etc.)."
+      },
+      {
+        "severity": "medium",
+        "file": ".claude/helpers/memory.js",
+        "line": 32,
+        "description": "Insufficient input validation: No validation on 'key' parameter. Could allow path traversal attempts like '../../../etc/passwd' if this utility is exposed to untrusted input."
+      },
+      {
+        "severity": "medium",
+        "file": ".claude/helpers/session.js",
+        "line": 15,
+        "description": "Unencrypted sensitive data: Session context object stores arbitrary data without encryption. If sessions contain authentication tokens or personal information, they are exposed in plaintext."
+      },
+      {
+        "severity": "medium",
+        "file": ".claude/helpers/github-safe.js",
+        "line": 32,
+        "description": "Inadequate error handling: Exceptions during writeFileSync or execSync may bypass the finally block cleanup, leaving temporary files with sensitive content on disk."
+      },
+      {
+        "severity": "low",
+        "file": ".claude/helpers/memory.js",
+        "line": 14,
+        "description": "Directory creation without permission validation: mkdirSync called without mode parameter, uses default permissions. Should explicitly set restrictive permissions (0700)."
+      },
+      {
+        "severity": "low",
+        "file": ".claude/helpers/router.js",
+        "line": 8,
+        "description": "Hardcoded sensitive agent list: Agent capabilities mapping is hardcoded. While not directly exploitable, exposing internal agent types could enable social engineering or reconnaissance."
+      }
+    ],
+    "riskScore": 72,
+    "recommendations": [
+      "Replace execSync with proper shell escaping using the 'shell-escape' package or use spawn() with arguments array instead of string concatenation",
+      "Implement restrictive file permissions (0600) for all temporary files and persistent storage using fs.writeFileSync options: {mode: 0o600}",
+      "Replace plaintext storage with encrypted secrets using 'crypto' module; use authenticated encryption (AES-256-GCM)",
+      "Generate cryptographically secure session IDs using crypto.randomBytes(32).toString('hex') instead of timestamps",
+      "Validate all key inputs against a whitelist pattern to prevent path traversal: /^[a-zA-Z0-9_-]+$/",
+      "Add proper exception handling to ensure cleanup happens in all error paths (use try-finally consistently)",
+      "Implement directory creation with restrictive mode: fs.mkdirSync(path, {recursive: true, mode: 0o700})",
+      "Add input sanitization layer for memory.js to prevent storing sensitive data in plaintext",
+      "Implement session expiration and automatic cleanup of old session files",
+      "Consider using a dedicated secrets manager (e.g., AWS Secrets Manager, HashiCorp Vault) instead of local file storage"
+    ]
+  },
+  "rawOutputPreview": "# Security Vulnerability Analysis Report\n\n```json\n{\n  \"vulnerabilities\": [\n    {\n      \"severity\": \"high\",\n      \"file\": \".claude/helpers/github-safe.js\",\n      \"line\": 52,\n      \"description\": \"Command injection risk: Uses execSync with string concatenation (newArgs.join(' ')) without proper shell escaping. Malicious input in argument values could break out and execute arbitrary commands.\"\n    },\n    {\n      \"severity\": \"high\",\n      \"file\": \".claude/helpers/memory.js\",\n      \"line\": 18,\n      \"description\": \"Insecure data storage: JSON file stored without file permissions validation. Sensitive data written to disk in plaintext and readable by any user on the system (depending on umask).\"\n    },\n    {\n      \"severity\": \"high\",\n      \"file\": \".claude/helpers/session.js\",\n      \"line\": 7,\n      \"description\": \"Weak session identifier generation: Uses Date.now() for session IDs (sessionId format: 'session-{timestamp}'). Timestamps are predictable and can be enumerated by attackers to predict valid session IDs.\"\n    },\n    {\n      \"severity\": \"medium\",\n      \"file\": \".claude/helpers/github-safe.js\",\n      \"line\": 40,\n      \"description\": \"Insecure temporary file creation: Temporary files created with mode based on default umask without explicitly setting 0600 permissions. Other users may be able to read sensitive content (body text, GitHub tokens, etc.).\"\n    },\n    {\n      \"severity\": \"medium\",\n      \"file\": \".claude/helpers/memory.js\",\n      \"line\": 32,\n      \"description\": \"Insufficient input validation: No validation on 'key' parameter. Could allow path traversal attempts like '../../../etc/passwd' if this utility is exposed to untrusted input.\"\n    },\n    {\n      \"severity\": \"medium\",\n      \"file\": \".claude/helpers/session.js\",\n      \"line\": 15,\n      \"description\": \"Unencrypted sensitive data: Session context object stores arbitrary data without encryption. If sessions contain authentication tokens or personal information, they are exposed in plaintext.\"\n    },\n ",
+  "rawOutputLength": 5006
+}

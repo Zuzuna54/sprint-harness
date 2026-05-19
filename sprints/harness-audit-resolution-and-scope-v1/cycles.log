@@ -1,0 +1,6 @@
+═══ Cyclic dependency check: harness-audit-resolution-and-scope-v1 ═══
+Time: 2026-05-19T18:49:12Z
+
+Scanning apps/lambdas + packages for cycles...
+Current cycles: 0
+[i] No baseline; writing current as baseline (first run).

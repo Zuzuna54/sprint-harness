@@ -1,0 +1,40 @@
+{
+  "timestamp": "2026-05-19T15:23:32.108Z",
+  "mode": "headless",
+  "workerType": "predict",
+  "model": "haiku",
+  "durationMs": 30062,
+  "executionId": "predict_1779204182046_v90r6l",
+  "success": true,
+  "findings": {
+    "filesToPreload": [
+      "apps/lambdas/ai-scheduler-lambda/src/pipeline/stages/foundation.ts",
+      "apps/lambdas/ai-scheduler-lambda/src/pipeline/userSchedulingPrefs.ts",
+      "apps/lambdas/ai-scheduler-lambda/src/pipeline/heartbeat.ts",
+      "apps/lambdas/ai-scheduler-lambda/src/pipeline/watchdogReaper.ts",
+      "apps/web/components/dashboard/NotificationsBanner.tsx",
+      "apps/web/components/planner/WeeklyCalendar.tsx",
+      "packages/db/src/schema/nutrition.ts",
+      "docs/sprints/pipeline-v2-visibility/spec.md",
+      "docs/sprints/pipeline-v2-visibility/state.json"
+    ],
+    "testsToRun": [
+      "apps/lambdas/ai-scheduler-lambda/src/pipeline/stages/__tests__/foundation.test.ts",
+      "apps/lambdas/ai-scheduler-lambda/__tests__/userSchedulingPrefs.test.ts",
+      "apps/lambdas/ai-scheduler-lambda/__tests__/heartbeat.test.ts",
+      "apps/lambdas/ai-scheduler-lambda/__tests__/watchdogReaper.test.ts",
+      "packages/db/src/__tests__/schema-nutrition.test.ts"
+    ],
+    "docsToReference": [
+      "docs/sprints/pipeline-v2-visibility/spec.md",
+      ".claude/rules/org-policies.md — TDD-first constraint (write tests before implementation)",
+      ".claude/rules/security.md — Input validation + environment variables",
+      ".claude/projects/-Users-gio-Desktop-lifeos/memory/project_sprint_pipeline_realistic_scheduling.md",
+      "CLAUDE.md — Key Constraints section"
+    ],
+    "confidence": 0.87,
+    "reasoning": "Active sprint (pipeline-v2-visibility) with test-gaps worker flagging 4 critical untested utilities: userSchedulingPrefs, heartbeat, watchdogReaper, and entire web/ frontend. Performance audit identified N+1 patterns in pipeline stages. Security audit found command injection + weak session IDs. Per CLAUDE.md TDD-first constraint, tests must precede implementation. Dashboard integration for visibility layer underway. 87% confidence — strong alignment on pipeline utilities + test coverage gaps + documented performance/security issues."
+  },
+  "rawOutputPreview": "Based on the codebase metrics and active sprint work on `pipeline-v2-visibility`, here's my preload prediction:\n\n```json\n{\n  \"filesToPreload\": [\n    \"apps/lambdas/ai-scheduler-lambda/src/pipeline/stages/foundation.ts\",\n    \"apps/lambdas/ai-scheduler-lambda/src/pipeline/userSchedulingPrefs.ts\",\n    \"apps/lambdas/ai-scheduler-lambda/src/pipeline/heartbeat.ts\",\n    \"apps/lambdas/ai-scheduler-lambda/src/pipeline/watchdogReaper.ts\",\n    \"apps/web/components/dashboard/NotificationsBanner.tsx\",\n    \"apps/web/components/planner/WeeklyCalendar.tsx\",\n    \"packages/db/src/schema/nutrition.ts\",\n    \"docs/sprints/pipeline-v2-visibility/spec.md\",\n    \"docs/sprints/pipeline-v2-visibility/state.json\"\n  ],\n  \"testsToRun\": [\n    \"apps/lambdas/ai-scheduler-lambda/src/pipeline/stages/__tests__/foundation.test.ts\",\n    \"apps/lambdas/ai-scheduler-lambda/__tests__/userSchedulingPrefs.test.ts\",\n    \"apps/lambdas/ai-scheduler-lambda/__tests__/heartbeat.test.ts\",\n    \"apps/lambdas/ai-scheduler-lambda/__tests__/watchdogReaper.test.ts\",\n    \"packages/db/src/__tests__/schema-nutrition.test.ts\"\n  ],\n  \"docsToReference\": [\n    \"docs/sprints/pipeline-v2-visibility/spec.md\",\n    \".claude/rules/org-policies.md — TDD-first constraint (write tests before implementation)\",\n    \".claude/rules/security.md — Input validation + environment variables\",\n    \".claude/projects/-Users-gio-Desktop-lifeos/memory/project_sprint_pipeline_realistic_scheduling.md\",\n    \"CLAUDE.md — Key Constraints section\"\n  ],\n  \"confidence\": 0.87,\n  \"reasoning\": \"Active sprint (pipeline-v2-visibility) with test-gaps worker flagging 4 critical untested utilities: userSchedulingPrefs, heartbeat, watchdogReaper, and entire web/ frontend. Performance audit identified N+1 patterns in pipeline stages. Security audit found command injection + weak session IDs. Per CLAUDE.md TDD-first constraint, tests must precede implementation. Dashboard integration for visibility layer underway. 87% confidence — strong alignment on pipeline utilities +",
+  "rawOutputLength": 3192
+}

@@ -1,0 +1,92 @@
+[
+  {
+    "key": "lifeos-scope-bounded-verify-workers",
+    "score": 0.79,
+    "namespace": "default",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T17:45:50.185Z"
+  },
+  {
+    "key": "lifeos-audit-driven-fix-days-gap",
+    "score": 0.78,
+    "namespace": "default",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T17:45:50.186Z"
+  },
+  {
+    "key": "lifeos-audit-finding-triage-honest-bypass",
+    "score": 0.75,
+    "namespace": "default",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T17:45:50.186Z"
+  },
+  {
+    "key": "lifeos-sprint-harness-extraction",
+    "score": 0.73,
+    "namespace": "project",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T17:45:50.186Z"
+  },
+  {
+    "key": "lifeos-per-wave-proof-file-pattern",
+    "score": 0.7,
+    "namespace": "default",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T17:45:50.186Z"
+  },
+  {
+    "key": "lifeos-declarative-phase-workers",
+    "score": 0.68,
+    "namespace": "default",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T17:45:50.186Z"
+  },
+  {
+    "key": "lifeos-state-lock-pattern",
+    "score": 0.62,
+    "namespace": "patterns",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T17:45:50.186Z"
+  },
+  {
+    "key": "lifeos-hook-reasserter-defense",
+    "score": 0.61,
+    "namespace": "causal",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T17:45:50.186Z"
+  },
+  {
+    "key": "lifeos-causal-post-commit-jscpd-leak",
+    "score": 0.61,
+    "namespace": "causal",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T17:45:50.186Z"
+  },
+  {
+    "key": "task-mp9ti53n→outcome-task-mp9ti53n",
+    "score": 0.6,
+    "namespace": "causal-edges",
+    "accepted": true,
+    "applied_to": "auto-backfill at assemble",
+    "section": "auto",
+    "recorded_at": "2026-05-19T17:45:50.186Z"
+  }
+]

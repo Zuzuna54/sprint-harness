@@ -1,0 +1,15 @@
+{
+  "timestamp": "2026-05-19T18:58:44.238Z",
+  "mode": "headless",
+  "workerType": "document",
+  "model": "haiku",
+  "durationMs": 18307,
+  "executionId": "document_1779217105931_mky85o",
+  "success": true,
+  "findings": {
+    "sections": [],
+    "codeBlocks": []
+  },
+  "rawOutputPreview": "I'll help you generate documentation for undocumented code. However, I need to clarify the scope first:\n\n1. **Which modules/files** should I focus on? (e.g., specific Lambda handlers, React components, utility libraries, API routes)\n2. **Documentation depth**: Should I generate comprehensive docs (README + JSDoc + examples) or focus on JSDoc comments only?\n3. **Priority areas**: Are there specific APIs or modules that are blocking other developers?\n\nOnce you point me to the code, I'll:\n- Add JSDoc with `@param`, `@returns`, `@throws`, `@example` tags\n- Create module READMEs where needed\n- Document all public APIs with usage examples\n- Add inline comments for non-obvious logic (avoiding over-commenting obvious code)\n\nFor example, are you looking to document:\n- Lambda handlers in `apps/lambdas/`?\n- React components in `apps/web/`?\n- Shared utilities in `packages/`?\n- All of the above?\n",
+  "rawOutputLength": 896
+}

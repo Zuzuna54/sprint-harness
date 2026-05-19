@@ -26,6 +26,9 @@ set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# shellcheck disable=SC1091
+source "$(dirname "$0")/lib/atomic-state.sh"
+
 SLUG=""
 MODE="auto"
 for arg in "$@"; do
@@ -212,10 +215,7 @@ case "$MODE" in
     fi
 
     # Persist project number in state
-    if command -v jq >/dev/null 2>&1; then
-      tmp="$(mktemp)"
-      jq ".github_project = $PROJECT_NUM" "$STATE_FILE" > "$tmp" && mv "$tmp" "$STATE_FILE"
-    fi
+    atomic_update_state "$SLUG" ".github_project = $PROJECT_NUM"
 
     echo "[+] Project created: #$PROJECT_NUM"
     echo "    Web: gh project view $PROJECT_NUM --owner @me --web"

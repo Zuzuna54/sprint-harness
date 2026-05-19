@@ -53,6 +53,7 @@ for f in \
   scripts/sprint-claude-md-upgrade.mjs \
   scripts/sprint-cleanup-launch.sh \
   scripts/pre-commit-duplication.mjs \
+  scripts/smoke-prod.sh \
   scripts/sprint-amend-spec.sh \
   scripts/sprint-coverage-delta.mjs \
   scripts/sprint-rebaseline.sh \
@@ -72,13 +73,13 @@ for f in \
   .husky/post-merge \
   .claude/agents/core/integration-reviewer.md \
   .dependency-cruiser.cjs \
-  scripts/launchd/com.<BRAND_SLUG>.sprint-memory-decay.plist \
+  scripts/launchd/com.lifeos.sprint-memory-decay.plist \
   scripts/launchd/install-memory-decay.sh \
-  docs/workflows/<BRAND_SLUG>-sprint-cleanup.yaml \
-  docs/workflows/<BRAND_SLUG>-sprint-verify.yaml \
-  docs/workflows/<BRAND_SLUG>-sprint-build.yaml \
-  docs/workflows/<BRAND_SLUG>-deploy.yaml \
-  docs/workflows/<BRAND_SLUG>-retro.yaml \
+  docs/workflows/lifeos-sprint-cleanup.yaml \
+  docs/workflows/lifeos-sprint-verify.yaml \
+  docs/workflows/lifeos-sprint-build.yaml \
+  docs/workflows/lifeos-deploy.yaml \
+  docs/workflows/lifeos-retro.yaml \
   ; do
   if [ -e "$f" ]; then
     if [[ "$f" == scripts/*.sh ]] || [[ "$f" == scripts/*.mjs ]] || [[ "$f" == .husky/* ]]; then
@@ -110,7 +111,7 @@ else
 fi
 
 # AC-6 launchd
-if launchctl list 2>/dev/null | grep -q "com.<BRAND_SLUG>.sprint-memory-decay"; then
+if launchctl list 2>/dev/null | grep -q "com.lifeos.sprint-memory-decay"; then
   check "AC-6 memory-decay launchd" "OK" "registered"
 else
   check "AC-6 memory-decay launchd" "WARN" "not registered (run install-memory-decay.sh)"
@@ -164,7 +165,7 @@ echo ""
 # Write report
 REPORT="docs/sprints/$SLUG/smoke-validation.json"
 mkdir -p "docs/sprints/$SLUG"
-cat > "$REPORT" <<'JSON'
+cat > "$REPORT" <<JSON
 {
   "slug": "$SLUG",
   "run_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",

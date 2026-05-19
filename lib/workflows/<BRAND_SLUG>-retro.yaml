@@ -1,6 +1,6 @@
 name: <BRAND_SLUG>-retro
 description: |
-  Phase 8 of the <BRAND_SLUG_TITLE> sprint protocol (day 14).
+  Phase 8 of the <BRAND_NAME> sprint protocol (day 14).
   Retro generation, pattern extraction, CLAUDE.md sync, DAA feedback batch,
   trajectory close, worker re-enable, GitHub Issue close.
 version: 1

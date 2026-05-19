@@ -20,9 +20,9 @@ if [ ! -d "$HARNESS_DIR" ]; then
   exit 0
 fi
 
-SINCE="$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || \
-  date -u -v-24H +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || \
-  echo "1970-01-01T00:00:00Z")"
+SINCE="$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || \
+  date -u -v-24H +'%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || \
+  echo '1970-01-01T00:00:00Z')"
 
 AC_COMMITS="$(git log --since="$SINCE" --format='%H %s' --all 2>/dev/null | \
   grep -E 'feat\(harness-parallel-safety-v2/AC-[0-9]+\):' | \
@@ -42,9 +42,9 @@ while IFS=' ' read -r ac hash; do
   [ -z "$ac" ] && continue
   # Look for mirror commit in sprint-harness (same 24h window)
   cd "$HARNESS_DIR" 2>/dev/null || continue
-  HARNESS_SINCE="$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || \
-    date -u -v-24H +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || \
-    echo "1970-01-01T00:00:00Z")"
+  HARNESS_SINCE="$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || \
+    date -u -v-24H +'%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || \
+    echo '1970-01-01T00:00:00Z')"
   HAS_MIRROR="$(git log --since="$HARNESS_SINCE" --format='%s' 2>/dev/null | \
     grep -E "$ac" | grep -iE '(port|mirror|backport|port-)' | head -1)"
   cd "$REPO_ROOT" 2>/dev/null

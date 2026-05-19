@@ -47,10 +47,10 @@ mkdir -p "$TEST_DIR"
 cat > "$TEST_DIR/state.json" <<JSON
 {"slug":"$TEST_SLUG","phase":"done","started_at":"2026-05-17T08:00:00Z","started_at_epoch":$(date +%s),"day":0,"appetite_days":14,"appetite_seconds":1209600,"gates_passed":["spec-lock"],"acs_total":3,"acs_closed":0,"acs_closed_ids":[],"drift_events":[],"scope_amendments":[],"files_touched":["apps/test.ts","scripts/sprint-system-audit.sh"],"wizard_state":{"current_section":"complete"},"prev_phase":null,"closed_at":"2026-05-17T08:00:00Z"}
 JSON
-cat > "$TEST_DIR/spec.partial.json" <<'JSON'
+cat > "$TEST_DIR/spec.partial.json" <<JSON
 {"slug":"$TEST_SLUG","current_section":"complete","sections_status":{"A":"complete"},"sections_answers":{"A":{"A1":"Build supplements compliance Lambda route with RLS","flags":{}}},"skip_reasons":{},"recalled_patterns":[],"coherence_checks":[]}
 JSON
-cat > "$TEST_DIR/spec.md" <<'MD'
+cat > "$TEST_DIR/spec.md" <<MD
 # Sprint $TEST_SLUG: Test
 ## §I — Acceptance Criteria
 **AC-1** \`complex: false\` basic
@@ -115,8 +115,8 @@ echo "── AC-6 memory-decay launchd ──"
 # Avoid `launchctl list | grep -q` (SIGPIPE under set -o pipefail). Capture
 # output to variable first, then grep — same fix as sprint-precheck.sh
 LAUNCHCTL_OUT="$(launchctl list 2>/dev/null || true)"
-assert "AC-6 launchd job registered" "echo '$LAUNCHCTL_OUT' | grep -q com.<BRAND_SLUG>.sprint-memory-decay"
-assert "AC-6 plist file valid" "plutil -lint scripts/launchd/com.<BRAND_SLUG>.sprint-memory-decay.plist 2>&1 | grep -q OK"
+assert "AC-6 launchd job registered" "echo '$LAUNCHCTL_OUT' | grep -q com.lifeos.sprint-memory-decay"
+assert "AC-6 plist file valid" "plutil -lint scripts/launchd/com.lifeos.sprint-memory-decay.plist 2>&1 | grep -q OK"
 assert "AC-6 sprint-memory-decay --dry-run" "REPO_ROOT=$REPO_ROOT node scripts/sprint-memory-decay.mjs --dry-run >/dev/null 2>&1"
 
 echo ""
@@ -131,7 +131,7 @@ echo "── AC-8 CLAUDE.md auto-diff (with realistic synthetic content) ──"
 cat > "$TEST_DIR/retro.md" <<MD
 # Retro: $TEST_SLUG
 ## Patterns extracted
-- **<BRAND_SLUG>-audit-pattern** — A test pattern surfaced during semantic audit
+- **lifeos-audit-pattern** — A test pattern surfaced during semantic audit
 MD
 # Update state to have files_touched + closed_ids
 node -e "
@@ -236,10 +236,10 @@ assert "AC-27 keys NOT truncated" "node -e 'const r=JSON.parse(require(\"fs\").r
 echo ""
 echo "── AC-28 strict verify gate ──"
 # Quote-safe count: write to temp file to avoid shell-quoting eval issue
-SOFT_COUNT="$(grep -c 'on_failure: continue' docs/workflows/<BRAND_SLUG>-sprint-verify.yaml 2>/dev/null || true)"
+SOFT_COUNT="$(grep -c 'on_failure: continue' docs/workflows/lifeos-sprint-verify.yaml 2>/dev/null || true)"
 [ -z "$SOFT_COUNT" ] && SOFT_COUNT=0
 assert "AC-28 zero soft-fails in verify (count: $SOFT_COUNT)" "test $SOFT_COUNT -eq 0"
-assert "AC-28 all-pass-gate present" "grep -q 'id: all-pass-gate' docs/workflows/<BRAND_SLUG>-sprint-verify.yaml"
+assert "AC-28 all-pass-gate present" "grep -q 'id: all-pass-gate' docs/workflows/lifeos-sprint-verify.yaml"
 
 echo ""
 echo "── AC-30 changelog + index ──"

@@ -2,11 +2,11 @@
 # sprint-workers-shim.sh — Run the substitutes for ruflo's missing daemon workers.
 #
 # ────────────────────────────────────────────────────────────────────────────
-# Installed by launchctl via scripts/launchd/com.<BRAND_SLUG>.sprint-workers-shim.plist.
+# Installed by launchctl via scripts/launchd/com.lifeos.sprint-workers-shim.plist.
 # Fires hourly when registered. To install:
-#   launchctl bootstrap gui/$(id -u) scripts/launchd/com.<BRAND_SLUG>.sprint-workers-shim.plist
+#   launchctl bootstrap gui/$(id -u) scripts/launchd/com.lifeos.sprint-workers-shim.plist
 # To remove:
-#   launchctl bootout gui/$(id -u)/com.<BRAND_SLUG>.sprint-workers-shim
+#   launchctl bootout gui/$(id -u)/com.lifeos.sprint-workers-shim
 # ────────────────────────────────────────────────────────────────────────────
 #
 # Ruflo v3.7.0-alpha.44 only implements 7 of 12 documented workers. This shim
@@ -38,8 +38,8 @@ LOG_DIR="$REPO_ROOT/.claude-flow/shim-logs"
 mkdir -p "$LOG_DIR"
 
 LAUNCHD_DIR="$HOME/Library/LaunchAgents"
-PLIST_ULTRALEARN="$LAUNCHD_DIR/com.<BRAND_SLUG>.sprint.ultralearn-shim.plist"
-PLIST_DEEPDIVE="$LAUNCHD_DIR/com.<BRAND_SLUG>.sprint.deepdive-shim.plist"
+PLIST_ULTRALEARN="$LAUNCHD_DIR/com.lifeos.sprint.ultralearn-shim.plist"
+PLIST_DEEPDIVE="$LAUNCHD_DIR/com.lifeos.sprint.deepdive-shim.plist"
 
 # ── Worker substitute runners ────────────────────────────────────────────────
 
@@ -78,13 +78,13 @@ install_macos() {
   fi
   mkdir -p "$LAUNCHD_DIR"
 
-  cat > "$PLIST_ULTRALEARN" <<'EOF'
+  cat > "$PLIST_ULTRALEARN" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.<BRAND_SLUG>.sprint.ultralearn-shim</string>
+  <string>com.lifeos.sprint.ultralearn-shim</string>
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
@@ -103,13 +103,13 @@ install_macos() {
 </plist>
 EOF
 
-  cat > "$PLIST_DEEPDIVE" <<'EOF'
+  cat > "$PLIST_DEEPDIVE" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.<BRAND_SLUG>.sprint.deepdive-shim</string>
+  <string>com.lifeos.sprint.deepdive-shim</string>
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
@@ -134,8 +134,8 @@ EOF
   launchctl load -w "$PLIST_DEEPDIVE"
 
   echo "[+] Installed launchd shim agents:"
-  echo "    - com.<BRAND_SLUG>.sprint.ultralearn-shim (every 1h, runs memory-decay)"
-  echo "    - com.<BRAND_SLUG>.sprint.deepdive-shim   (every 4h, runs graphify:rebuild)"
+  echo "    - com.lifeos.sprint.ultralearn-shim (every 1h, runs memory-decay)"
+  echo "    - com.lifeos.sprint.deepdive-shim   (every 4h, runs graphify:rebuild)"
   echo ""
   echo "Logs: $LOG_DIR"
   echo "Status: bash scripts/sprint-workers-shim.sh status"
@@ -170,7 +170,7 @@ status() {
   # interval) — that's normal for scheduled agents. We treat presence in the
   # output as "loaded".
   if [ -f "$PLIST_ULTRALEARN" ]; then
-    LINE="$(launchctl list 2>/dev/null | awk '/com.<BRAND_SLUG>.sprint.ultralearn-shim/{print}')"
+    LINE="$(launchctl list 2>/dev/null | awk '/com.lifeos.sprint.ultralearn-shim/{print}')"
     if [ -n "$LINE" ]; then
       LAST="$(ls -t $LOG_DIR/ultralearn-*.log 2>/dev/null | head -1)"
       LAST_EXIT="$(echo "$LINE" | awk '{print $2}')"
@@ -184,7 +184,7 @@ status() {
     echo "  ✗ ultralearn-shim NOT installed (run: bash scripts/sprint-workers-shim.sh install)"
   fi
   if [ -f "$PLIST_DEEPDIVE" ]; then
-    LINE="$(launchctl list 2>/dev/null | awk '/com.<BRAND_SLUG>.sprint.deepdive-shim/{print}')"
+    LINE="$(launchctl list 2>/dev/null | awk '/com.lifeos.sprint.deepdive-shim/{print}')"
     if [ -n "$LINE" ]; then
       LAST="$(ls -t $LOG_DIR/deepdive-*.log 2>/dev/null | head -1)"
       LAST_EXIT="$(echo "$LINE" | awk '{print $2}')"

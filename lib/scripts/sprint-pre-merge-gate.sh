@@ -16,6 +16,9 @@ set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# shellcheck disable=SC1091
+source "$(dirname "$0")/lib/atomic-state.sh"
+
 # Resolve current branch + active sprint
 CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo)"
 SLUG="$(bash scripts/sprint-status.sh --slug-only 2>/dev/null || true)"
@@ -32,9 +35,7 @@ if [ "${SPRINT_NO_REVIEW_GATE:-0}" = "1" ]; then
   echo "[i] SPRINT_NO_REVIEW_GATE=1 — skipping pre-merge gate (logged)."
   if command -v jq >/dev/null 2>&1 && [ -f "$STATE_FILE" ]; then
     NOW_ISO="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-    tmp="$(mktemp)"
-    jq --arg at "$NOW_ISO" '.gate_bypasses = ((.gate_bypasses // []) + [{at: $at, gate: "pre-merge-review"}])' \
-       "$STATE_FILE" > "$tmp" && mv "$tmp" "$STATE_FILE"
+    atomic_update_state "$SLUG" --arg at "$NOW_ISO" '.gate_bypasses = ((.gate_bypasses // []) + [{at: $at, gate: "pre-merge-review"}])'
   fi
   exit 0
 fi
@@ -75,15 +76,7 @@ MISSING="${MISSING# }"
 
 if command -v jq >/dev/null 2>&1 && [ -f "$STATE_FILE" ]; then
   for agent_type in $MISSING; do
-    tmp="$(mktemp)"
-    jq --arg at "$NOW_ISO" --arg pr "$PR_NUMBER" --arg type "$agent_type" \
-       '.pending_review_spawns = ((.pending_review_spawns // []) + [{
-         at: $at,
-         pr_number: $pr,
-         agent_type: $type,
-         applied: false
-       }])' \
-       "$STATE_FILE" > "$tmp" && mv "$tmp" "$STATE_FILE"
+    atomic_update_state "$SLUG" --arg at "$NOW_ISO" --argjson pr "$PR_NUMBER" --arg type "$agent_type" '.pending_review_spawns = ((.pending_review_spawns // []) + [{at: $at, pr_number: $pr, agent_type: $type, applied: false}])'
   done
 fi
 

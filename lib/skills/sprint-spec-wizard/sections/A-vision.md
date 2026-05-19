@@ -11,7 +11,7 @@
 1. The specific problem in user voice (not "improve X" — "users abandon onboarding at step 4 because of Y")
 2. The specific people who feel the problem (personas: founders, early users, onboarding users)
 3. The trigger event — why solve NOW vs later
-4. How this advances the <BRAND_SLUG_TITLE> "10 min/day, get rest of life scheduled" promise — or explicit acknowledgment it's tactical not strategic
+4. How this advances the LifeOS "10 min/day, get rest of life scheduled" promise — or explicit acknowledgment it's tactical not strategic
 5. The vision of the world post-ship
 
 ## Typical question shape (adapt wording each run)
@@ -24,7 +24,7 @@
 
 ## Conditional follow-ups
 
-- If A1 mentions an existing <BRAND_SLUG_TITLE> module by name → surface recalled patterns from memory for that module
+- If A1 mentions an existing LifeOS module by name → surface recalled patterns from memory for that module
 - If A3 is "no trigger" → ask: "What evidence convinced you this is worth a 2-week appetite?"
 - If A5 is vague → ask: "Imagine a user just shipped this. What's the first specific thing they do/see that's different?"
 
@@ -43,10 +43,10 @@ These flags drive skip decisions for §B-§G.
 
 Memory keys likely relevant:
 
-- `<BRAND_SLUG>-build-context`
-- `<BRAND_SLUG>-mvp-build-complete`
-- `<BRAND_SLUG>-known-gaps`
-- Any `<BRAND_SLUG>-<module>-*` for the module mentioned in A1
+- `lifeos-build-context`
+- `lifeos-mvp-build-complete`
+- `lifeos-known-gaps`
+- Any `lifeos-<module>-*` for the module mentioned in A1
 
 ## Coherence note
 

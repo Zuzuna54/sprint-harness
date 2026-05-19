@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # state-lock.sh — atomic state.json write coordinator.
 #
-# Per <BRAND_SLUG>-state-json-lock memory pattern from sprint-system-100. Every
+# Per lifeos-state-json-lock memory pattern from sprint-system-100. Every
 # concurrent writer to state.json must acquire state.json.lock (set -C
 # noclobber, 5 retries, 30s stale reclaim) before mutating. Without this,
 # concurrent jq pipes from different Claude sessions / hooks / workflows

@@ -123,7 +123,7 @@ SPARC DESIGN  /sparc:spec-pseudocode + /sparc:architect → design.md
 DESIGN LOCK   user signs off → state.phase = design-locked
 
 BUILD         bash scripts/sprint-build-launch.sh
-              executes <BRAND_SLUG>-sprint-build.yaml:
+              executes lifeos-sprint-build.yaml:
                 swarm_init (8 agents)
                 claims_claim × 7 domains
                 autopilot side-cars × 3
@@ -139,14 +139,14 @@ BUILD         bash scripts/sprint-build-launch.sh
 DAY 5         bash scripts/sprint-checkin.sh → check-in-day5.md + hill chart
               user: cut/push/pivot
 
-VERIFY        <BRAND_SLUG>-sprint-verify.yaml
+VERIFY        lifeos-sprint-verify.yaml
               typecheck → lint → tests → api-contract → debug-rls
               → module-status → perf-profile → aidefence-scan
 
 PRE-DEPLOY    reviewer agent + security-architect agent
               user signs off
 
-DEPLOY        <BRAND_SLUG>-deploy.yaml
+DEPLOY        lifeos-deploy.yaml
               bundle → pulumi preview → PAUSE → pulumi up
               → smoke → vercel deploy
 
@@ -230,6 +230,15 @@ Anywhere:       paused (via sprint-pause.sh)
 | `.claude/skills/sprint-spec-wizard/sections/I-acceptance.md`     | §I                        | AC format, **complexity keywords for pair-mode**                          |
 | `.claude/skills/sprint-spec-wizard/sections/J-risks.md`          | §J                        | Rollback default, security depth rules                                    |
 
+### Layer 2 — Worker-trigger helpers (2026-05-19)
+
+| Script                          | Purpose                                                                                                                                                                                                                                                       |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/lib/worker-trigger.sh` | `trigger_worker <name> <slug> [timeout]` + `trigger_workers_parallel`. Polls `.claude-flow/metrics/<basename>.json` mtime, validates JSON, copies to `docs/sprints/<slug>/worker-output/`. CI hard-fails if `claude` lacks OAuth + `ANTHROPIC_API_KEY` unset. |
+| `scripts/lib/worker-gates.sh`   | `gate_audit_blocks <output.json>` (zero-tolerance), `gate_testgaps_blocks <output> <slug>` (scope-bounded to spec `## Files touched`), `gate_optimize_advisory`.                                                                                              |
+| `scripts/sprint-verify.sh`      | Wraps USAGE.md verify chain (typecheck → lint → tests → workers). audit + testgaps BLOCKING; optimize advisory. Records `state.verify_runs[]`. macOS bash 3.2 compatible.                                                                                     |
+| `scripts/sprint-wave-start.sh`  | Fires `predict` (haiku) at each build wave kickoff.                                                                                                                                                                                                           |
+
 ### Layer 2 — Scripts (state management)
 
 | Script                                | Purpose                        | Critical invariants                                        |
@@ -256,7 +265,7 @@ Anywhere:       paused (via sprint-pause.sh)
 | `scripts/sprint-dashboard.mjs`        | Local HTML dashboard           | Auto-refresh meta tag (60s)                                |
 | `scripts/sprint-gh-project-sync.sh`   | GH Project board               | Best-effort; skips if no gh auth                           |
 | `scripts/sprint-train.sh`             | Gated neural training          | `--force` bypasses ≥20 trajectory gate                     |
-| `scripts/sprint-daa-feedback.sh`      | DAA reviewer feedback batch    | Creates <BRAND_SLUG>-reviewer-v1 on first run                    |
+| `scripts/sprint-daa-feedback.sh`      | DAA reviewer feedback batch    | Creates lifeos-reviewer-v1 on first run                    |
 | `scripts/sprint-velocity.mjs`         | Compute metrics.json           | 4 success criteria: ACs/appetite/drift/design-lock         |
 
 ### Layer 3 — Hooks (enforcement)
@@ -273,10 +282,10 @@ Anywhere:       paused (via sprint-pause.sh)
 
 | File                                       | Phase | Steps                                                                                          |
 | ------------------------------------------ | ----- | ---------------------------------------------------------------------------------------------- |
-| `docs/workflows/<BRAND_SLUG>-sprint-build.yaml`  | 3     | swarm_init → claims × 7 → autopilot × 3 → trajectory-start                                     |
-| `docs/workflows/<BRAND_SLUG>-sprint-verify.yaml` | 5     | typecheck → lint → test → api-contract → debug-rls → module-status → perf → aidefence          |
-| `docs/workflows/<BRAND_SLUG>-deploy.yaml`        | 7     | bundle → preview → **HUMAN PAUSE** → pulumi up → smoke → vercel                                |
-| `docs/workflows/<BRAND_SLUG>-retro.yaml`         | 8     | velocity → retro → patterns → CLAUDE.md → DAA → trajectory-end → consolidate → workers → train |
+| `docs/workflows/lifeos-sprint-build.yaml`  | 3     | swarm_init → claims × 7 → autopilot × 3 → trajectory-start                                     |
+| `docs/workflows/lifeos-sprint-verify.yaml` | 5     | typecheck → lint → test → api-contract → debug-rls → module-status → perf → aidefence          |
+| `docs/workflows/lifeos-deploy.yaml`        | 7     | bundle → preview → **HUMAN PAUSE** → pulumi up → smoke → vercel                                |
+| `docs/workflows/lifeos-retro.yaml`         | 8     | velocity → retro → patterns → CLAUDE.md → DAA → trajectory-end → consolidate → workers → train |
 
 ### Layer 4 — Autopilot configs
 
@@ -336,7 +345,7 @@ Anywhere:       paused (via sprint-pause.sh)
   "pair_prompts": [{ "at": "...", "ac": "AC-3", "commit": "<sha>", "action": "stderr-advisory" }],
   "gate_bypasses": [{ "at": "...", "gate": "pre-merge-review" }],
   "pending_daa_adapts": [
-    { "at": "...", "agent_id": "<BRAND_SLUG>-reviewer-v1", "feedback_path": "...", "applied": false }
+    { "at": "...", "agent_id": "lifeos-reviewer-v1", "feedback_path": "...", "applied": false }
   ],
   "pending_review_spawns": [
     { "at": "...", "pr_number": "42", "agent_type": "security-architect", "applied": false }
@@ -431,7 +440,7 @@ Anywhere:       paused (via sprint-pause.sh)
     "B": { ... }
   },
   "recalled_patterns": [
-    { "key": "<BRAND_SLUG>-rls-4-policy-template", "section": "C", "accepted": true, "score": 0.72 },
+    { "key": "lifeos-rls-4-policy-template", "section": "C", "accepted": true, "score": 0.72 },
     { "key": "frontend-hook-pattern", "section": "E", "accepted": true, "score": 0.61 }
   ],
   "codebase_refs": [
@@ -442,7 +451,7 @@ Anywhere:       paused (via sprint-pause.sh)
     { "after_section": "F", "passed": false, "notes": "fixed: A1 said no UI but E1 listed pages", "at": "..." }
   ],
   "skip_reasons": {
-    "G": "Following <BRAND_NAME> brand book — no design questions needed"
+    "G": "Following Ordex brand book — no design questions needed"
   }
 }
 ```
@@ -492,7 +501,7 @@ Or in BoW fallback mode:
 2. Create `scripts/sprint-<gate-name>.sh` — implement the gate logic
 3. Update state machine in `docs/sprints/README.md`
 4. Add a new entry to `state.gates_passed` semantics
-5. If automated workflow needed: create `docs/workflows/<BRAND_SLUG>-<gate>.yaml`
+5. If automated workflow needed: create `docs/workflows/lifeos-<gate>.yaml`
 
 ### Adding a new harness capability (Production-grade)
 
@@ -511,21 +520,31 @@ Bar: a capability is Production only when proven via inject-violation-catch-rest
 
 **Two-verdict policy:** Production or Broken-with-followup-AC. Do not introduce middle-bucket verdicts like "Scaffolded."
 
+### Bugs caught in 2026-05-19 harness audit
+
+Added to the registry below:
+
+| Pattern                         | Symptom                                                                                                                | Fix                                                                                       |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `lifeos-atomic-state-args-trap` | `atomic_update_state slug --arg X val '<filter>'` silently fails because helper only took 2 positional args            | Variadic forward: collect args between slug + last-arg (filter), pass all to `jq`         |
+| `lifeos-ruflo-cli-drift`        | `ruflo memory embed` / `embeddings encode` / `consensus -a submit` / `neural train --type` — all invalid as of v3.7.0+ | Re-verify against `ruflo <cmd> --help` before fixing; CLI surface shifts between versions |
+| `lifeos-stale-bug-diagnosis`    | Bug report based on file content that's already been fixed in a prior commit                                           | Re-grep the file before applying any fix; trust `grep -n` over memory                     |
+
 ### Bug patterns to watch for (codified)
 
 These are the recurring traps caught by harness-full-coverage. When extending the system, check for them:
 
 | Pattern                             | Symptom                                                                   | Fix                                                            |
 | ----------------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `<BRAND_SLUG>-args-indexof-trap`          | `args[args.indexOf("--x") + 1]` returns `args[0]` (slug) when flag absent | Guard with `argAfter()` helper: `i >= 0 ? args[i+1] : default` |
-| `<BRAND_SLUG>-grep-pattern-whitespace`    | grep `"key":"val"` misses JSON output `"key": "val"` (with space)         | Use `[[:space:]]*` or jq                                       |
-| `<BRAND_SLUG>-pipe-rc-trap`               | `cmd \| tail; rc=$?` captures tail's exit, not cmd's                      | Use `${PIPESTATUS[0]}` or redirect to file then test           |
-| `<BRAND_SLUG>-exit-vs-summary-divergence` | `console.log("FAIL")` + `process.exit(0)` — silent bug                    | Always tie exit to summary boolean                             |
-| `<BRAND_SLUG>-pnpm-dlx-flag-trap`         | `pnpm dlx -y <pkg>` invalid; `-y` not in pnpm dlx                         | Drop the `-y` (npm-ism)                                        |
-| `<BRAND_SLUG>-shim-when-upstream-broken`  | Upstream gap (ruflo #1916, ESLint config, etc.)                           | Own the chain — build a small shim                             |
-| `<BRAND_SLUG>-spec-narrowing-trap`        | Wizard converts broad "full coverage" intent → narrow AC list             | At spec-lock, cross-check final §I against original ask        |
-| `<BRAND_SLUG>-only-two-verdicts`          | Tempted to introduce "Scaffolded"/"Partial" middle                        | Production or Broken-with-followup-AC. No middle.              |
-| `<BRAND_SLUG>-presence-isnt-production`   | "File exists + script runs + returns something" called Production         | Bar is observable catch on real injection, not "didn't crash"  |
+| `lifeos-args-indexof-trap`          | `args[args.indexOf("--x") + 1]` returns `args[0]` (slug) when flag absent | Guard with `argAfter()` helper: `i >= 0 ? args[i+1] : default` |
+| `lifeos-grep-pattern-whitespace`    | grep `"key":"val"` misses JSON output `"key": "val"` (with space)         | Use `[[:space:]]*` or jq                                       |
+| `lifeos-pipe-rc-trap`               | `cmd \| tail; rc=$?` captures tail's exit, not cmd's                      | Use `${PIPESTATUS[0]}` or redirect to file then test           |
+| `lifeos-exit-vs-summary-divergence` | `console.log("FAIL")` + `process.exit(0)` — silent bug                    | Always tie exit to summary boolean                             |
+| `lifeos-pnpm-dlx-flag-trap`         | `pnpm dlx -y <pkg>` invalid; `-y` not in pnpm dlx                         | Drop the `-y` (npm-ism)                                        |
+| `lifeos-shim-when-upstream-broken`  | Upstream gap (ruflo #1916, ESLint config, etc.)                           | Own the chain — build a small shim                             |
+| `lifeos-spec-narrowing-trap`        | Wizard converts broad "full coverage" intent → narrow AC list             | At spec-lock, cross-check final §I against original ask        |
+| `lifeos-only-two-verdicts`          | Tempted to introduce "Scaffolded"/"Partial" middle                        | Production or Broken-with-followup-AC. No middle.              |
+| `lifeos-presence-isnt-production`   | "File exists + script runs + returns something" called Production         | Bar is observable catch on real injection, not "didn't crash"  |
 
 ### Adding a new forbidden action
 
@@ -545,7 +564,7 @@ Also add to husky pre-commit if it's a shell-level concern.
 ### Adding a new autopilot side-car
 
 1. Create `.claude-flow/autopilot/<name>.json` (follow lint-fix.json shape)
-2. Add to `docs/workflows/<BRAND_SLUG>-sprint-build.yaml` → `autopilot-sidecars` step → `branches`
+2. Add to `docs/workflows/lifeos-sprint-build.yaml` → `autopilot-sidecars` step → `branches`
 3. Document in `.claude/skills/sprint-orchestrator/SKILL.md` Phase 3 actions
 
 ### Changing the drift threshold default
@@ -691,7 +710,7 @@ Each catches a different failure mode:
 
 - **Solution sketches** — surface alternatives you didn't consider
 - **Architect** — catch structural bad ideas before you build them
-- **Security** — catch RLS/auth gaps; <BRAND_SLUG_TITLE> specific
+- **Security** — catch RLS/auth gaps; LifeOS specific
 - **Hive-mind consensus** — catch incoherent scope (e.g., backend module but UI-heavy ACs)
 
 ### Why pair-mode on complex ACs?
@@ -709,7 +728,7 @@ Cheaper than catching the bug in prod.
 After 20+ sprints, the patterns store has enough density that:
 
 - Memory recall finds the right past pattern with high score
-- Neural training can learn coordination patterns specific to <BRAND_SLUG_TITLE>
+- Neural training can learn coordination patterns specific to LifeOS
 - DAA reviewer matches your bar
 
 Each pattern stored is compounded value across all future sprints.
@@ -723,7 +742,7 @@ These were in the original plan but explicitly deferred:
 - **Multi-sprint concurrency** — current system assumes one active sprint per worktree
 - **Cross-machine federation / WireGuard mesh** — solo dev
 - **Hosted UI** (flo.ruv.io, goal.ruv.io)
-- **Custom ruflo plugin** (`ruflo-<BRAND_SLUG>-conventions`) — write after 5+ sprints
+- **Custom ruflo plugin** (`ruflo-lifeos-conventions`) — write after 5+ sprints
 - **Slack / email reporting**
 - **Linear / Notion integration**
 - **Pinning ruflo version** — `@latest` keeps current
@@ -787,13 +806,13 @@ Expanded capability coverage from 33 → 71 ACs. New tooling:
 - [`QUICKSTART.md`](./QUICKSTART.md) — 5-minute first-sprint walkthrough
 - [`README.md`](./README.md) — architecture + dir layout
 - [`~/.claude/plans/hazy-gathering-kettle.md`](file:///Users/gio/.claude/plans/hazy-gathering-kettle.md) — original design with 36 decisions
-- [`../ruflo-sessions/ruflo-for-<BRAND_SLUG>.md`](../ruflo-sessions/ruflo-for-<BRAND_SLUG>.md) — full ruflo feature reference
+- [`../ruflo-sessions/ruflo-for-lifeos.md`](../ruflo-sessions/ruflo-for-lifeos.md) — full ruflo feature reference
 - [`../ruflo-sessions/ruflo-syllabus.md`](../ruflo-sessions/ruflo-syllabus.md) — 23-session ruflo learning syllabus
 
 ---
 
 ## License + maintenance
 
-This sprint system is part of <BRAND_SLUG_TITLE>. MIT licensed (<BRAND_SLUG_TITLE> default). Edit freely. PRs welcome at the SKILL.md and section markdown level — those have the highest ROI per change. Lower layers (scripts, hooks) require more care.
+This sprint system is part of LifeOS. MIT licensed (LifeOS default). Edit freely. PRs welcome at the SKILL.md and section markdown level — those have the highest ROI per change. Lower layers (scripts, hooks) require more care.
 
 **Last refreshed:** 2026-05-17

@@ -1,9 +1,40 @@
 #!/usr/bin/env sh
 # pre-push hook — fires before git push.
 #
+# AC-6 (sprint-system-100): serializes git operations via flock on git-index.lock
+# AC-13 (harness-parallel-safety-v2): mirror-parity pre-push check (sprint-mirror-check.sh)
 # AC-13 (sprint-system-100, Gap H): during active sprint, verify PR review
 # marks before allowing push. Delegates to scripts/sprint-pre-merge-gate.sh.
+# Falls back to running without locking if flock is unavailable.
 
-if [ -x scripts/sprint-pre-merge-gate.sh ]; then
-  bash scripts/sprint-pre-merge-gate.sh "$@"
+set -euo pipefail
+
+ARGS="${*:-}"
+
+LOCK_DIR="${XDG_RUNTIME_DIR:-$HOME/.cache/lifeos/locks}"
+(umask 077; mkdir -p "$LOCK_DIR")
+LOCK_FILE="${LOCK_DIR}/git-index.lock"
+
+if command -v flock > /dev/null 2>&1; then
+	flock "$LOCK_FILE" -c "
+		if [ -x scripts/sprint-pre-merge-gate.sh ]; then
+			bash scripts/sprint-pre-merge-gate.sh \"\$ARGS\"
+		fi
+		if [ -x scripts/sprint-mirror-check.sh ]; then
+			bash scripts/sprint-mirror-check.sh
+		fi
+		if [ -f scripts/check-no-any.mjs ]; then
+			node scripts/check-no-any.mjs
+		fi
+	"
+else
+	if [ -x scripts/sprint-pre-merge-gate.sh ]; then
+		bash scripts/sprint-pre-merge-gate.sh \"\$ARGS\"
+	fi
+	if [ -x scripts/sprint-mirror-check.sh ]; then
+		bash scripts/sprint-mirror-check.sh
+	fi
+	if [ -f scripts/check-no-any.mjs ]; then
+		node scripts/check-no-any.mjs
+	fi
 fi

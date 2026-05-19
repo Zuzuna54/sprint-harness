@@ -14,8 +14,8 @@
 ## Typical question shape
 
 - J1 — **Security risks**: "Based on §C-§D-§H, I see these security surfaces: <auto-detected list>. For each, what's the risk and mitigation? (Examples: 'RLS gap on new table → 4-policy template applied'; 'No injection risk — Zod validates'). Also: any auth flow changes?"
-- J2 — **Privacy**: "Data touched: <from C5/H1>. Retention policy? (<BRAND_SLUG_TITLE> default: indefinite, user-controlled deletion via soft-delete). Encryption-at-rest: already enabled per <BRAND_NAME> setup — confirm."
-- J3 — **Rollback**: "How do we revert if this breaks prod? <BRAND_SLUG_TITLE> defaults: Vercel preview deploy → smoke test → promote; DB rollback via soft-delete + additive-only migrations. Need feature flag for staged rollout, or default plan sufficient?"
+- J2 — **Privacy**: "Data touched: <from C5/H1>. Retention policy? (LifeOS default: indefinite, user-controlled deletion via soft-delete). Encryption-at-rest: already enabled per Ordex setup — confirm."
+- J3 — **Rollback**: "How do we revert if this breaks prod? LifeOS defaults: Vercel preview deploy → smoke test → promote; DB rollback via soft-delete + additive-only migrations. Need feature flag for staged rollout, or default plan sufficient?"
 - J4 — **Open questions**: "What do we still NOT know? List unknowns. For each: (a) decide now, (b) accept ambiguity + revisit at design lock, (c) needs a spike before sprint can proceed."
 
 ## Conditional follow-ups
@@ -34,10 +34,10 @@
 
 ## Recall targets
 
-- `<BRAND_SLUG>-causal-rls-skip-leak`
-- `<BRAND_SLUG>-causal-s3-bucket-acl-deprecated`
+- `lifeos-causal-rls-skip-leak`
+- `lifeos-causal-s3-bucket-acl-deprecated`
 - `security-pattern`
-- `<BRAND_SLUG>-encryption-at-rest-setup`
+- `lifeos-encryption-at-rest-setup`
 
 ## Style guidance
 

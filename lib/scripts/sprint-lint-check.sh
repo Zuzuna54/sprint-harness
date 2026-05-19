@@ -3,7 +3,7 @@
 #
 # Rationale: `pnpm turbo run lint` is non-functional in this workspace because
 # only apps/web declares a `lint` script (and it runs interactive `next lint`).
-# `.eslintrc.<BRAND_SLUG>.json` currently has a schema bug. This script bypasses both
+# `.eslintrc.lifeos.json` currently has a schema bug. This script bypasses both
 # and invokes the local ESLint binary with an inline rule set.
 #
 # Usage: bash scripts/sprint-lint-check.sh [path1 path2 ...]

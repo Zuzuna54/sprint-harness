@@ -12,6 +12,9 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# shellcheck disable=SC1091
+source "$(dirname "$0")/lib/atomic-state.sh"
+
 SLUG="$(bash scripts/sprint-status.sh --slug-only 2>/dev/null || true)"
 if [ -z "$SLUG" ]; then
   echo "[!] No paused sprint detected." >&2
@@ -29,10 +32,7 @@ if [ "$CUR_PHASE" != "paused" ]; then
 fi
 
 # Restore phase
-if command -v jq >/dev/null 2>&1; then
-  tmp="$(mktemp)"
-  jq ".phase = \"$PREV_PHASE\" | .pause_events |= (.[:-1] + [(.[-1] // {}) | . + {resumed_at: \"$NOW_ISO\"}])" "$STATE_FILE" > "$tmp" && mv "$tmp" "$STATE_FILE"
-fi
+atomic_update_state "$SLUG" ".phase = \"$PREV_PHASE\" | .pause_events |= (.[:-1] + [(.[-1] // {}) | . + {resumed_at: \"$NOW_ISO\"}])"
 
 # Re-enable workers (best-effort)
 if command -v ruflo >/dev/null 2>&1; then

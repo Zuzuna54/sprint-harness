@@ -58,12 +58,13 @@ JSCPD_RAN=false
 if command -v pnpm >/dev/null 2>&1; then
   echo "Running jscpd (pnpm dlx) for similarity detection..." | tee -a "$LOG_FILE"
   # FIX: removed bogus `-y` flag (pnpm dlx auto-accepts).
-  # Token-burn fix: wrap with timeout 120 to prevent jscpd from running
-  # indefinitely (each hung jscpd consumes 1-3 GB RAM; 3 concurrent = ~7 GB).
+  # FIX: wrap in `timeout 120` to prevent hung scans (each jscpd instance can
+  # consume 1-3 GB RAM indefinitely on large monorepos). On macOS fall back to
+  # a background-kill pattern if GNU timeout is unavailable.
   if command -v timeout >/dev/null 2>&1; then
     timeout 120 pnpm dlx jscpd --silent --min-tokens 50 --threshold 30 --reporters json --output "$SPRINT_DIR/jscpd-report" $CHANGED apps/web/components apps/lambdas packages 2>&1 | tail -20 | tee -a "$LOG_FILE" || true
   else
-    # macOS fallback using perl alarm
+    # macOS: use perl-based timeout as fallback
     perl -e 'alarm 120; exec @ARGV' -- pnpm dlx jscpd --silent --min-tokens 50 --threshold 30 --reporters json --output "$SPRINT_DIR/jscpd-report" $CHANGED apps/web/components apps/lambdas packages 2>&1 | tail -20 | tee -a "$LOG_FILE" || true
   fi
   JSCPD_RAN=true

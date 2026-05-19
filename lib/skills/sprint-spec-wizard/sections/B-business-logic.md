@@ -14,7 +14,7 @@
 
 ## Typical question shape
 
-- B1 — **Entities**: "What business objects/concepts are involved? List them. (Examples from <BRAND_SLUG_TITLE>: `MealPrepSession`, `SupplementLog`, `TimeBlock`, `WorkoutSet`, `HealthLog`)"
+- B1 — **Entities**: "What business objects/concepts are involved? List them. (Examples from LifeOS: `MealPrepSession`, `SupplementLog`, `TimeBlock`, `WorkoutSet`, `HealthLog`)"
 - B2 — **States per entity** (loop over each entity in B1):
   - "For `<entity>`, what state can it be in? List the states."
   - "What event/action transitions it from each state to another?"
@@ -25,7 +25,7 @@
 ## Conditional follow-ups
 
 - For each entity in B1, if it's a brand-new entity (not in `packages/db/schemas/`) → flag for §C "new table required"
-- If B3 mentions soft-delete → recall `<BRAND_SLUG>-soft-delete-pattern` memory
+- If B3 mentions soft-delete → recall `lifeos-soft-delete-pattern` memory
 - If B4 mentions Drizzle queries with aggregations → propose helper in `packages/utils/`
 - If B5 reveals an edge case that affects an existing module → surface to coherence check
 
@@ -37,8 +37,8 @@
 
 ## Recall targets
 
-- `<BRAND_SLUG>-soft-delete-pattern`
-- `<BRAND_SLUG>-rls-4-policy-template`
+- `lifeos-soft-delete-pattern`
+- `lifeos-rls-4-policy-template`
 - Module-specific patterns from §A
 - Any `pattern_*` JSON in the memory store with `metadata.scope == <module>`
 

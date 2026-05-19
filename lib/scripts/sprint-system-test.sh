@@ -71,7 +71,7 @@ run "AC-3  sprint-status --slug-only" "bash scripts/sprint-status.sh --slug-only
 run "AC-4  composite baseline has graph_hash" "node -e 'const b=require(\"./docs/sprints/$SLUG/.baseline-embedding.json\");process.exit(b.graph_hash&&b.composite?0:1)'" ""
 run "AC-5  reuse-audit script executable" "test -x scripts/sprint-reuse-audit.sh && echo ok" "ok"
 run "AC-5  post-commit lockfile guard present" "grep -q 'AUDIT_LOCK' .husky/post-commit && echo ok" "ok"
-run "AC-6  launchd memory-decay registered" "launchctl list | grep com.<BRAND_SLUG>.sprint-memory-decay" "memory-decay"
+run "AC-6  launchd memory-decay registered" "launchctl list | grep com.lifeos.sprint-memory-decay" "memory-decay"
 run "AC-33 precheck script executable" "test -x scripts/sprint-precheck.sh && echo ok" "ok"
 run "AC-33 precheck non-strict mode runs" "bash scripts/sprint-precheck.sh $SLUG --mode end" "precheck"
 
@@ -100,7 +100,7 @@ run "AC-12 state.consensus[] populated" "node -e 'const s=require(\"./docs/sprin
 run "AC-13 pre-push hook executable" "test -x .husky/pre-push && echo ok" "ok"
 run "AC-13 pre-merge gate script present" "test -x scripts/sprint-pre-merge-gate.sh && echo ok" "ok"
 run "AC-20 integration-reviewer agent present" "test -f .claude/agents/core/integration-reviewer.md && echo ok" "ok"
-run "AC-20 build.yaml has integration claim" "grep -q 'claim-integration-reviewer' docs/workflows/<BRAND_SLUG>-sprint-build.yaml && echo ok" "ok"
+run "AC-20 build.yaml has integration claim" "grep -q 'claim-integration-reviewer' docs/workflows/lifeos-sprint-build.yaml && echo ok" "ok"
 
 echo ""
 echo "── Code Quality (P5) ──"
@@ -118,11 +118,11 @@ echo "── Cleanup + Validation (P6) ──"
 run "AC-14 gh-project audit doc exists" "test -f docs/gh-project-api-audit.md && echo ok" "ok"
 run "AC-15 smoke-prod.sh stub exists" "test -x scripts/smoke-prod.sh && echo ok" "ok"
 run "AC-16 sprint-smoke-validate script present" "test -x scripts/sprint-smoke-validate.sh && echo ok" "ok"
-run "AC-24 cleanup workflow yaml present" "test -f docs/workflows/<BRAND_SLUG>-sprint-cleanup.yaml && echo ok" "ok"
+run "AC-24 cleanup workflow yaml present" "test -f docs/workflows/lifeos-sprint-cleanup.yaml && echo ok" "ok"
 run "AC-24 cleanup-launch script present" "test -x scripts/sprint-cleanup-launch.sh && echo ok" "ok"
 run "AC-26 claude-md auto-fix flag present" "grep -q 'AUTO_FIX' scripts/sprint-claude-md-check.sh && echo ok" "ok"
-run "AC-28 verify.yaml has 0 soft-fails" "test \$(grep -c 'on_failure: continue' docs/workflows/<BRAND_SLUG>-sprint-verify.yaml) -eq 0 && echo ok" "ok"
-run "AC-28 all-pass-gate present" "grep -q 'all-pass-gate' docs/workflows/<BRAND_SLUG>-sprint-verify.yaml && echo ok" "ok"
+run "AC-28 verify.yaml has 0 soft-fails" "test \$(grep -c 'on_failure: continue' docs/workflows/lifeos-sprint-verify.yaml) -eq 0 && echo ok" "ok"
+run "AC-28 all-pass-gate present" "grep -q 'all-pass-gate' docs/workflows/lifeos-sprint-verify.yaml && echo ok" "ok"
 run "AC-30 changelog regen" "node scripts/sprint-changelog.mjs $SLUG" "Wrote"
 run "AC-30 capabilities index populated" "test -s docs/sprints/_index/capabilities.md && echo ok" "ok"
 
@@ -214,16 +214,16 @@ fi
 echo ""
 echo "── Workflows ──"
 for w in build verify cleanup deploy retro; do
-  if [ -f "docs/workflows/<BRAND_SLUG>-sprint-$w.yaml" ] || [ -f "docs/workflows/<BRAND_SLUG>-$w.yaml" ]; then
+  if [ -f "docs/workflows/lifeos-sprint-$w.yaml" ] || [ -f "docs/workflows/lifeos-$w.yaml" ]; then
     PASS=$((PASS+1))
-    ROWS="$ROWS| Workflow <BRAND_SLUG>-sprint-$w.yaml | ✓ | present |
+    ROWS="$ROWS| Workflow lifeos-sprint-$w.yaml | ✓ | present |
 "
-    printf "  ✓ %-55s\n" "<BRAND_SLUG>-$w.yaml"
+    printf "  ✓ %-55s\n" "lifeos-$w.yaml"
   else
     FAIL=$((FAIL+1))
-    ROWS="$ROWS| Workflow <BRAND_SLUG>-sprint-$w.yaml | ✗ | missing |
+    ROWS="$ROWS| Workflow lifeos-sprint-$w.yaml | ✗ | missing |
 "
-    printf "  ✗ %-55s\n" "<BRAND_SLUG>-$w.yaml"
+    printf "  ✗ %-55s\n" "lifeos-$w.yaml"
   fi
 done
 
@@ -278,4 +278,18 @@ Pre-conditions: ruflo daemon running, memory.db non-empty, graphify-out present.
 MD
 
 echo "  Report: $REPORT"
+
+# ── Teardown: stop daemons + kill any orphaned jscpd ─────────────────────
+echo ""
+echo "── Teardown ──"
+# Stop ruflo daemon spawned by this test (prevents orphan daemon pile-up)
+if ruflo daemon status 2>/dev/null | grep -q RUNNING; then
+  ruflo daemon stop 2>/dev/null && echo "  ✓ ruflo daemon stopped" || echo "  ⚠ daemon stop failed"
+fi
+# Kill any orphaned jscpd processes started by sprint hooks (belt-and-suspenders)
+ORPHANS=$(pgrep -f "jscpd" 2>/dev/null || true)
+if [ -n "$ORPHANS" ]; then
+  pkill -f "jscpd" 2>/dev/null && echo "  ✓ killed orphaned jscpd ($ORPHANS)" || echo "  ⚠ jscpd kill failed"
+fi
+
 [ "$FAIL" = "0" ]

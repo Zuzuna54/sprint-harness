@@ -1,6 +1,6 @@
 name: <BRAND_SLUG>-sprint-verify
 description: |
-  Phase 5 of the <BRAND_SLUG_TITLE> sprint protocol (day 11-12).
+  Phase 5 of the <BRAND_NAME> sprint protocol (day 11-12).
   Chains all verification gates: typecheck, lint, tests, API contract,
   RLS audit, perf profile, AIDefence scan.
   Any failure pauses the sprint and surfaces to the user.
@@ -175,14 +175,14 @@ steps:
     timeout: 180
     on_failure: pause
 
-  # ── P5d — <BRAND_SLUG_TITLE> conventions + reuse audit (gaps #20, #22, #24) ──────────
+  # ── P5d — <BRAND_NAME> conventions + reuse audit (gaps #20, #22, #24) ──────────
   - id: lint-<BRAND_SLUG>
-    name: ESLint <BRAND_SLUG_TITLE> conventions (gap #24)
+    name: ESLint <BRAND_NAME> conventions (gap #24)
     cmd: |
       if [ -f .eslintrc.<BRAND_SLUG>.json ] && command -v pnpm >/dev/null 2>&1; then
         pnpm dlx -y eslint --config .eslintrc.<BRAND_SLUG>.json --no-eslintrc \
           --ext .ts,.tsx apps packages || \
-          echo "[i] ESLint <BRAND_SLUG_TITLE> rules surfaced warnings (advisory; not blocking)"
+          echo "[i] ESLint <BRAND_NAME> rules surfaced warnings (advisory; not blocking)"
       else
         echo "[i] No .eslintrc.<BRAND_SLUG>.json — skipping"
       fi

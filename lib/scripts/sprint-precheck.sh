@@ -95,7 +95,7 @@ fi
 # Avoid `| grep -q` here: with `set -o pipefail`, grep's early-exit causes
 # launchctl to SIGPIPE (rc=141) → false negative. Capture first, then test.
 LAUNCHCTL_OUT="$(launchctl list 2>/dev/null || true)"
-if printf '%s\n' "$LAUNCHCTL_OUT" | grep -q "com.<BRAND_SLUG>.sprint-memory-decay"; then
+if printf '%s\n' "$LAUNCHCTL_OUT" | grep -q "com.lifeos.sprint-memory-decay"; then
   CHECK_DECAY_OK=1
   CHECK_DECAY_DETAIL="registered"
 else

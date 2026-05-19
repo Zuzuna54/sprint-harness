@@ -20,8 +20,8 @@
   - **Server (no 'use client')**: pure display, no interactivity
   - **Client ('use client')**: hooks, event handlers, state
     Auto-classified based on usage; review each."
-- E4 — **State management**: "<BRAND_SLUG_TITLE> rule: TanStack Query for server state (with `QUERY_KEYS` factory), Redux ONLY for UI state (module toggles, sidebar, drag, modals). Local React state for everything else. Confirm split for this sprint?"
-- E5 — **Mobile**: "What changes at 375px (iPhone SE)? 768px (iPad)? 1024px+ (desktop)? Most <BRAND_SLUG_TITLE> surfaces are mobile-first with desktop adjustments — confirm or call out per surface."
+- E4 — **State management**: "LifeOS rule: TanStack Query for server state (with `QUERY_KEYS` factory), Redux ONLY for UI state (module toggles, sidebar, drag, modals). Local React state for everything else. Confirm split for this sprint?"
+- E5 — **Mobile**: "What changes at 375px (iPhone SE)? 768px (iPad)? 1024px+ (desktop)? Most LifeOS surfaces are mobile-first with desktop adjustments — confirm or call out per surface."
 
 ## Conditional follow-ups
 
@@ -41,11 +41,11 @@
 
 - `frontend-hook-pattern` (TanStack Query + Redux split)
 - `onboarding-pattern` (if onboarding-adjacent)
-- `<BRAND_NAME> web: no touch gestures` (if mobile-heavy)
-- `<BRAND_NAME> Planner design-parity` (if planner-adjacent)
+- `Ordex web: no touch gestures` (if mobile-heavy)
+- `Ordex Planner design-parity` (if planner-adjacent)
 
 ## Style guidance
 
 - Grep `apps/web/components/` aggressively — most "new" components are extensions
-- Server components are the <BRAND_SLUG_TITLE> default; client only when interactivity requires it
+- Server components are the LifeOS default; client only when interactivity requires it
 - Mobile-first is non-negotiable — every page must work at 375px

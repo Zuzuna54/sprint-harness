@@ -70,7 +70,7 @@ if [ -n "$SCHEMA_FILES_CHANGED" ] && [ -z "$MIGRATION_FILES_ADDED" ]; then
   echo "✗ FAIL: schema files changed but no new migration in sprint branch." | tee -a "$LOG_FILE"
   echo "" | tee -a "$LOG_FILE"
   echo "Generate one via:" | tee -a "$LOG_FILE"
-  echo "  pnpm --filter @<NAMESPACE>/db migrate:generate" | tee -a "$LOG_FILE"
+  echo "  pnpm --filter @lifeos/db migrate:generate" | tee -a "$LOG_FILE"
   echo "  (review the generated SQL, then commit)" | tee -a "$LOG_FILE"
   exit 1
 fi
@@ -92,7 +92,7 @@ fi
 if command -v pnpm >/dev/null 2>&1; then
   echo "Running: drizzle-kit generate --dry-run (output suppressed unless diff found)" | tee -a "$LOG_FILE"
   # Redirect BOTH stdout + stderr to log; capture only stdout to DRY_OUT
-  DRY_OUT=$(pnpm --filter @<NAMESPACE>/db exec drizzle-kit generate --name=sprint-check-$$ --dry-run 2>>"$LOG_FILE" || true)
+  DRY_OUT=$(pnpm --filter @lifeos/db exec drizzle-kit generate --name=sprint-check-$$ --dry-run 2>>"$LOG_FILE" || true)
 
   # Broader "no diff" pattern includes empty output + pnpm-resolution errors
   # (which fire when there's nothing to generate), and explicit no-op messages.

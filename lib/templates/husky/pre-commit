@@ -2,40 +2,89 @@
 # W8.2 — pre-commit: lint-staged + gitleaks (if installed) + affected typecheck.
 # Hook is committed to the repo so every dev gets the same gate after
 # `pnpm install` (husky's `prepare` script wires it in).
+#
+# AC-6 (sprint-system-100): serializes git operations via flock on git-index.lock
+# to prevent concurrent sprint commits from corrupting the index.
+# Requires: flock (brew install util-linux), jq.
+# Falls back to running without locking if flock is unavailable.
 
-set -e
+set -euo pipefail
+
+ARG1="${1:-}"
+
+LOCK_DIR="${XDG_RUNTIME_DIR:-$HOME/.cache/lifeos/locks}"
+(umask 077; mkdir -p "$LOCK_DIR")
+LOCK_FILE="${LOCK_DIR}/git-index.lock"
 
 # Sprint drift check (only runs when an active sprint exists with a baseline).
 # Bypass: SPRINT_DRIFT_BYPASS=1 git commit
 if [ -x scripts/sprint-drift-check.sh ]; then
-	bash scripts/sprint-drift-check.sh "$1" || {
-		echo "❌ Sprint drift check blocked the commit. See output above."
-		exit 1
-	}
+	if command -v flock > /dev/null 2>&1; then
+		flock "$LOCK_FILE" -c "
+		bash scripts/sprint-drift-check.sh "$ARG1" || {
+				echo 'Sprint drift check blocked the commit. See output above.'
+				exit 1
+			}
+		"
+	else
+		bash scripts/sprint-drift-check.sh '$1' || {
+			echo 'Sprint drift check blocked the commit. See output above.'
+			exit 1
+		}
+	fi
 fi
 
 # AC-17 (sprint-system-100): duplicate-code check during active sprint.
 # Blocks if any staged TS pair exceeds 50% similarity. Bypass with
 # SPRINT_DUP_BYPASS=1 (logged to state.gate_bypasses[]).
 if [ -x scripts/pre-commit-duplication.mjs ]; then
-	node scripts/pre-commit-duplication.mjs || {
-		[ $? -eq 1 ] && exit 1  # only block on exit 1 (BLOCK); exit 2 = skip
-	}
+	if command -v flock > /dev/null 2>&1; then
+		flock "$LOCK_FILE" -c "
+			node scripts/pre-commit-duplication.mjs || {
+				[ \$? -eq 1 ] && exit 1
+			}
+		"
+	else
+		node scripts/pre-commit-duplication.mjs || {
+			[ $? -eq 1 ] && exit 1
+		}
+	fi
 fi
 
-pnpm exec lint-staged
+if command -v flock > /dev/null 2>&1; then
+	flock "$LOCK_FILE" -c "pnpx lint-staged"
+else
+	pnpx lint-staged
+fi
 
 if command -v gitleaks > /dev/null; then
-	gitleaks protect --staged --no-banner || {
-		echo "❌ Secrets detected — refusing commit. See https://github.com/gitleaks/gitleaks"
-		exit 1
-	}
+	if command -v flock > /dev/null 2>&1; then
+		flock "$LOCK_FILE" -c "
+			gitleaks protect --staged --no-banner || {
+				echo 'Secrets detected — refusing commit. See https://github.com/gitleaks/gitleaks'
+				exit 1
+			}
+		"
+	else
+		gitleaks protect --staged --no-banner || {
+			echo 'Secrets detected — refusing commit. See https://github.com/gitleaks/gitleaks'
+			exit 1
+		}
+	fi
 fi
 
 # Affected-only typecheck. The `|| true` shields us from the pre-existing
 # duplicate-workspace error (apps/web vs apps/web.OLD share package.json
 # "name": "web") that turbo refuses to resolve. Once apps/web.OLD is removed,
 # drop the `|| true`.
-pnpm turbo run typecheck --filter=...[HEAD] || {
-	echo "⚠️  Typecheck failed or skipped (often due to apps/web.OLD duplicate workspace). Continuing — fix typecheck before pushing."
-}
+if command -v flock > /dev/null 2>&1; then
+	flock "$LOCK_FILE" -c "
+		pnpm turbo run typecheck --filter=...[HEAD] || {
+			echo 'Typecheck failed or skipped (often due to apps/web.OLD). Continuing — fix typecheck before pushing.'
+		}
+	"
+else
+	pnpm turbo run typecheck --filter=...[HEAD] || {
+		echo 'Typecheck failed or skipped. Continuing — fix typecheck before pushing.'
+	}
+fi

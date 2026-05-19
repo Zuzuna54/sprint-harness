@@ -16,7 +16,7 @@
 
 - D1 — **Endpoints**: "Based on §B-§C, I scanned existing `apps/lambdas/<module>/src/manifest.ts` and propose these new/modified endpoints: <pre-filled list>. Accept, modify, or different surface? (Format: METHOD /path → purpose)"
 - D2 — **Zod schemas**: For each endpoint in D1, "Sketch the request and response Zod schemas. I drafted these from §B entities: <prefilled>. Edit?"
-- D3 — **Auth**: "<BRAND_SLUG_TITLE> default is `requireUser()` on every route via auth-middleware. Confirm for each endpoint, or any public/scoped exceptions?"
+- D3 — **Auth**: "LifeOS default is `requireUser()` on every route via auth-middleware. Confirm for each endpoint, or any public/scoped exceptions?"
 - D4 — **Errors**: "Here are the error cases I'd handle: <prefilled standard set 400/401/404/422/500 + domain-specific>. Add or remove?"
 - D5 (conditional) — **External APIs**: "Does this call Gemini, Supabase Auth, HealthKit, or external? If yes: timeout, retry strategy, circuit-breaker needed?"
 
@@ -35,14 +35,14 @@
 
 ## Recall targets
 
-- `<BRAND_SLUG>-lambda-handler-5-step` (auto-applied to all D2 schemas)
-- `<BRAND_SLUG>-causal-rls-skip-leak` (surface if any route returns user-scoped data)
+- `lifeos-lambda-handler-5-step` (auto-applied to all D2 schemas)
+- `lifeos-causal-rls-skip-leak` (surface if any route returns user-scoped data)
 - `ai-integration` (if D5 mentions Gemini)
 - `database-pattern` (if Drizzle queries are non-trivial)
 
 ## Style guidance
 
 - Pre-fill the manifest.ts diff — user should mostly accept rather than dictate routes
-- Zod schemas use <BRAND_SLUG_TITLE> naming convention (`<Action>Request`, `<Action>Response`)
+- Zod schemas use LifeOS naming convention (`<Action>Request`, `<Action>Response`)
 - Force `requireUser()` as default; explicit opt-out required for public routes
-- Error handling MUST follow <BRAND_SLUG_TITLE> error class hierarchy (UnauthorizedError, NotFoundError, etc.)
+- Error handling MUST follow LifeOS error class hierarchy (UnauthorizedError, NotFoundError, etc.)

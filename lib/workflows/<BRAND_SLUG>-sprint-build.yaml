@@ -1,6 +1,6 @@
 name: <BRAND_SLUG>-sprint-build
 description: |
-  Phase 3 of the <BRAND_SLUG_TITLE> sprint protocol (days 3-11).
+  Phase 3 of the <BRAND_NAME> sprint protocol (days 3-11).
   Spawns an 8-agent hierarchical-mesh swarm, grants claims per file-ownership
   domain, runs autopilot side-cars (lint-fix, test-backfill, doc-sweep) in
   parallel, and executes per-AC TDD loop with drift checks on every commit.
@@ -61,7 +61,7 @@ steps:
 
   # type: parallel — branch-level on_failure inherited per claim
   - id: claims-grant
-    on_failure: continue  # parent; each branch fails independently
+    on_failure: continue # parent; each branch fails independently
     name: Grant file-ownership claims per agent role
     type: parallel
     branches:

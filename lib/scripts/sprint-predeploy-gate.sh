@@ -26,6 +26,9 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# shellcheck disable=SC1091
+source "$(dirname "$0")/lib/atomic-state.sh"
+
 SLUG=""
 NO_COMMIT=false
 REVIEWER_FILE=""
@@ -104,12 +107,7 @@ JQ_EXPR=".phase = \"pre-deploy\" |
             else .
           end)"
 
-if command -v jq_state_lock >/dev/null 2>&1; then
-  jq_state_lock "$STATE_FILE" "$JQ_EXPR"
-else
-  tmp="$(mktemp)"
-  jq "$JQ_EXPR" "$STATE_FILE" > "$tmp" && mv "$tmp" "$STATE_FILE"
-fi
+atomic_update_state "$SLUG" "$JQ_EXPR"
 
 echo "[✓] $SLUG: phase → pre-deploy, gates += pre-deploy"
 

@@ -18,25 +18,22 @@
 #   2 = configuration error (script can't proceed; commit allowed to avoid deadlock)
 #
 # See: .claude/skills/sprint-orchestrator/SKILL.md "Drift control responsibilities"
-#      docs/sprints/_template/spec.md "Drift score mechanics" section
+#      /Users/gio/.claude/plans/hazy-gathering-kettle.md "Drift score mechanics"
 
 set -uo pipefail
+
+# shellcheck disable=SC1091
+source "$(dirname "$0")/lib/atomic-state.sh"
 
 # ── Emergency bypass ─────────────────────────────────────────────────────────
 if [ "${SPRINT_DRIFT_BYPASS:-}" = "1" ]; then
   echo "[sprint-drift-check] BYPASS=1 — skipping drift check (logging to state.gate_bypasses[])" >&2
-  # Log bypass to state.gate_bypasses[] (was silent before — violates the
-  # "all bypasses logged" contract in bypass-cheatsheet.md).
   REPO_ROOT_LOG="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
   ACTIVE_SLUG=$(bash "$REPO_ROOT_LOG/scripts/sprint-status.sh" --slug-only 2>/dev/null || true)
   if [ -n "$ACTIVE_SLUG" ] && command -v jq >/dev/null 2>&1; then
-    SF="$REPO_ROOT_LOG/docs/sprints/$ACTIVE_SLUG/state.json"
-    if [ -f "$SF" ]; then
-      tmp=$(mktemp)
-      jq --arg at "$(date -u +%FT%TZ)" \
-        '.gate_bypasses = ((.gate_bypasses // []) + [{gate:"drift-check", at:$at, reason:"SPRINT_DRIFT_BYPASS=1"}])' \
-        "$SF" > "$tmp" && mv "$tmp" "$SF"
-    fi
+    # shellcheck disable=SC1091
+    source "$REPO_ROOT_LOG/scripts/lib/atomic-state.sh"
+    atomic_update_state "$ACTIVE_SLUG" --arg at "$(date -u +%FT%TZ)" '.gate_bypasses = ((.gate_bypasses // []) + [{gate:"drift-check", at:$at, reason:"SPRINT_DRIFT_BYPASS=1"}])'
   fi
   exit 0
 fi
@@ -44,16 +41,60 @@ fi
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$REPO_ROOT"
 
-# ── Find active sprint ───────────────────────────────────────────────────────
-if [ ! -x scripts/sprint-status.sh ]; then
-  # sprint system not installed; nothing to check
-  exit 0
+# ── Resolve active sprint via resolution chain ────────────────────────────────
+# AC-8: must use the session's sprint (not most-recent-mtime fallback).
+# Resolution order (matches sprint-hook.cjs + sprint-status.sh):
+#   1. SPRINT_SLUG_OVERRIDE env var
+#   2. Session-file: ~/.claude/sessions/<CLAUDE_SESSION_ID>/sprint-slug
+#      (clean stale entries that point to phase=done sprints)
+#   3. Current git branch sprint/<slug>
+#   4. NO mtime fallback — exit 0 with "no active sprint" (AC-11 behavior)
+
+SLUG=""
+
+# 1. SPRINT_SLUG_OVERRIDE
+if [ -z "$SLUG" ] && [ -n "${SPRINT_SLUG_OVERRIDE:-}" ]; then
+  if [[ "$SPRINT_SLUG_OVERRIDE" =~ ^[a-z0-9-]{3,64}$ ]]; then
+    if [ -f "docs/sprints/$SPRINT_SLUG_OVERRIDE/state.json" ]; then
+      SLUG="$SPRINT_SLUG_OVERRIDE"
+    fi
+  fi
 fi
 
-SLUG="$(bash scripts/sprint-status.sh --slug-only 2>/dev/null || true)"
+# 2. Session-file (clean stale done-phase entries)
+if [ -z "$SLUG" ] && [ -n "${CLAUDE_SESSION_ID:-}" ]; then
+  SESSION_FILE="$HOME/.claude/sessions/$CLAUDE_SESSION_ID/sprint-slug"
+  if [ -f "$SESSION_FILE" ]; then
+    CANDIDATE="$(cat "$SESSION_FILE" 2>/dev/null | tr -d '[:space:]')"
+    if [[ "$CANDIDATE" =~ ^[a-z0-9-]{3,64}$ ]]; then
+      PHASE="$(grep -o '"phase":[[:space:]]*"[^"]*"' "docs/sprints/$CANDIDATE/state.json" 2>/dev/null | head -1 | sed 's/.*"\([^"]*\)"$/\1/')"
+      if [ "$PHASE" = "done" ] || [ "$PHASE" = "paused" ]; then
+        rm -f "$SESSION_FILE"
+      elif [ -f "docs/sprints/$CANDIDATE/state.json" ]; then
+        SLUG="$CANDIDATE"
+      fi
+    else
+      rm -f "$SESSION_FILE"
+    fi
+  fi
+fi
 
+# 3. Current git branch sprint/<slug>
 if [ -z "$SLUG" ]; then
-  # No active sprint — nothing to check
+  BRANCH_NOW="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
+  if [[ "$BRANCH_NOW" =~ ^sprint/(.+)$ ]]; then
+    CANDIDATE="${BASH_REMATCH[1]}"
+    if [ -f "docs/sprints/$CANDIDATE/state.json" ]; then
+      PHASE="$(grep -o '"phase":[[:space:]]*"[^"]*"' "docs/sprints/$CANDIDATE/state.json" 2>/dev/null | head -1 | sed 's/.*"\([^"]*\)"$/\1/')"
+      if [ "$PHASE" != "done" ] && [ "$PHASE" != "paused" ]; then
+        SLUG="$CANDIDATE"
+      fi
+    fi
+  fi
+fi
+
+# 4. No slug resolved → AC-11 behavior: exit 0 silently
+if [ -z "$SLUG" ]; then
   exit 0
 fi
 
@@ -135,10 +176,7 @@ fi
 
 # ── Record score to state.json ───────────────────────────────────────────────
 NOW_ISO="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-TMP="$(mktemp)"
-if command -v jq >/dev/null 2>&1; then
-  jq ".drift_score_latest = $SCORE | .drift_events += [{at: \"$NOW_ISO\", score: $SCORE, msg: $(printf '%s' "$COMMIT_MSG" | head -c 200 | jq -Rs .)}]" "$STATE_FILE" > "$TMP" && mv "$TMP" "$STATE_FILE"
-fi
+atomic_update_state "$SLUG" --argjson score "$SCORE" --arg at "$NOW_ISO" --argjson msg "$(printf '%s' "$COMMIT_MSG" | head -c 200 | jq -Rs .)" '.drift_score_latest = $score | .drift_events += [{at: $at, score: $score, msg: $msg}]'
 
 # ── Decision ─────────────────────────────────────────────────────────────────
 if awk -v s="$SCORE" -v t="$THRESHOLD" 'BEGIN{exit !(s>=t)}'; then

@@ -1,6 +1,6 @@
 name: <BRAND_SLUG>-deploy
 description: |
-  Phase 7 of the <BRAND_SLUG_TITLE> sprint protocol (day 13).
+  Phase 7 of the <BRAND_NAME> sprint protocol (day 13).
   End-to-end deploy pipeline with a HARD pause for human approval before
   `pulumi up`. PR flow only — never pushes directly to main.
 
@@ -9,7 +9,7 @@ description: |
     1. `pnpm turbo run build` was insufficient — produced raw ESM output
        with bare workspace imports that crashed at Lambda module load
        (`SyntaxError: Unexpected token 'export'` /
-        `Cannot find package '@<NAMESPACE>/auth-middleware'`).
+        `Cannot find package '@<BRAND_SLUG>/auth-middleware'`).
        FIX: explicit `scripts/bundle-lambdas.sh` esbuild step.
     2. DB migrations were never part of the deploy gate — Lambdas with
        new routes 500'd against a stale schema.
@@ -32,14 +32,14 @@ inputs:
     required: true
   - name: stack
     description: Pulumi stack
-    default: <GITHUB_ORG>/dev
+    default: Zuzuna54/dev
   - name: skip_vercel
     description: When true, skip the Vercel-side checks (e.g., infra-only deploy)
     default: false
 
 variables:
   state_file: 'docs/sprints/${slug}/state.json'
-  expected_aws_account: '<AWS_ACCOUNT_ID>'
+  expected_aws_account: '816975651861'
 
 steps:
   - id: precheck

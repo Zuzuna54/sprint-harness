@@ -1,6 +1,6 @@
-# <BRAND_SLUG_TITLE> Sprints
+# LifeOS Sprints
 
-This directory holds every <BRAND_SLUG_TITLE> sprint. One sprint = one 2-week Shape Up + SPARC cycle building one module slice end-to-end.
+This directory holds every LifeOS sprint. One sprint = one 2-week Shape Up + SPARC cycle building one module slice end-to-end.
 
 **Harness scale (as of 2026-05-17):** **71 harness capabilities** across **14 groups**, all proven via inject-violation-catch-restore. See [`_index/capabilities.md`](./_index/capabilities.md) for the full catalog. See [`harness-full-coverage/harness-readiness.md`](./harness-full-coverage/harness-readiness.md) for the latest readiness report.
 
@@ -63,7 +63,7 @@ docs/sprints/
 7. **Day-5 check-in** — `bash scripts/sprint-checkin.sh`, hill chart updated, 3 questions.
 8. **Verify** (day 11-12) — `/api-contract-validation`, `/debug-rls`, `/module-status`, perf profile.
 9. **Pre-deploy review** (day 12) — reviewer + security agents.
-10. **Deploy** (day 13) — `<BRAND_SLUG>-deploy` workflow with human-approval gate.
+10. **Deploy** (day 13) — `lifeos-deploy` workflow with human-approval gate.
 11. **`bash scripts/sprint-end.sh <slug>`** — retro, pattern extraction, CLAUDE.md sync, trajectory close.
 
 ## Sprint state machine
@@ -77,10 +77,71 @@ Anywhere → paused → (resume to previous phase)
 
 `bash scripts/sprint-status.sh` shows current state. **AC-3 time-box check** fires a ⚠️ warning when elapsed > appetite × 1.10 with cut/extend/abort menu.
 
+**Phase-aware reasserter predicate (AC-7):** The reasserter does not blindly re-run the last command. It reads `state.phase` and applies phase-specific logic:
+
+- `building` phase: re-runs the most recent broken command with same args
+- `verifying` / `pre-deploy` phase: re-runs the full verify/deploy gate chain from scratch
+- `paused` phase: skips re-assertion (system is intentionally idle)
+
+**Atomic write guarantee:** All state mutations go through `atomic_update_state <slug> '<jq-filter>'` (AC-3) which:
+
+1. Acquires per-slug flock (kernel-backed on Linux, PID-noclobber on macOS)
+2. Creates temp file in same directory (same-filesystem as target → atomic POSIX rename)
+3. Validates jq output before rename
+4. Backs up current state to `state.json.bak` before overwriting
+
+State files are never modified in-place. A signal between step 3 and step 4 leaves the old state intact (`.bak` exists). Recovery: `recover_state_from_bak <slug>`.
+
 **Phase additions** (post-sprint-system-100):
 
-- `cleaning` — between verify and deploy. Runs `<BRAND_SLUG>-sprint-cleanup.yaml` (AC-24): deadcode-delete (AC-18), eslint --fix, test re-run, claude-md-autoclean (AC-26).
+- `cleaning` — between verify and deploy. Runs `lifeos-sprint-cleanup.yaml` (AC-24): deadcode-delete (AC-18), eslint --fix, test re-run, claude-md-autoclean (AC-26).
 - `spec-locked` now optionally pauses for hive-mind two-queen consensus (AC-12) before allowing design-lock.
+
+**Parallel-safety contracts** (2026-05-17 harness-parallel-safety-v2):
+
+- Lock dir: `${XDG_RUNTIME_DIR:-$HOME/.cache/lifeos/locks}` (0700, umask 077). Git ops serialized via `git-index.lock`. Per-slug state locks via `state-<slug>.lock`.
+- Session-file: `~/.claude/sessions/<session-id>/sprint-slug` — atomic mkdir + write, stale cleanup on `phase === "done"`.
+- Migration claims: `docs/sprints/<slug>/.claims/<NNNN>` — atomic mkdir, used by build orchestrator to assign AC ranges.
+- Resolution chain: `--slug` → `SPRINT_SLUG_OVERRIDE` → session-file → git branch → NULL (no mtime fallback). Skips paused sprints.
+
+## Worker integration (2026-05-19 — on-demand, sprint-protocol-driven)
+
+ruflo daemon workers (audit/optimize/testgaps/predict/document/refactor/ultralearn/deepdive/map/consolidate) no longer fire on hardcoded 10-30 min intervals. They run ONLY at sprint-protocol checkpoints where their output is consumed by a gate or surfaced in a deliverable.
+
+**Per-sprint quota:** ~50 min Sonnet across the 14-day cycle, vs ~9 h/day silent burn under the old scheduled model (>99% reduction). Workers shell out to `claude --print` using the operator's OAuth session — not a separate API key — so every fire counts toward Pro/Max subscription quota.
+
+| Stage                             | Worker(s)                                                                | Gate                      |
+| --------------------------------- | ------------------------------------------------------------------------ | ------------------------- |
+| Day 0 `sprint-start.sh`           | `map` (local, free)                                                      | advisory                  |
+| Day 1-2 `sprint-design-lock.sh`   | `ultralearn` if §B.flags.architecture, `deepdive` if complex AC keywords | advisory                  |
+| Per-wave `sprint-wave-start.sh`   | `predict` (haiku)                                                        | advisory preload hints    |
+| Day 5 `sprint-checkin.sh`         | `consolidate` (local, free)                                              | free; memory dedup        |
+| Day 11 `sprint-cleanup-launch.sh` | `refactor` if spec mentions "refactor"                                   | advisory                  |
+| Day 11-12 `sprint-verify.sh`      | `audit` + `testgaps` + `optimize`                                        | audit + testgaps BLOCKING |
+| Day 14 `sprint-end.sh`            | `document` + `consolidate`                                               | doc proposals → retro.md  |
+
+Per-sprint worker outputs land at `docs/sprints/<slug>/worker-output/<worker>.{json,md}` (git-committed audit trail). Daemon state: `RUNNING` with `Workers Enabled: 0` (warm-but-empty). Manual trigger: `ruflo daemon trigger -w <worker>`.
+
+Full spec: [`USAGE.md` §"Worker integration"](./USAGE.md#worker-integration-on-demand-sprint-protocol-driven).
+
+## Audit fixes (2026-05-19 ruflo CLI sweep)
+
+Comprehensive audit of all `ruflo` invocations across the harness. 5 confirmed bugs fixed, 4 reported-as-broken items confirmed already-working:
+
+| Fix | File                                       | Bug                                                                     | Status                      |
+| --- | ------------------------------------------ | ----------------------------------------------------------------------- | --------------------------- |
+| 1   | `scripts/lib/atomic-state.sh`              | Didn't forward `--arg`/`--argjson` to jq → broke 11+ callers            | CRITICAL → fixed (variadic) |
+| 2   | `scripts/sprint-hive-mind-spec-lock.sh:84` | `consensus -a submit` (invalid) → `-a propose`                          | CRITICAL → fixed            |
+| 3   | `scripts/sprint-drift-score.mjs:46`        | `embeddings encode --text` (invalid) → `embeddings generate -t -o json` | CRITICAL → fixed            |
+| 4   | `scripts/sprint-rebaseline.sh:99`          | Same as #3 (opt-in path)                                                | HIGH → fixed                |
+| 5   | `scripts/sprint-end.sh:307`                | Echo string used wrong `--type --epochs` flags                          | LOW → fixed                 |
+
+Already-working (user reported stale info):
+
+- `hive-mind spawn` is `-n N -r specialist` (not the deprecated `--queen --workers`)
+- `sprint-daa-feedback.sh` uses `agent list` (not the deprecated `daa list`)
+- `sprint-train.sh` uses `neural train -p coordination -e 50`
+- `run-workflow.sh` uses `ruflo swarm init` which IS still valid
 
 ## Harness capabilities — 14 groups, 71 ACs (all Production-grade)
 
@@ -148,6 +209,6 @@ See [`harness-full-coverage/proof/`](./harness-full-coverage/proof/) for 71 work
 
 ## Companion docs
 
-- `../ruflo-sessions/ruflo-for-<BRAND_SLUG>.md` — feature-by-feature ruflo activation map
+- `../ruflo-sessions/ruflo-for-lifeos.md` — feature-by-feature ruflo activation map
 - `../ruflo-sessions/ruflo-syllabus.md` — 23-session ruflo learning syllabus
 - `/Users/gio/.claude/plans/hazy-gathering-kettle.md` — the full sprint system plan (this doc's source of truth)

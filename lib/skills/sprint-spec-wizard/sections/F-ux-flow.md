@@ -17,13 +17,13 @@
 - F1 — **Happy path**: "Walk me through the user's journey, step by step. Start: where do they enter? End: what success looks like. Numbered list."
 - F2 — **Error paths**: "Based on F1 and §D (error cases), here are 4 likely failure points: <generated from F1 + D4>. For each: toast / inline error / redirect / full-screen error?"
 - F3 — **Empty state**: "First-time user with no data — what do they see? CTA, illustration, onboarding hint, or hidden until populated?"
-- F4 — **Loading states**: "For each interaction in F1 that fetches data: skeleton (<BRAND_SLUG_TITLE> default), spinner, or optimistic update? Mutations typically optimistic per <BRAND_SLUG_TITLE> convention."
-- F5 — **Transitions**: "Any specific animations needed? (Framer Motion defaults to subtle fade — most <BRAND_SLUG_TITLE> pages don't need custom animations.) Call out any explicit needs."
+- F4 — **Loading states**: "For each interaction in F1 that fetches data: skeleton (LifeOS default), spinner, or optimistic update? Mutations typically optimistic per LifeOS convention."
+- F5 — **Transitions**: "Any specific animations needed? (Framer Motion defaults to subtle fade — most LifeOS pages don't need custom animations.) Call out any explicit needs."
 
 ## Conditional follow-ups
 
 - If F1 has >5 steps → push: "This is a long flow. Could it be 3 steps via X? Or do all 5 carry weight?"
-- If F2 lacks permission-fail handling → required: "What happens if user lacks permission? (<BRAND_SLUG_TITLE> default: redirect to /login)"
+- If F2 lacks permission-fail handling → required: "What happens if user lacks permission? (LifeOS default: redirect to /login)"
 - If F3 says "empty just shows nothing" → push: "Empty UIs feel broken. What's the first-action CTA?"
 - If F4 mismatches with §D auth → flag: "You said optimistic update, but D3 says auth-required — handle 401 in optimistic rollback?"
 
@@ -36,8 +36,8 @@
 ## Recall targets
 
 - `frontend-hook-pattern` (optimistic updates pattern)
-- `<BRAND_NAME> Planner design-parity` (if planner-adjacent)
-- `<BRAND_SLUG>-causal-rls-skip-leak` (if F1 fetches user-scoped data)
+- `Ordex Planner design-parity` (if planner-adjacent)
+- `lifeos-causal-rls-skip-leak` (if F1 fetches user-scoped data)
 
 ## Style guidance
 

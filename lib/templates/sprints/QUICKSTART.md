@@ -5,6 +5,22 @@
 
 ---
 
+## Worker model — what to expect (NEW 2026-05-19)
+
+Sprint-stage-driven workers (audit, optimize, testgaps, etc.) fire ONLY at known checkpoints:
+
+- **Day 0** (start): `map` worker refreshes codebase context
+- **Day 11-12** (verify): `audit` + `testgaps` run as BLOCKING gates; deploy blocks on any vulnerability or untested route in `## Files touched`
+- **Day 14** (retro): `document` worker proposes CLAUDE.md updates into retro.md
+
+These use your Claude Code OAuth session (Pro/Max quota), not a separate API key. **Daemon state:** `RUNNING` with 0 workers on schedule (verify via `ruflo daemon status`). Cost per 14-day sprint: ~50 min Sonnet, all at consequential checkpoints. **>99% reduction** vs the prior scheduled-worker model.
+
+In CI without OAuth: sprint-verify hard-fails with a clear "run locally before pushing" error. Local-only by design.
+
+Full mapping: [USAGE.md "Worker integration"](./USAGE.md#worker-integration-on-demand-sprint-protocol-driven).
+
+---
+
 ## Before you start (60 seconds)
 
 Run the **systems-health precheck** (AC-33). It blocks `sprint-start.sh` if anything critical is down:
@@ -136,8 +152,8 @@ What happens:
      ✓ Drift control armed (will activate at spec-lock)
 
 [me] Starting §A — Problem & Vision.
-     I recalled 2 <BRAND_SLUG_TITLE> patterns relevant to "supplements":
-       - <BRAND_SLUG>-build-context (score 0.71)
+     I recalled 2 LifeOS patterns relevant to "supplements":
+       - lifeos-build-context (score 0.71)
        - frontend-hook-pattern (score 0.58)
 
      Apply as defaults?
@@ -229,7 +245,7 @@ That's by design — PR flow only during sprint. Run `bash scripts/sprint-end.sh
 
 > _"I want to skip §G — I know the design already."_
 
-When §G starts, tell Claude: _"skip §G, follow existing <BRAND_NAME> brand book."_ I'll mark it skipped with reason.
+When §G starts, tell Claude: _"skip §G, follow existing Ordex brand book."_ I'll mark it skipped with reason.
 
 > _"Something broke and I don't know what's happening."_
 
@@ -256,7 +272,7 @@ Produces:
 - **`retro.md`** — what worked / didn't / surprised + velocity metrics
 - **3-5 new memories** stored in `.swarm/memory.db` (recallable in future sprints)
 - **Possible CLAUDE.md update** if a new convention emerged
-- **DAA reviewer feedback batch** (the <BRAND_SLUG>-reviewer agent learns your style)
+- **DAA reviewer feedback batch** (the lifeos-reviewer agent learns your style)
 - **`metrics.json`** — timing, drift count, AC closure rate, success criteria
 
 Your next sprint will:

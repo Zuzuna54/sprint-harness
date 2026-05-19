@@ -15,6 +15,9 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# shellcheck disable=SC1091
+source "$(dirname "$0")/lib/atomic-state.sh"
+
 MODE="edit"
 NO_REBASELINE=false
 EXTRA_ARG=""
@@ -24,6 +27,7 @@ while [ $# -gt 0 ]; do
     --lock)            MODE="lock"; shift ;;
     --cut)             MODE="cut"; shift; EXTRA_ARG="${1:-}"; shift ;;
     --pivot)           MODE="edit"; shift ;;
+    --add-migration)    MODE="add-migration"; shift ;;
     --add-file)        MODE="add-file"; shift; EXTRA_ARG="${1:-}"; shift ;;
     --close-ac)        MODE="close-ac"; shift; EXTRA_ARG="${1:-}"; shift ;;
     --no-rebaseline)   NO_REBASELINE=true; shift ;;
@@ -80,15 +84,10 @@ case "$MODE" in
     " 2>/dev/null || echo '[]')"
 
     if command -v jq >/dev/null 2>&1; then
-      tmp="$(mktemp)"
-      jq --argjson f "$FILES_TOUCHED_JSON" \
-        ".phase = \"spec-locked\" | .gates_passed = (.gates_passed + [\"spec-lock\"] | unique) | .files_touched = (\$f + (.files_touched // []) | unique)" \
-        "$STATE_FILE" > "$tmp" && mv "$tmp" "$STATE_FILE"
+      atomic_update_state "$SLUG" --argjson f "$FILES_TOUCHED_JSON" \
+        ".phase = \"spec-locked\" | .gates_passed = (.gates_passed + [\"spec-lock\"] | unique) | .files_touched = (\$f + (.files_touched // []) | unique)"
 
-      # Record gate history
-      tmp2="$(mktemp)"
-      jq --arg at "$NOW_ISO" '.gate_history = ((.gate_history // []) + [{gate: "spec-lock", status: "passed", at: $at}])' \
-        "$STATE_FILE" > "$tmp2" && mv "$tmp2" "$STATE_FILE"
+      atomic_update_state "$SLUG" --arg at "$NOW_ISO" '.gate_history = ((.gate_history // []) + [{gate: "spec-lock", status: "passed", at: $at}])'
     fi
 
     FILES_COUNT="$(echo "$FILES_TOUCHED_JSON" | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>console.log(JSON.parse(s).length))')"
@@ -128,7 +127,7 @@ case "$MODE" in
       AMEND_DECIDED_BY="${AMEND_DECIDED_BY:-AMEND_ALLOW_EMPTY-bypass}"
     fi
 
-    cat >> "$SPEC_FILE" <<'EOF'
+    cat >> "$SPEC_FILE" <<EOF
 
 ### Amendment ${NOW_ISO} — scope cut
 
@@ -141,19 +140,64 @@ case "$MODE" in
 EOF
 
     if command -v jq >/dev/null 2>&1; then
-      tmp="$(mktemp)"
-      jq --arg at "$NOW_ISO" --arg cut "$EXTRA_ARG" \
-         --arg why "$AMEND_WHY" --arg intent "$AMEND_INTENT" \
-         --arg alt "$AMEND_ALTERNATIVES" --arg by "$AMEND_DECIDED_BY" \
-         '.scope_amendments = ((.scope_amendments // []) + [{
-            at: $at, action: "scope-cut", cut_acs: $cut,
-            why: $why, intent: $intent,
-            alternatives_considered: $alt, decided_by: $by
-          }])' \
-         "$STATE_FILE" > "$tmp" && mv "$tmp" "$STATE_FILE"
+      atomic_update_state "$SLUG" \
+        --arg at "$NOW_ISO" --arg cut "$EXTRA_ARG" \
+        --arg why "$AMEND_WHY" --arg intent "$AMEND_INTENT" \
+        --arg alt "$AMEND_ALTERNATIVES" --arg by "$AMEND_DECIDED_BY" \
+        '.scope_amendments = ((.scope_amendments // []) + [{
+           at: $at, action: "scope-cut", cut_acs: $cut,
+           why: $why, intent: $intent,
+           alternatives_considered: $alt, decided_by: $by
+         }])'
     fi
     echo "[+] Recorded scope cut: $EXTRA_ARG"
     echo "    why: $AMEND_WHY"
+    ;;
+
+add-migration)
+    CLAIMS_DIR="$REPO_ROOT/packages/db/src/migrations/.claims"
+    mkdir -p "$CLAIMS_DIR"
+
+    # Find highest existing claim number
+    highest=0
+    for dir in "$CLAIMS_DIR"/*/; do
+      if [ -d "$dir" ]; then
+        name="$(basename "$dir")"
+        if [[ "$name" =~ ^[0-9]{4}$ ]]; then
+          num="${name#0}" # strip leading zeros
+          if [ "$num" -gt "$highest" ]; then
+            highest="$num"
+          fi
+        fi
+      fi
+    done
+
+    next=$((highest + 1))
+    retry=0
+    max_retries=5
+    migrated=false
+
+    while [ $retry -lt $max_retries ]; do
+      NNNN="$(printf '%04d' $next)"
+      if mkdir "$CLAIMS_DIR/$NNNN" 2>/dev; then
+        echo "$SLUG" > "$CLAIMS_DIR/$NNNN/owner"
+        migrated=true
+        break
+      fi
+      next=$((next + 1))
+      retry=$((retry + 1))
+    done
+
+    if [ "$migrated" = false ]; then
+      echo "[!] AC-5: Could not claim migration number. Tried NNNN from $highest to $next." >&2
+      echo "    Pick next NNNN manually (use highest existing + 1), then:" >&2
+      echo "    mkdir -p packages/db/src/migrations/.claims/<NNNN>" >&2
+      echo "    echo '$SLUG' > packages/db/src/migrations/.claims/<NNNN>/owner" >&2
+      exit 1
+    fi
+
+    echo "[+] AC-5: Claimed migration slot $NNNN for sprint '$SLUG'"
+    echo "    owner file: packages/db/src/migrations/.claims/$NNNN/owner"
     ;;
 
   add-file)
@@ -207,7 +251,7 @@ MSG
       AMEND_DECIDED_BY="${AMEND_DECIDED_BY:-AMEND_ALLOW_EMPTY-bypass}"
     fi
 
-    cat >> "$SPEC_FILE" <<'EOF'
+    cat >> "$SPEC_FILE" <<EOF
 
 ### Amendment ${NOW_ISO} — add file to scope
 
@@ -222,8 +266,8 @@ EOF
 
     # Also update state.files_touched + structured scope_amendments[]
     if command -v jq >/dev/null 2>&1; then
-      tmp="$(mktemp)"
-      jq --arg at "$NOW_ISO" \
+      atomic_update_state "$SLUG" \
+         --arg at "$NOW_ISO" \
          --arg path "$EXTRA_ARG" \
          --arg why "$AMEND_WHY" \
          --arg intent "$AMEND_INTENT" \
@@ -242,8 +286,7 @@ EOF
               alternatives_considered: $alt,
               acs_affected: $acs,
               decided_by: $by
-            }])' \
-         "$STATE_FILE" > "$tmp" && mv "$tmp" "$STATE_FILE"
+            }])'
     fi
     echo "[+] Added to scope: $EXTRA_ARG"
     echo "    why:    $AMEND_WHY"
@@ -271,28 +314,23 @@ EOF
     fi
     # Append to state.acs_closed_ids (de-dup) + count + closed_at timestamp
     if command -v jq >/dev/null 2>&1; then
-      tmp="$(mktemp)"
-      jq --arg ac "$AC_ID" --arg at "$NOW_ISO" '
-        .acs_closed_ids = ((.acs_closed_ids // []) + [$ac] | unique)
-        | .acs_closed = (.acs_closed_ids | length)
-        | .acs_closed_at = ((.acs_closed_at // {}) | .[$ac] = $at)
-        | .acs_total = (if (.acs_total // 0) == 0
-            then (input_filename | "")  # placeholder — see post-process below
-            else .acs_total end)
-      ' "$STATE_FILE" > "$tmp" && mv "$tmp" "$STATE_FILE"
+      atomic_update_state "$SLUG" \
+        --arg ac "$AC_ID" --arg at "$NOW_ISO" \
+        '.acs_closed_ids = ((.acs_closed_ids // []) + [$ac] | unique)
+         | .acs_closed = (.acs_closed_ids | length)
+         | .acs_closed_at = ((.acs_closed_at // {}) | .[$ac] = $at)'
       # If acs_total wasn't set, count from spec.md now
       CURRENT_TOTAL="$(grep -o '"acs_total":[[:space:]]*[0-9]*' "$STATE_FILE" | head -1 | grep -o '[0-9]*$' || echo 0)"
       if [ "$CURRENT_TOTAL" = "0" ]; then
         SPEC_TOTAL="$(grep -cE '\*\*AC-[0-9]+\*\*' "$SPEC_FILE" || echo 0)"
-        tmp2="$(mktemp)"
-        jq --argjson n "$SPEC_TOTAL" '.acs_total = $n' "$STATE_FILE" > "$tmp2" && mv "$tmp2" "$STATE_FILE"
+        atomic_update_state "$SLUG" --argjson n "$SPEC_TOTAL" '.acs_total = $n'
       fi
     else
       echo "[!] jq not available — cannot update state.json safely" >&2
       exit 1
     fi
     # Append amendment note to spec.md for audit trail
-    cat >> "$SPEC_FILE" <<'EOF'
+    cat >> "$SPEC_FILE" <<EOF
 
 ### Amendment ${NOW_ISO} — closed $AC_ID
 EOF

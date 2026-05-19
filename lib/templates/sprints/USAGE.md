@@ -1,6 +1,6 @@
 # Sprint System — Usage Guide
 
-> **For:** anyone building <BRAND_SLUG_TITLE> features
+> **For:** anyone building LifeOS features
 > **What this is:** the practical "how to use it" guide. Pairs with [`README.md`](./README.md) (architecture overview) and [`hazy-gathering-kettle.md`](../../../.claude/plans/hazy-gathering-kettle.md) (full design plan, in `~/.claude/plans/`).
 > **Audience:** solo dev who's never seen this system before. Or a future dev joining the team.
 
@@ -55,8 +55,8 @@ Easiest. Tell me what you want, I run the right scripts.
 | "resume"                                    | `bash scripts/sprint-resume.sh`                                                           |
 | "amend the spec"                            | `bash scripts/sprint-amend-spec.sh`                                                       |
 | "do the day-5 check-in"                     | `bash scripts/sprint-checkin.sh` + walk through 3 questions                               |
-| "verify the sprint"                         | Execute <BRAND_SLUG>-sprint-verify workflow                                                     |
-| "deploy"                                    | Execute <BRAND_SLUG>-deploy workflow (will pause for your approval)                             |
+| "verify the sprint"                         | Execute lifeos-sprint-verify workflow                                                     |
+| "deploy"                                    | Execute lifeos-deploy workflow (will pause for your approval)                             |
 | "end the sprint"                            | `bash scripts/sprint-end.sh <slug>` + walk through retro                                  |
 
 ### Way 2 — Run scripts directly
@@ -209,9 +209,9 @@ Example exchange for §A:
 ```
 Me: Starting §A — Problem & Vision.
 
-I recalled 2 <BRAND_SLUG_TITLE> patterns relevant to "supplements compliance":
-  - <BRAND_SLUG>-build-context (score 0.71): full MVP build status snapshot
-  - <BRAND_SLUG>-mvp-build-complete (score 0.58): MVP completion snapshot
+I recalled 2 LifeOS patterns relevant to "supplements compliance":
+  - lifeos-build-context (score 0.71): full MVP build status snapshot
+  - lifeos-mvp-build-complete (score 0.58): MVP completion snapshot
 
 Want me to apply these as defaults during §A, or skip and revisit per-question?
 
@@ -242,11 +242,11 @@ You: Zefyra noticed she stopped taking her stack after day 4 and that
 [... A4 through A5 ...]
 
 Me: A6 (auto-injected because A1 mentioned an existing module):
-    I see we have 8 <BRAND_SLUG_TITLE> patterns about supplements — review and
+    I see we have 8 LifeOS patterns about supplements — review and
     confirm any apply? Top 3 most relevant:
-      - <BRAND_SLUG>-rls-4-policy-template (will apply at §C)
+      - lifeos-rls-4-policy-template (will apply at §C)
       - frontend-hook-pattern (will apply at §E)
-      - <BRAND_SLUG>-soft-delete-pattern (will apply at §C)
+      - lifeos-soft-delete-pattern (will apply at §C)
 
 You: All three.
 
@@ -318,7 +318,7 @@ This is where the swarm + autopilot side-cars do real work.
 $ bash scripts/sprint-build-launch.sh
 ```
 
-The `<BRAND_SLUG>-sprint-build.yaml` workflow:
+The `lifeos-sprint-build.yaml` workflow:
 
 1. Initializes 8-agent `hierarchical-mesh` swarm
 2. Grants claims (backend, frontend, database, types, tests, review, security, infra)
@@ -382,7 +382,7 @@ If you cut: `bash scripts/sprint-amend-spec.sh --cut AC-3,AC-5`.
 ### Day 11-12 — Verify
 
 ```bash
-$ ruflo workflow execute <BRAND_SLUG>-sprint-verify \
+$ ruflo workflow execute lifeos-sprint-verify \
     --input spec=docs/sprints/supplements-compliance/spec.md \
     --input slug=supplements-compliance
 ```
@@ -398,7 +398,7 @@ I spawn `reviewer` + `security-architect` agents for full diff review. You read,
 ### Day 13 — Deploy
 
 ```bash
-$ ruflo workflow execute <BRAND_SLUG>-deploy \
+$ ruflo workflow execute lifeos-deploy \
     --input branch=sprint/supplements-compliance \
     --input slug=supplements-compliance
 ```
@@ -407,7 +407,7 @@ The workflow runs until:
 
 ```
 Step: pulumi-preview
-  ✓ pulumi preview --stack <GITHUB_ORG>/dev
+  ✓ pulumi preview --stack Zuzuna54/dev
 
 HUMAN GATE — review preview output, approve pulumi up
 
@@ -502,7 +502,7 @@ When you `gh pr create` on a `sprint/*` branch, `.github/workflows/sprint-pr-bod
 - Success vision (from spec §A)
 - AC checklist with closed/open status
 - Files in PR vs files in spec scope (warnings if drift)
-- DoD checklist (<BRAND_SLUG_TITLE> standard)
+- DoD checklist (LifeOS standard)
 - Drift events summary
 
 Reviewers know exactly what the sprint was supposed to do.
@@ -647,7 +647,7 @@ scripts/sprint-*.{sh,mjs}                  ← 18 scripts
 .claude/helpers/sprint-hook.cjs            ← PreToolUse enforcement
 .claude/helpers/statusline-sprint.cjs     ← statusline fragment
 .claude-flow/autopilot/*.json              ← 3 autopilot configs
-docs/workflows/<BRAND_SLUG>-*.yaml               ← 4 sprint workflows
+docs/workflows/lifeos-*.yaml               ← 4 sprint workflows
 .github/workflows/sprint-pr-body.yml       ← PR body auto-fill
 .husky/pre-commit                          ← drift check wired here
 ```
@@ -663,8 +663,8 @@ docs/workflows/<BRAND_SLUG>-*.yaml               ← 4 sprint workflows
 SPRINT_DRIFT_THRESHOLD=0.75    # default; lower = looser
 SPRINT_DRIFT_BYPASS=1          # bypass drift check + scope check (emergency)
 
-# Ruflo (per <BRAND_SLUG_TITLE> conventions)
-AWS_PROFILE=<AWS_PROFILE_NAME>             # NOT default; <BRAND_SLUG_TITLE> account is <AWS_ACCOUNT_ID>
+# Ruflo (per LifeOS conventions)
+AWS_PROFILE=lifeos             # NOT default; LifeOS account is 816975651861
 CLAUDE_FLOW_ENCRYPTION_KEY=<see .env.local>
 ```
 
@@ -829,10 +829,63 @@ git switch sprint/feature-b                              # if it exists
 
 **Resolution order** (in `sprint-status.sh` + `.claude/helpers/sprint-hook.cjs`):
 
-1. `--slug <name>` CLI arg (explicit)
-2. `SPRINT_SLUG_OVERRIDE=<slug>` env var
-3. Current git branch matches `sprint/<slug>` → use `<slug>` (legacy)
-4. Fallback: most-recently-modified non-done sprint
+1. `--slug <name>` CLI arg (explicit, no fallback to session-file)
+2. `SPRINT_SLUG_OVERRIDE=<slug>` env var (audit-logged to retro.json with ppid + tty + timestamp)
+3. `~/.claude/sessions/<session-id>/sprint-slug` file — stale if `phase === "done"` → auto-cleaned + fall-through to step 4
+4. Current git branch matches `sprint/<slug>` → use `<slug>` (legacy fallback)
+5. **RETURN NULL** — no mtime fallback. Callers decide fallback behavior. This is by design (AC-2).
+
+### Technical contracts (parallel-safety v2)
+
+**atomic-state.sh** (`scripts/lib/atomic-state.sh`):
+
+```bash
+source scripts/lib/atomic-state.sh
+atomic_update_state <slug> '<jq-filter-expression>'
+```
+
+Contract: acquires per-slug flock (10s timeout) → mktemp in same dir as state.json → jq filter → validate → atomic rename. Returns 0 on success, 1 on timeout/jq-error. Recovery: if state.json missing, `recover_state_from_bak <slug>` restores from `state.json.bak`.
+
+**Lock directory** (`scripts/lib/lock-dir.sh`):
+
+```bash
+export LOCK_DIR="${XDG_RUNTIME_DIR:-$HOME/.cache/lifeos/locks}"
+mkdir -p "$LOCK_DIR"  # 0700, umask 077
+```
+
+Git operations are serialized via `$LOCK_DIR/git-index.lock`. Per-slug state locks use `$LOCK_DIR/state-<slug>.lock`.
+
+**session-file.sh** (`scripts/lib/session-file.sh`):
+
+```bash
+source scripts/lib/session-file.sh
+write_session_slug <session-id> <slug>   # atomic mkdir + write
+rm_session_slug <session-id>             # cleanup on sprint end/done
+get_session_slug <session-id>             # read, returns empty if absent
+```
+
+Pattern: `~/.claude/sessions/<session-id>/sprint-slug`. Atomic (no partial writes on concurrent reads).
+
+**Migration claims** (`scripts/lib/session-file.sh`):
+
+```bash
+claim_migration <slug> <nnnn>            # mkdir .claims/<NNNN> atomically
+release_migration <slug> <nnnn>          # rmdir .claims/<NNNN>
+list_migrations <slug>                   # list held claims
+```
+
+Claim dirs: `docs/sprints/<slug>/.claims/<NNNN>`. Created atomically with `mkdir -p` (which is idempotent/atomic on POSIX). Used by build orchestrator to assign AC ranges to agents without collision.
+
+**flock pattern** for git operations:
+
+```bash
+LOCK_DIR="${XDG_RUNTIME_DIR:-$HOME/.cache/lifeos/locks}"
+mkdir -p "$LOCK_DIR"  # 0700, umask 077
+exec 9>"$LOCK_DIR/git-index.lock"
+flock -w 30 9 || { echo "git lock timeout"; exit 1; }
+# ... git operations ...
+flock -u 9
+```
 
 **List all active sprints:**
 
@@ -887,11 +940,88 @@ These survived as next-sprint TODOs because gates caught them on real code (not 
 - **AC-67 cross-pattern audit**: 7 memory patterns never recalled
 - **AC-69 sprint-system-test**: 2 syntactic-test failures
 
+## Worker integration (on-demand, sprint-protocol-driven)
+
+> **Updated 2026-05-19.** ruflo daemon workers used to fire on hardcoded 10–30 min intervals (`worker-daemon.js` `DEFAULT_WORKERS`), burning ~9 h Sonnet/day silently against the operator's Claude Code OAuth subscription. Reports rotted in `.claude-flow/metrics/`; nothing read them. Now workers fire ONLY at known sprint-protocol checkpoints where their output is consumed by a gate or surfaced in a deliverable.
+
+### How workers authenticate
+
+Workers shell out to `claude --print` (line 862 of `headless-worker-executor.js`), which uses the operator's Claude Code OAuth session — NOT a separate API key. Every fire consumes the same Pro/Max subscription quota Claude Code uses for interactive work. In CI without OAuth, worker gates **hard-fail** with a clear message; sprint-verify must run locally before pushing.
+
+### Mapping — worker × sprint stage
+
+| Sprint stage                        | Worker(s)                                                                                                                                             | Trigger                                    | Gate                                                                    |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------- |
+| Day 0 — `sprint-start.sh`           | `map` (local, free)                                                                                                                                   | automatic at sprint start                  | advisory                                                                |
+| Day 1–2 — `sprint-design-lock.sh`   | `ultralearn` (opus) IFF `spec.partial.json §B.flags.architecture==true`; `deepdive` (opus) IFF any AC has complexity keyword (auth/RLS/migration/JWT) | automatic at design-lock                   | advisory; feeds design.md                                               |
+| Per-wave kickoff during build       | `predict` (haiku)                                                                                                                                     | `bash scripts/sprint-wave-start.sh <wave>` | advisory; preload hints                                                 |
+| Day 5 — `sprint-checkin.sh`         | `consolidate` (local, free)                                                                                                                           | automatic at check-in                      | free; memory dedup                                                      |
+| Day 11 — `sprint-cleanup-launch.sh` | `refactor` (sonnet) IFF spec mentions "refactor"                                                                                                      | automatic during cleanup                   | advisory                                                                |
+| Day 11–12 — `sprint-verify.sh`      | `audit` (sonnet, **BLOCKING any finding**) + `testgaps` (sonnet, **BLOCKING files-touched untested**) + `optimize` (sonnet, advisory)                 | `bash scripts/sprint-verify.sh`            | audit + testgaps fail the gate                                          |
+| Day 14 — `sprint-end.sh`            | `document` (sonnet) + `consolidate` (local)                                                                                                           | automatic at sprint-end                    | document proposals appended to `retro.md §"CLAUDE.md updates proposed"` |
+
+### Per-sprint outputs
+
+Each worker writes to `docs/sprints/<slug>/worker-output/<worker>.{json,md}` (committed to git per Q7 — audit trail). The default `.claude-flow/metrics/<basename>.json` location is also written but git-ignored.
+
+### Verify gate behavior (Day 11–12)
+
+Run `bash scripts/sprint-verify.sh` from the sprint dir. It:
+
+1. Runs the existing `typecheck → lint → tests` chain (skippable via `--workers-only`).
+2. Fires `audit + testgaps + optimize` in parallel.
+3. Polls `.claude-flow/metrics/*.json` for output (10 min timeout per worker).
+4. Copies outputs to `docs/sprints/<slug>/worker-output/`.
+5. Runs gates: **audit blocks on ANY finding** (zero-tolerance per spec audit Q2); **testgaps blocks on any route in `## Files touched` with zero coverage**; **optimize advisory only**.
+6. Records the run to `state.json.verify_runs[]`.
+
+Local sprint-test-hardening.mjs still runs as a free, deterministic file-scan supplement — testgaps is the LLM-backed gate on top of it.
+
+### Worker invocation cost model
+
+Per 14-day sprint:
+
+- Day 0: map (local, free)
+- Day 1–2: deepdive/ultralearn only on complex sprints (~10–15 min opus)
+- Build waves: predict per wave (~20 s haiku each × ~5 waves)
+- Day 5: consolidate (local, free)
+- Day 11: refactor only on refactor-flagged sprints (~5 min sonnet)
+- Day 11–12: audit + testgaps + optimize (~30 min sonnet total)
+- Day 14: document + consolidate (~5 min sonnet)
+
+**Total: ~50 min Sonnet per sprint** vs the previous ~126 h Sonnet over 14 days of scheduled workers — **>99 % reduction**.
+
+### Daemon state
+
+Run `ruflo daemon status` — expect `RUNNING (background)` with `Workers Enabled: 0`. The daemon stays warm so `ruflo daemon trigger -w <worker>` is fast; no worker fires on its own schedule.
+
+To re-enable a scheduled worker (NOT recommended): `ruflo daemon enable -w <worker>`. To disable one: `ruflo daemon enable -w <worker> --disable`.
+
+### 2026-05-19 audit fixes — ruflo CLI drift caught
+
+| Fix                          | File:line                                                               | Bug                                                                                                                                            |
+| ---------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Variadic atomic_update_state | `scripts/lib/atomic-state.sh:55`                                        | Didn't forward `--arg`/`--argjson` to jq → broke 11+ callers (drift-check, amend-spec, hive-mind, pre-merge-gate, start, cleanup-launch, etc.) |
+| hive-mind consensus action   | `scripts/sprint-hive-mind-spec-lock.sh:84`                              | `-a submit` invalid (CLI errors with "Must be one of: propose, vote, status, list") → `-a propose`                                             |
+| embeddings subcommand        | `scripts/sprint-drift-score.mjs:46` + `scripts/sprint-rebaseline.sh:99` | `embeddings encode --text` doesn't exist → `embeddings generate -t -o json`                                                                    |
+| neural train flag echo       | `scripts/sprint-end.sh:307`                                             | Echoed `neural train --type coordination --epochs 50` (wrong flags) → `-p coordination -e 50`                                                  |
+
+Reported-as-broken items that were actually already-working:
+
+- `hive-mind spawn`: file uses `-n 4 -r specialist` (already migrated off deprecated `--queen X --workers N`)
+- `sprint-daa-feedback.sh:37`: uses valid `ruflo agent list --all -t reviewer` (not deprecated `daa list`)
+- `sprint-train.sh:72`: uses valid `neural train -p coordination -e 50 --learning-rate 0.001`
+- `run-workflow.sh:115`: `ruflo swarm init --topology hierarchical-mesh --max-agents 8` IS still valid (swarm namespace not removed)
+
+Methodology: every ruflo call validated against `ruflo <cmd> --help` actual output; behavior-audit agent invoked top-20 scripts against the paused harness-parallel-safety-v2 sprint to verify against docstring claims.
+
+---
+
 ## What this system does NOT do
 
 Honest scope limits:
 
-- **Does not write <BRAND_SLUG_TITLE> code itself.** During build phase, Claude delegates to coder/tester/architect agents. The orchestrator is the protocol; agents do the work.
+- **Does not write LifeOS code itself.** During build phase, Claude delegates to coder/tester/architect agents. The orchestrator is the protocol; agents do the work.
 - **Does not deploy without your approval.** Even when fully automated, the deploy workflow ALWAYS pauses at `pulumi preview` for human review.
 - **Does not push to main.** PR flow only. `git push` is hook-blocked during sprint.
 - **Does not run during sprint:** daemon's `refactor` and `document` workers (drift risk). They're paused at sprint-start, re-enabled at sprint-end.
@@ -1017,8 +1147,8 @@ bash scripts/sprint-start.sh backend-refactor
 bash scripts/sprint-start.sh feature-a
 
 # Sprint B in a worktree (no enforcement collision)
-git worktree add ../<BRAND_SLUG>-b sprint/feature-b
-cd ../<BRAND_SLUG>-b
+git worktree add ../lifeos-b sprint/feature-b
+cd ../lifeos-b
 bash scripts/sprint-start.sh feature-b --no-branch  # branch already exists
 
 # Note: the sprint system currently assumes ONE active sprint per worktree.
@@ -1077,7 +1207,7 @@ TALK TO ME    "start a sprint for <X>"
 - [`../../.claude/skills/sprint-orchestrator/SKILL.md`](../../.claude/skills/sprint-orchestrator/SKILL.md) — the 14-day protocol Claude follows
 - [`../../.claude/skills/sprint-spec-wizard/SKILL.md`](../../.claude/skills/sprint-spec-wizard/SKILL.md) — the adaptive wizard
 - [`../../.claude/skills/sprint-spec-wizard/sections/`](../../.claude/skills/sprint-spec-wizard/sections/) — per-section question banks
-- [`../ruflo-sessions/ruflo-for-<BRAND_SLUG>.md`](../ruflo-sessions/ruflo-for-<BRAND_SLUG>.md) — full ruflo feature map
+- [`../ruflo-sessions/ruflo-for-lifeos.md`](../ruflo-sessions/ruflo-for-lifeos.md) — full ruflo feature map
 - [`~/.claude/plans/hazy-gathering-kettle.md`](file:///Users/gio/.claude/plans/hazy-gathering-kettle.md) — original design plan with 36 captured decisions
 
 ---

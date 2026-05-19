@@ -28,10 +28,20 @@ done
 substitute() {
   local s="$1"
   local n=${#VAR_KEYS[@]}
-  local i=0
-  while [ $i -lt $n ]; do
-    s="${s//\$\{${VAR_KEYS[$i]}\}/${VAR_VALS[$i]}}"
-    i=$((i+1))
+  local prev=""
+  # harness-full-coverage retro #9 — fixed-point loop so nested vars
+  # resolve: if `state_file=docs/sprints/${slug}/state.json` and a step
+  # references `${state_file}`, the first pass leaves `${slug}` in the
+  # output. Re-run until stable (max 8 iterations as a safety cap).
+  local pass=0
+  while [ "$s" != "$prev" ] && [ $pass -lt 8 ]; do
+    prev="$s"
+    local i=0
+    while [ $i -lt $n ]; do
+      s="${s//\$\{${VAR_KEYS[$i]}\}/${VAR_VALS[$i]}}"
+      i=$((i+1))
+    done
+    pass=$((pass+1))
   done
   echo "$s"
 }
@@ -106,7 +116,7 @@ while [ $i -lt "$STEP_COUNT" ]; do
       mcp__claude-flow__claims_claim)
         echo "  [type:mcp] claims_claim — Claude-side via MCP (no CLI equivalent yet)" ;;
       mcp__claude-flow__performance_profile)
-        ruflo performance profile --target lambda --duration 5 2>&1 | tail -5 || STEP_OK=0 ;;
+        ruflo performance profile -t cpu -d 5 2>&1 | tail -5 || STEP_OK=0 ;;
       mcp__claude-flow__aidefence_scan)
         # Skip aidefence_scan (CLI uses 'security defend' which needs a target file)
         echo "  [type:mcp] aidefence_scan — Claude-side via MCP" ;;

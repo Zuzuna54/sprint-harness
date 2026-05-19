@@ -2,7 +2,7 @@
 # sprint-daa-feedback.sh — Batch PR review feedback to the DAA reviewer agent.
 #
 # At sprint-end, collects the sprint's PR review comments + retro feedback,
-# packages them as DAA adapt signals, and feeds them to the <BRAND_SLUG>-reviewer
+# packages them as DAA adapt signals, and feeds them to the lifeos-reviewer
 # DAA agent (creating it on first run).
 #
 # After 10-20 sprints, the DAA reviewer learns your review style and starts
@@ -30,11 +30,11 @@ if ! command -v ruflo >/dev/null 2>&1; then
   exit 0
 fi
 
-DAA_AGENT_ID="<BRAND_SLUG>-reviewer-v1"
+DAA_AGENT_ID="lifeos-reviewer-v1"
 
 # Check if DAA agent exists
 AGENT_EXISTS=false
-if ruflo daa list 2>/dev/null | grep -q "$DAA_AGENT_ID"; then
+if ruflo agent list --all -t reviewer 2>/dev/null | grep -q "$DAA_AGENT_ID"; then
   AGENT_EXISTS=true
 fi
 
@@ -49,7 +49,7 @@ if [ "$AGENT_EXISTS" = false ]; then
       agent_id: "$DAA_AGENT_ID",
       type: "reviewer",
       cognitive_pattern: "balanced",
-      initial_policy: "Review <BRAND_SLUG_TITLE> code with focus on: RLS gaps, missing Zod, soft-delete enforcement, mobile responsiveness, auth on every route, no console.log in commits."
+      initial_policy: "Review LifeOS code with focus on: RLS gaps, missing Zod, soft-delete enforcement, mobile responsiveness, auth on every route, no console.log in commits."
     }
 
   Then re-run this script to feed it the first sprint's feedback.

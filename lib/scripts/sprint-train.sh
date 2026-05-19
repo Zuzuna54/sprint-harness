@@ -2,7 +2,7 @@
 # sprint-train.sh — Gated neural training trigger.
 #
 # Counts accumulated trajectories in .swarm/memory.db. If ≥20, proposes
-# (does not auto-run) `ruflo neural train --type coordination --epochs 50`.
+# (does not auto-run) `ruflo neural train -p coordination -e 50`.
 # Below 20, prints a "deferred" message with current count.
 #
 # Usage: bash scripts/sprint-train.sh [--force]
@@ -56,10 +56,10 @@ echo "════════════════════════�
 echo ""
 echo "  Recommended command:"
 echo ""
-echo "    ruflo neural train --type coordination --epochs 50 --learning-rate 0.001"
+echo "    ruflo neural train -p coordination -e 50 --learning-rate 0.001"
 echo ""
 echo "  Expected duration: 5-15 minutes."
-echo "  Effect: 3-tier routing improves on <BRAND_SLUG_TITLE>-specific patterns."
+echo "  Effect: 3-tier routing improves on LifeOS-specific patterns."
 echo ""
 echo "  After training:"
 echo "    ruflo neural status"
@@ -69,7 +69,7 @@ echo ""
 if [ "$FORCE" = true ]; then
   echo "  --force flag set — running now..."
   echo ""
-  ruflo neural train --type coordination --epochs 50 --learning-rate 0.001 || {
+  ruflo neural train -p coordination -e 50 --learning-rate 0.001 || {
     echo "[!] neural train failed; check ruflo daemon status"
     exit 1
   }

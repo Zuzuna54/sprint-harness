@@ -2,7 +2,7 @@
 # sprint-end.sh — Phase 8 of the LifeOS sprint protocol
 #
 # Usage:
-#   bash scripts/sprint-end.sh <slug> [--skip-patterns] [--skip-claude-md]
+#   bash scripts/sprint-end.sh <slug> [--skip-patterns] [--skip-claude-md] [--store-patterns] [--compress]
 #
 # Generates retro, extracts patterns to memory, syncs CLAUDE.md, closes Issue,
 # closes trajectory, re-enables paused workers, updates state.phase = done.
@@ -16,12 +16,14 @@ SLUG="${1:-}"
 SKIP_PATTERNS=false
 SKIP_CLAUDE_MD=false
 STORE_PATTERNS=false   # AC-3: opt-in flag to auto-save retro patterns to ruflo
+COMPRESS_MEMORY=false  # M3+M4: opt-in flag for memory compress + HNSW rebuild
 
 for arg in "${@:2}"; do
   case "$arg" in
     --skip-patterns)   SKIP_PATTERNS=true ;;
     --skip-claude-md)  SKIP_CLAUDE_MD=true ;;
     --store-patterns)  STORE_PATTERNS=true ;;
+    --compress)        COMPRESS_MEMORY=true ;;
     *) echo "[!] unknown arg: $arg" >&2 ;;
   esac
 done
@@ -332,6 +334,56 @@ if [ -d "docs/sprints/$SLUG/proof" ] && command -v node >/dev/null 2>&1; then
     if [ "$HARNESS_READINESS_RC" -ne 0 ]; then
       echo "[!] harness-readiness aggregator exit $HARNESS_READINESS_RC — readiness report may be stale"
     fi
+  fi
+fi
+
+# ── AC-6 (Memory Export): Export memory snapshots after sprint close ────────
+EXPORT_DIR="docs/sprints/${SLUG}/exports"
+EXPORT_FILE="${EXPORT_DIR}/memory-$(date +%Y%m%d).json"
+
+if command -v ruflo >/dev/null 2>&1; then
+  mkdir -p "$EXPORT_DIR"
+  if ruflo memory export -o "$EXPORT_FILE" -n episodes 2>/dev/null; then
+    echo "[+] Memory snapshot exported: $EXPORT_FILE"
+  else
+    # Try exporting all namespaces if episodes doesn't exist
+    if ruflo memory export -o "$EXPORT_FILE" 2>/dev/null; then
+      echo "[+] Memory snapshot exported: $EXPORT_FILE"
+    else
+      echo "[i] Memory export skipped (ruflo not configured or no data)"
+    fi
+  fi
+else
+  echo "[i] ruflo not installed — memory export skipped"
+fi
+
+# ── M3+M4 (sprint-system-100): Memory compression + HNSW rebuild ────────────
+# Optional: run ruflo memory compress for vector quantization and HNSW index.
+# Enabled via --compress flag to sprint-end.sh (not enabled by default).
+if [ "${COMPRESS_MEMORY:-false}" = "true" ] && command -v ruflo >/dev/null 2>&1; then
+  echo ""
+  echo "[+] Running memory compression (quantization + HNSW rebuild)..."
+  if ruflo memory compress --quantize --bits 4 --rebuild-index 2>&1 | tail -5; then
+    echo "[+] Memory compression complete"
+  else
+    echo "[i] Memory compression failed or no data to compress"
+  fi
+fi
+
+# ── M2: Neural training check (wired into sprint-end) ───────────────────────
+# Auto-check trajectories after sprint close; if ≥20, run training automatically.
+# This was previously only a comment suggestion (line 395), now wired for auto-run.
+if command -v ruflo >/dev/null 2>&1; then
+  TRAJ_COUNT="$(sqlite3 "$REPO_ROOT/.swarm/memory.db" "SELECT count(*) FROM trajectories" 2>/dev/null || echo 0)"
+  if [ "${TRAJ_COUNT:-0}" -ge 20 ]; then
+    echo "[+] $TRAJ_COUNT trajectories accumulated — running neural training..."
+    if ruflo neural train -p coordination -e 5 2>&1 | tail -3; then
+      echo "[+] Neural training completed"
+    else
+      echo "[i] Neural training incomplete (check ruflo status)"
+    fi
+  else
+    echo "[i] Neural training: $TRAJ_COUNT/20 trajectories (need 20+)"
   fi
 fi
 

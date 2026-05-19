@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
-# worker-trigger.sh — invoke a ruflo daemon worker on-demand and capture output
+# worker-trigger.sh — invoke a ruflo/opencode-orchestrator daemon worker on-demand and capture output
 # into the sprint's worker-output directory.
 #
-# Sprint harness on-demand worker integration (plan: ruflo workers → sprint-harness):
+# Sprint harness on-demand worker integration (plan: ruflo/opencode-orchestrator workers → sprint-harness):
 # instead of running workers on hardcoded 10-30 min intervals (which silently
 # burns ~9h Sonnet/day against the user's OAuth quota), each worker fires only
 # at a specific sprint-protocol checkpoint where its output is consumed by a
 # gate or surfaced in a deliverable.
 #
+# Runtime detection: Uses SPRINT_RUNTIME env var (set by installer). Defaults to claude-code.
+#   - claude-code: uses .claude-flow/ directory
+#   - opencode: uses .opencode-flow/ directory
+#
 # How it works:
 #  1. Ensure daemon is running (warm-but-empty per Q1).
 #  2. `ruflo daemon trigger -w <worker>` queues the worker.
-#  3. Poll `.claude-flow/metrics/<worker>.json` mtime every 2 s.
+#  3. Poll `<runtime-dir>/metrics/<worker>.json` mtime every 2 s.
 #  4. When mtime changes + file is parseable JSON → copy to
 #     `docs/sprints/<slug>/worker-output/<worker>.{json,md}` (Q7).
 #  5. Return 0 on success, 1 on timeout/empty.
@@ -28,6 +32,17 @@
 #
 # Returns:
 #   0 — worker output captured to docs/sprints/<slug>/worker-output/
+
+# Runtime detection - set the metrics directory based on SPRINT_RUNTIME
+SPRINT_RUNTIME="${SPRINT_RUNTIME:-claude-code}"
+case "$SPRINT_RUNTIME" in
+  opencode)
+    METRICS_DIR=".opencode-flow/metrics"
+    ;;
+  *)
+    METRICS_DIR=".claude-flow/metrics"
+    ;;
+esac
 #   1 — daemon down, trigger failed, or poll timeout
 #   2 — caller error (missing args, bad slug)
 
@@ -52,7 +67,7 @@ WORKER_DEFAULT_TIMEOUT_S="${WORKER_DEFAULT_TIMEOUT_S:-600}"   # 10 min
 # These short-circuit the OAuth check.
 _local_workers="map consolidate"
 
-# Map worker name → its actual filename under .claude-flow/metrics/.
+# Map worker name → its actual filename under $METRICS_DIR.
 # (Verified empirically — ruflo doesn't use the worker name as the file name.)
 _worker_metrics_basename() {
   case "$1" in
@@ -165,7 +180,7 @@ trigger_worker() {
 
   local metrics_basename
   metrics_basename="$(_worker_metrics_basename "$worker")"
-  local metrics_file="$_repo_root/.claude-flow/metrics/$metrics_basename.json"
+  local metrics_file="$_repo_root/$METRICS_DIR/$metrics_basename.json"
   local before_mtime=0
   if [ -f "$metrics_file" ]; then
     before_mtime="$(stat -f %m "$metrics_file" 2>/dev/null || stat -c %Y "$metrics_file" 2>/dev/null || echo 0)"

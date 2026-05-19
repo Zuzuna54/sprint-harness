@@ -120,16 +120,46 @@ function copyTree(src, dest, opts = {}) {
 function cmdDoctor() {
   log('═══ sprint-harness doctor ═══');
   log('');
+
+  // Detect runtime from .sprintrc.json if it exists
+  let targetRuntime = 'claude-code';
+  const sprintrcPath = join(targetDir, '.sprintrc.json');
+  if (existsSync(sprintrcPath)) {
+    try {
+      const sprintrc = JSON.parse(readFileSync(sprintrcPath, 'utf8'));
+      targetRuntime = sprintrc.runtime || 'claude-code';
+      log(`  Detected runtime: ${targetRuntime} (from .sprintrc.json)`);
+    } catch {}
+  }
+  log('');
+
   log('  Tier 1 (critical):');
+  // Build tier 1 list based on runtime
   const tier1 = [
     ['claude (CLI)', 'claude', '--version'],
     ['node',         'node',   '--version'],
     ['git',          'git',    '--version'],
     ['jq',           'jq',     '--version'],
     ['pnpm or npm',  detectPM(targetDir) || 'npm', '--version'],
-    ['ruflo',        'ruflo',  '--version'],
     ['husky',        existsSync(join(targetDir, '.husky')) ? 'husky-installed' : null, ''],
   ];
+
+  // Add MCP server check based on runtime
+  // For OpenCode, check if npm package exists (it doesn't have a CLI binary)
+  if (targetRuntime === 'opencode') {
+    const ooInstalled = (() => {
+      try {
+        const npmRoot = execSync('npm root -g', { encoding: 'utf8' }).trim();
+        return existsSync(join(npmRoot, 'opencode-orchestrator'));
+      } catch { return false; }
+    })();
+    if (ooInstalled) ok(`${'MCP server'.padEnd(20)} opencode-orchestrator (npm global)`);
+    else err(`${'MCP server'.padEnd(20)} opencode-orchestrator not installed (CRITICAL)`);
+  } else {
+    if (which('ruflo')) ok(`${'MCP server'.padEnd(20)} ruflo ${version('ruflo', '--version')}`);
+    else err(`${'MCP server'.padEnd(20)} ruflo not installed (CRITICAL)`);
+  }
+
   let tier1Missing = 0;
   for (const [name, bin, arg] of tier1) {
     if (bin === 'husky-installed') { ok(`${name.padEnd(20)} installed`); continue; }
@@ -140,12 +170,18 @@ function cmdDoctor() {
   }
   log('');
 
-  // ruflo daemon
-  try {
-    const status = execSync('ruflo daemon status 2>&1', { encoding: 'utf8' });
-    if (/RUNNING|active/i.test(status)) ok(`ruflo daemon         RUNNING`);
-    else { warn(`ruflo daemon         NOT RUNNING — run: ruflo daemon start --workspace .`); }
-  } catch { warn(`ruflo daemon         NOT RUNNING`); }
+  // ruflo / opencode-orchestrator daemon
+  // Check based on detected runtime
+  if (targetRuntime === 'opencode') {
+    // opencode-orchestrator runs as MCP, not as a daemon
+    ok(`opencode-orchestrator    MCP-only (no daemon)`);
+  } else {
+    const rufloRunning = (() => {
+      try { const s = execSync('ruflo daemon status 2>&1', { encoding: 'utf8' }); return /RUNNING|active/i.test(s); } catch { return false; }
+    })();
+    if (rufloRunning) ok(`ruflo daemon           RUNNING`);
+    else warn(`ruflo daemon           NOT RUNNING — run: ruflo daemon start --workspace .`);
+  }
   log('');
 
   log('  Tier 2 (recommended):');
@@ -257,6 +293,35 @@ async function cmdInstall() {
   const config = await brandPrompts();
   log('');
 
+  // Detect available runtimes and prompt for choice
+  // Check SPRINT_RUNTIME env var first (can be set before running install)
+  const envRuntime = process.env.SPRINT_RUNTIME;
+  const availableRuntimes = [];
+  if (which('claude')) availableRuntimes.push('claude-code');
+  if (which('opencode')) availableRuntimes.push('opencode');
+
+  let targetRuntime = 'claude-code';
+  // If env var is set and valid, use it
+  if (envRuntime === 'opencode' || envRuntime === 'claude-code') {
+    targetRuntime = envRuntime;
+    ok(`Using SPRINT_RUNTIME env var: ${targetRuntime}`);
+  } else if (availableRuntimes.length === 0) {
+    warn('Neither claude nor opencode CLI found - defaulting to Claude Code install');
+    warn('To use OpenCode: https://opencode.ai/');
+  } else if (availableRuntimes.length === 1) {
+    targetRuntime = availableRuntimes[0];
+    ok(`Detected runtime: ${targetRuntime}`);
+  } else {
+    log('Multiple runtimes detected. Which one should this harness target?');
+    for (const rt of availableRuntimes) {
+      log(`  - ${rt}`);
+    }
+    const choice = await prompt(`Install for opencode? (default: claude-code)`, false);
+    if (choice) targetRuntime = 'opencode';
+  }
+  config.runtime = targetRuntime;
+  log('');
+
   // AC #10: Windows native is unsupported. WSL2 falls through to Linux branch but
   // systemd-user may not be enabled; warn rather than block.
   if (process.platform === 'win32') {
@@ -283,7 +348,16 @@ async function cmdInstall() {
   await ensureDep('jq', detectOS() === 'macos' ? 'brew install jq' : 'sudo apt install -y jq');
   const pm = detectPM(targetDir) || 'pnpm';
   if (!which(pm)) await ensureDep(pm, `corepack enable && corepack prepare ${pm}@latest --activate`);
-  await ensureDep('ruflo', 'npm install -g ruflo@latest');
+
+  // Install MCP server based on runtime
+  if (targetRuntime === 'opencode') {
+    log(`  Installing opencode-orchestrator (MCP server for OpenCode)...`);
+    await ensureDep('opencode-orchestrator', 'npm install -g opencode-orchestrator@latest');
+    config.mcp_server = 'opencode-orchestrator';
+  } else {
+    await ensureDep('ruflo', 'npm install -g ruflo@latest');
+    config.mcp_server = 'ruflo';
+  }
 
   // AC #8: husky init can clobber package.json's `prepare` script. Snapshot first
   // and chain the previous prepare value if it gets overwritten.
@@ -458,6 +532,48 @@ for (let i = 0; i < 30; i++) {
   mergeClaudeSettings(join(targetDir, '.claude/settings.json'));
   log('');
 
+  // 6b. OpenCode-specific config (if targeting OpenCode)
+  if (targetRuntime === 'opencode') {
+    log('Step 5b — Install OpenCode config');
+    // Copy opencode.json
+    const opencodeConfigSrc = join(LIB, 'templates/opencode/opencode.json');
+    const opencodeConfigDest = join(targetDir, 'opencode.json');
+    if (existsSync(opencodeConfigSrc)) {
+      copyFileSync(opencodeConfigSrc, opencodeConfigDest);
+      ok('opencode.json installed');
+    }
+    // Copy OpenCode settings (for opencode-claude-hooks compatibility)
+    const opencodeSettingsSrc = join(LIB, 'templates/opencode/settings.json');
+    const opencodeSettingsDest = join(targetDir, '.claude/settings.json');
+    if (existsSync(opencodeSettingsSrc)) {
+      copyFileSync(opencodeSettingsSrc, opencodeSettingsDest);
+      ok('.claude/settings.json: OpenCode compatible settings installed');
+    }
+    // Copy OpenCode hooks if needed
+    const opencodeHooksSrc = join(LIB, 'templates/opencode/hooks.json');
+    const opencodeHooksDest = join(targetDir, '.opencode/hooks.json');
+    if (existsSync(opencodeHooksSrc)) {
+      mkdirSync(dirname(opencodeHooksDest), { recursive: true });
+      copyFileSync(opencodeHooksSrc, opencodeHooksDest);
+      ok('.opencode/hooks.json installed');
+    }
+    // Copy skills to .opencode/skills/
+    const opencodeSkillsSrc = join(LIB, 'templates/opencode/skills');
+    const opencodeSkillsDest = join(targetDir, '.opencode/skills');
+    if (existsSync(opencodeSkillsSrc)) {
+      copyTree(opencodeSkillsSrc, opencodeSkillsDest);
+      ok('.opencode/skills/ installed');
+    }
+    // Copy agents to .opencode/agents/
+    const opencodeAgentsSrc = join(LIB, 'templates/opencode/agents');
+    const opencodeAgentsDest = join(targetDir, '.opencode/agents');
+    if (existsSync(opencodeAgentsSrc)) {
+      copyTree(opencodeAgentsSrc, opencodeAgentsDest);
+      ok('.opencode/agents/ installed');
+    }
+    log('');
+  }
+
   // 7. Install launchd plists (macOS only)
   if (detectOS() === 'macos') {
     log('Step 6 — Install launchd plists (macOS)');
@@ -470,41 +586,61 @@ for (let i = 0; i < 30; i++) {
 
   // 8. Write .sprintrc.json
   log('Step 7 — Write .sprintrc.json');
+  const mcpDep = targetRuntime === 'opencode' ? 'opencode-orchestrator' : 'ruflo';
   writeFileSync(join(targetDir, '.sprintrc.json'), JSON.stringify({
     ...config,
     os: detectOS(),
     packageManager: pm,
     installedAt: new Date().toISOString(),
-    installedDeps: ['ruflo', 'jq', 'husky'].filter((d) => which(d) || d === 'husky'),
+    installedDeps: [mcpDep, 'jq', 'husky'].filter((d) => which(d) || d === 'husky'),
     harnessVersion: HARNESS_VERSION,
   }, null, 2));
   ok('.sprintrc.json written');
   log('');
 
-  // 9. Start ruflo daemon + verify (AC-13: 30s polling)
-  log('Step 8 — Start ruflo daemon + poll for RUNNING (30s)');
-  try {
-    execSync('ruflo daemon start --workspace .', { cwd: targetDir, stdio: 'inherit' });
-    let running = false;
-    for (let i = 0; i < 15; i++) {
-      try {
-        const out = execSync('ruflo daemon status', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-        if (/RUNNING|active/i.test(out)) { running = true; break; }
-      } catch {}
-      execSync('sleep 2');
-    }
-    if (running) ok('daemon RUNNING (verified within 30s)');
-    else warn('daemon did not RUNNING within 30s — harness degraded');
-  } catch (e) { warn(`daemon start failed: ${e.message}`); }
+  // 9. Start daemon + verify (AC-13: 30s polling)
+  // Use ruflo for claude-code, opencode-orchestrator for opencode
+  // Note: opencode-orchestrator doesn't have a daemon - it's triggered via MCP calls
+  const daemonCmd = targetRuntime === 'opencode'
+    ? 'echo "opencode-orchestrator runs as MCP, no daemon needed"'
+    : 'ruflo daemon start --workspace .';
+  const daemonStatus = targetRuntime === 'opencode'
+    ? 'echo "MCP-only"'
+    : 'ruflo daemon status';
+  const daemonName = targetRuntime === 'opencode' ? 'opencode-orchestrator (MCP)' : 'ruflo';
+
+  if (targetRuntime === 'opencode') {
+    log(`Step 8 — ${daemonName} (MCP-only, no daemon needed)`);
+    ok(`${daemonName} configured as MCP server in opencode.json`);
+  } else {
+    log(`Step 8 — Start ${daemonName} daemon + poll for RUNNING (30s)`);
+    try {
+      execSync(daemonCmd, { cwd: targetDir, stdio: 'inherit' });
+      let running = false;
+      for (let i = 0; i < 15; i++) {
+        try {
+          const out = execSync(daemonStatus, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+          if (/RUNNING|active/i.test(out)) { running = true; break; }
+        } catch {}
+        execSync('sleep 2');
+      }
+      if (running) ok('daemon RUNNING (verified within 30s)');
+      else warn('daemon did not RUNNING within 30s — harness degraded');
+    } catch (e) { warn(`daemon start failed: ${e.message}`); }
+  }
   log('');
 
-  // AC C1: ruflo init populates target's .claude/skills and .claude/helpers from ruflo.
+  // AC C1: ruflo/opencode-orchestrator init populates target's .claude/skills and .claude/helpers.
   // Without this, installed projects only get the 2 sprint-specific skills the harness ships.
-  log('Step 8b — ruflo init (populate .claude/skills + helpers)');
+  // Note: opencode-orchestrator doesn't have an init command like ruflo
+  const initCmd = targetRuntime === 'opencode'
+    ? 'echo "opencode-orchestrator: MCP-only, no init command"'
+    : 'ruflo init --workspace . --yes';
+  log(`Step 8b — ${daemonName} init (populate .claude/skills + helpers)`);
   try {
-    execSync('ruflo init --workspace . --yes', { cwd: targetDir, stdio: 'inherit' });
+    execSync(initCmd, { cwd: targetDir, stdio: 'inherit' });
     config.ruflo_init_ran = true;
-    ok('ruflo init complete');
+    ok(`${daemonName} init complete`);
   } catch (e) {
     try {
       execSync('ruflo init --workspace .', { cwd: targetDir, stdio: 'inherit' });
@@ -675,12 +811,13 @@ for (let i = 0; i < 30; i++) {
   // Rewrite .sprintrc.json now that all post-Step-7 config fields are populated
   // (ruflo_init_ran, mcp_configured, launchctl_loaded, systemd_loaded,
   //  playwright_installed, sonar_token_path, gh_labels_created)
+  const mcpDep2 = targetRuntime === 'opencode' ? 'opencode-orchestrator' : 'ruflo';
   writeFileSync(join(targetDir, '.sprintrc.json'), JSON.stringify({
     ...config,
     os: detectOS(),
     packageManager: pm,
     installedAt: new Date().toISOString(),
-    installedDeps: ['ruflo', 'jq', 'husky'].filter((d) => which(d) || d === 'husky'),
+    installedDeps: [mcpDep2, 'jq', 'husky'].filter((d) => which(d) || d === 'husky'),
     harnessVersion: HARNESS_VERSION,
   }, null, 2));
 

@@ -1,8 +1,8 @@
 # @ordex/sprint-harness
 
-> Shape Up + SPARC sprint harness with deterministic phase enforcement, unified review-resolution, drift control, inject-violation-catch-restore methodology, multi-sprint parallel support, and full Claude Code + ruflo integration.
+> Shape Up + SPARC sprint harness with deterministic phase enforcement, unified review-resolution, drift control, inject-violation-catch-restore methodology, multi-sprint parallel support, and full Claude Code + OpenCode runtime support (ruflo / opencode-orchestrator).
 
-**v0.7.3** — 13-phase manifest with mechanical predicate enforcement; audit + knip + sonar review-resolution phase; per-slug advance mutex; deterministic spec-lock consensus replacing broken upstream ruflo CLI; wizard state-sync to `state.json`.
+**v0.7.4** — Added OpenCode runtime support with opencode-orchestrator MCP integration, dual-skill installation (`.claude/skills/` + `.opencode/skills/`), runtime-aware scripts, and ~80% hook compatibility via opencode-claude-hooks plugin.
 
 Drop-in 14-day sprint protocol for any TypeScript/Node project.
 
@@ -26,15 +26,31 @@ npx @ordex/sprint-harness install
 
 This will:
 
-1. Detect existing husky / `.claude/settings.json` / `docs/sprints/` — merge, never overwrite
-2. Copy `scripts/sprint-*` to `<target>/scripts/`
-3. Copy 5 workflow YAMLs to `<target>/docs/workflows/`
-4. Copy sprint-orchestrator + sprint-spec-wizard skills to `<target>/.claude/skills/`
-5. Append PreToolUse hooks to `<target>/.claude/settings.json` (Bash forbidden + Edit scope + WebSearch PII redact)
-6. Install husky hooks (drift-check, dup-check, reuse-audit, review-gate, DAA dispatch)
-7. Scaffold `docs/sprints/{README,USAGE,DEVELOPER,QUICKSTART,SCRIPTS}.md`
-8. Write `<target>/.sprintrc.json` with brand config you choose during install
-9. Verify dependencies (ruflo, jq, gh, pnpm/npm, optional: sonar-scanner, docker)
+1. Detect runtime (Claude Code or OpenCode) — prompts if both available
+2. Detect existing husky / `.claude/settings.json` / `docs/sprints/` — merge, never overwrite
+3. Copy `scripts/sprint-*` to `<target>/scripts/`
+4. Copy 5 workflow YAMLs to `<target>/docs/workflows/`
+5. Copy sprint-orchestrator + sprint-spec-wizard skills to both `.claude/skills/` and `.opencode/skills/`
+6. Install runtime-specific config (ruflo MCP for Claude Code, opencode-orchestrator MCP for OpenCode)
+7. Append PreToolUse hooks to `<target>/.claude/settings.json` (Bash forbidden + Edit scope + WebSearch PII redact)
+8. Install husky hooks (drift-check, dup-check, reuse-audit, review-gate, DAA dispatch)
+9. Scaffold `docs/sprints/{README,USAGE,DEVELOPER,QUICKSTART,SCRIPTS,OPENCODE}.md`
+10. Write `<target>/.sprintrc.json` with brand config you choose during install
+11. Verify dependencies (ruflo/opencode-orchestrator, jq, gh, pnpm/npm, optional: sonar-scanner, docker)
+
+### OpenCode Support
+
+To install for OpenCode specifically:
+
+```bash
+npx @ordex/sprint-harness install
+# When prompted, choose "opencode"
+```
+
+Or set environment variable before install:
+```bash
+SPRINT_RUNTIME=opencode npx @ordex/sprint-harness install
+```
 
 ## Quick start (after install)
 

@@ -34,7 +34,17 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
 ACTION="${1:-}"
-LOG_DIR="$REPO_ROOT/.claude-flow/shim-logs"
+
+# Runtime detection
+SPRINT_RUNTIME="${SPRINT_RUNTIME:-claude-code}"
+case "$SPRINT_RUNTIME" in
+  opencode)
+    LOG_DIR="$REPO_ROOT/.opencode-flow/shim-logs"
+    ;;
+  *)
+    LOG_DIR="$REPO_ROOT/.claude-flow/shim-logs"
+    ;;
+esac
 mkdir -p "$LOG_DIR"
 
 LAUNCHD_DIR="$HOME/Library/LaunchAgents"

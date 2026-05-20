@@ -36,6 +36,7 @@
     "doctor": "node bin/sprint-harness.mjs doctor",
     "test": "npm run test:install && npm run test:matrix && npm run test:71-acs",
     "test:install": "node tests/install-smoke.mjs",
+    "test:opencode": "node tests/run-opencode-e2e.mjs",
     "test:matrix": "node tests/install-matrix.mjs",
     "test:71-acs": "node tests/run-all-71-acs.mjs",
     "prepublishOnly": "npm test"

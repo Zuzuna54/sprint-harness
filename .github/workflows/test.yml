@@ -33,6 +33,9 @@ jobs:
       - name: install-smoke
         run: node tests/install-smoke.mjs
 
+      - name: run-opencode-e2e
+        run: node tests/run-opencode-e2e.mjs
+
   matrix:
     name: install-matrix (3 shapes)
     runs-on: ubuntu-latest

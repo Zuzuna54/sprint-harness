@@ -20,11 +20,14 @@ const SHAPES = [
   { id: 'monorepo-with-husky', setup: (dir) => {
     execSync(`cd ${dir} && git init -b main && git config user.email "ci@sprint-harness.local" && git config user.name "sprint-harness-ci"`, { stdio: 'ignore' });
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'mono', private: true, workspaces: ['packages/*'] }, null, 2));
-    writeFileSync(join(dir, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\n');
-    mkdirSync(join(dir, '.husky'), { recursive: true });
-    writeFileSync(join(dir, '.husky/pre-commit'), '#!/usr/bin/env sh\necho "user-existing pre-commit"\n');
-    execSync(`cd ${dir} && chmod +x .husky/pre-commit && git add . && git commit -m init`, { stdio: 'ignore' });
+    mkdirSync(join(dir, 'packages/app'), { recursive: true });
+    writeFileSync(join(dir, 'packages/app/package.json'), JSON.stringify({ name: 'app' }, null, 2));
+    execSync(`cd ${dir} && npx husky init && echo "user-existing pre-commit" > .husky/pre-commit && git add . && git commit -m init`, { stdio: 'ignore' });
   }},
+  { id: 'opencode-blank', setup: (dir) => {
+    execSync(`cd ${dir} && git init -b main && git config user.email "ci@sprint-harness.local" && git config user.name "sprint-harness-ci" && echo '{"name":"opencode-blank"}' > package.json && git add . && git commit -m init`, { stdio: 'ignore' });
+    process.env.SPRINT_RUNTIME = 'opencode';
+  }}
 ];
 
 let failed = 0;

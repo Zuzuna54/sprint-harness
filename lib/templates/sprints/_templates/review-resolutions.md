@@ -76,7 +76,7 @@ For each HAR-N, the walker prompts:
    PII (C5), appends to `review_findings_deferred[]`.
 3. **Accept** — operator names a risk owner + business rationale. Walker
    redacts PII, appends to `review_findings_accepted[]`. Risk owner is
-   typically `gio` or `zefyra` for LifeOS internal-tool sprints.
+   typically `gio` or `zefyra` for <BRAND_PRODUCT_NAME> internal-tool sprints.
 
 Programmatic invocation:
 

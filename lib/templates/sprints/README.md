@@ -1,6 +1,6 @@
-# LifeOS Sprints
+# <BRAND_PRODUCT_NAME> Sprints
 
-This directory holds every LifeOS sprint. One sprint = one 2-week Shape Up + SPARC cycle building one module slice end-to-end.
+This directory holds every <BRAND_PRODUCT_NAME> sprint. One sprint = one 2-week Shape Up + SPARC cycle building one module slice end-to-end.
 
 **Harness scale (as of 2026-05-17):** **71 harness capabilities** across **14 groups**, all proven via inject-violation-catch-restore. See [`_index/capabilities.md`](./_index/capabilities.md) for the full catalog. See [`harness-full-coverage/harness-readiness.md`](./harness-full-coverage/harness-readiness.md) for the latest readiness report.
 
@@ -63,7 +63,7 @@ docs/sprints/
 7. **Day-5 check-in** — `bash scripts/sprint-checkin.sh`, hill chart updated, 3 questions.
 8. **Verify** (day 11-12) — `/api-contract-validation`, `/debug-rls`, `/module-status`, perf profile.
 9. **Pre-deploy review** (day 12) — reviewer + security agents.
-10. **Deploy** (day 13) — `lifeos-deploy` workflow with human-approval gate.
+10. **Deploy** (day 13) — `<BRAND_SLUG>-deploy` workflow with human-approval gate.
 11. **`bash scripts/sprint-end.sh <slug>`** — retro, pattern extraction, CLAUDE.md sync, trajectory close.
 
 ## Sprint state machine
@@ -94,12 +94,12 @@ State files are never modified in-place. A signal between step 3 and step 4 leav
 
 **Phase additions** (post-sprint-system-100):
 
-- `cleaning` — between verify and deploy. Runs `lifeos-sprint-cleanup.yaml` (AC-24): deadcode-delete (AC-18), eslint --fix, test re-run, claude-md-autoclean (AC-26).
+- `cleaning` — between verify and deploy. Runs `<BRAND_SLUG>-sprint-cleanup.yaml` (AC-24): deadcode-delete (AC-18), eslint --fix, test re-run, claude-md-autoclean (AC-26).
 - `spec-locked` now optionally pauses for hive-mind two-queen consensus (AC-12) before allowing design-lock.
 
 **Parallel-safety contracts** (2026-05-17 harness-parallel-safety-v2):
 
-- Lock dir: `${XDG_RUNTIME_DIR:-$HOME/.cache/lifeos/locks}` (0700, umask 077). Git ops serialized via `git-index.lock`. Per-slug state locks via `state-<slug>.lock`.
+- Lock dir: `${XDG_RUNTIME_DIR:-$HOME/.cache/<BRAND_SLUG>/locks}` (0700, umask 077). Git ops serialized via `git-index.lock`. Per-slug state locks via `state-<slug>.lock`.
 - Session-file: `~/.claude/sessions/<session-id>/sprint-slug` — atomic mkdir + write, stale cleanup on `phase === "done"`.
 - Migration claims: `docs/sprints/<slug>/.claims/<NNNN>` — atomic mkdir, used by build orchestrator to assign AC ranges.
 - Resolution chain: `--slug` → `SPRINT_SLUG_OVERRIDE` → session-file → git branch → NULL (no mtime fallback). Skips paused sprints.
@@ -209,6 +209,6 @@ See [`harness-full-coverage/proof/`](./harness-full-coverage/proof/) for 71 work
 
 ## Companion docs
 
-- `../ruflo-sessions/ruflo-for-lifeos.md` — feature-by-feature ruflo activation map
+- `../ruflo-sessions/ruflo-for-<BRAND_SLUG>.md` — feature-by-feature ruflo activation map
 - `../ruflo-sessions/ruflo-syllabus.md` — 23-session ruflo learning syllabus
 - `/Users/gio/.claude/plans/hazy-gathering-kettle.md` — the full sprint system plan (this doc's source of truth)

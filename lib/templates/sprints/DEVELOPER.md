@@ -102,7 +102,7 @@ A step within a phase that must complete before phase advance. Each is a stable 
 
 A general-purpose label for "a process that does work on behalf of the sprint." The label is overloaded — there are **three distinct subtypes**, and conflating them is the audit's root finding. Read [`USAGE.md` §3 — Worker architecture](./USAGE.md#3--worker-architecture) for the full trigger / output / state-recording table.
 
-- **Daemon worker** — long-running, LLM-backed (or local), managed by `ruflo daemon`. 10 types (`map`, `predict`, `audit`, `testgaps`, `optimize`, `consolidate`, `document`, `refactor`, `deepdive`, `ultralearn`). Fired by `sprint-advance-phase.sh` via `scripts/lib/worker-trigger.sh`, driven by `scripts/lib/phase-workers.json`. Output: `.claude-flow/metrics/<w>.json` → `docs/sprints/<slug>/worker-output/<w>.json`. State: `worker_runs[]` (W2 schema) + `worker_invocations[]` (legacy).
+- **Daemon worker** — long-running, LLM-backed (or local), managed by `ruflo daemon`. 10 types (`map`, `predict`, `audit`, `testgaps`, `optimize`, `consolidate`, `document`, `refactor`, `deepdive`, `ultralearn`). Fired by `sprint-advance-phase.sh` via `scripts/lib/worker-trigger.sh`, driven by `scripts/lib/phase-workers.json`. Output: `.claude-flow/metrics/<w>.json` → `docs/sprints/<slug>/worker-output/<w>.json`. State: `worker_runs[]` (W2 schema) + `worker_invocations[]` (legacy). *(Note: In OpenCode environments, daemon triggers gracefully yield to the active OpenCode agent via stderr instructions rather than requiring a background daemon).*
 - **Task sub-agent** — spawned by the `sprint-orchestrator` skill via the Claude Task tool at spec-lock (Day ½) and pre-deploy (Day 12). Types in active use: `architect`, `security-architect`, `reviewer`, `deepdive`. Output: `<review-name>.md` directly (e.g., `architect-review.md`). State: `sub_steps[]` (as the relevant sub-step gate).
 - **Autopilot side-car** — background helper configured in `.claude-flow/autopilot/*.json`. Three types: `lint-fix`, `test-backfill`, `doc-sweep`. Output: `.claude-flow/autopilot/<name>/` + proposed diffs. State: `autopilot_log[]`.
 
@@ -195,7 +195,7 @@ SPARC DESIGN  /sparc:spec-pseudocode + /sparc:architect → design.md
 DESIGN LOCK   user signs off → state.phase = design-locked
 
 BUILD         bash scripts/sprint-build-launch.sh
-              executes lifeos-sprint-build.yaml:
+              executes <BRAND_SLUG>-sprint-build.yaml:
                 swarm_init (8 agents)
                 claims_claim × 7 domains
                 autopilot side-cars × 3
@@ -211,14 +211,14 @@ BUILD         bash scripts/sprint-build-launch.sh
 DAY 5         bash scripts/sprint-checkin.sh → check-in-day5.md + hill chart
               user: cut/push/pivot
 
-VERIFY        lifeos-sprint-verify.yaml
+VERIFY        <BRAND_SLUG>-sprint-verify.yaml
               typecheck → lint → tests → api-contract → debug-rls
               → module-status → perf-profile → aidefence-scan
 
 PRE-DEPLOY    reviewer agent + security-architect agent
               user signs off
 
-DEPLOY        lifeos-deploy.yaml
+DEPLOY        <BRAND_SLUG>-deploy.yaml
               bundle → pulumi preview → PAUSE → pulumi up
               → smoke → vercel deploy
 
@@ -337,7 +337,7 @@ Anywhere:       paused (via sprint-pause.sh)
 | `scripts/sprint-dashboard.mjs`        | Local HTML dashboard           | Auto-refresh meta tag (60s)                                |
 | `scripts/sprint-gh-project-sync.sh`   | GH Project board               | Best-effort; skips if no gh auth                           |
 | `scripts/sprint-train.sh`             | Gated neural training          | `--force` bypasses ≥20 trajectory gate                     |
-| `scripts/sprint-daa-feedback.sh`      | DAA reviewer feedback batch    | Creates lifeos-reviewer-v1 on first run                    |
+| `scripts/sprint-daa-feedback.sh`      | DAA reviewer feedback batch    | Creates <BRAND_SLUG>-reviewer-v1 on first run                    |
 | `scripts/sprint-velocity.mjs`         | Compute metrics.json           | 4 success criteria: ACs/appetite/drift/design-lock         |
 
 ### Layer 3 — Hooks (enforcement)
@@ -354,10 +354,10 @@ Anywhere:       paused (via sprint-pause.sh)
 
 | File                                       | Phase | Steps                                                                                          |
 | ------------------------------------------ | ----- | ---------------------------------------------------------------------------------------------- |
-| `docs/workflows/lifeos-sprint-build.yaml`  | 3     | swarm_init → claims × 7 → autopilot × 3 → trajectory-start                                     |
-| `docs/workflows/lifeos-sprint-verify.yaml` | 5     | typecheck → lint → test → api-contract → debug-rls → module-status → perf → aidefence          |
-| `docs/workflows/lifeos-deploy.yaml`        | 7     | bundle → preview → **HUMAN PAUSE** → pulumi up → smoke → vercel                                |
-| `docs/workflows/lifeos-retro.yaml`         | 8     | velocity → retro → patterns → CLAUDE.md → DAA → trajectory-end → consolidate → workers → train |
+| `docs/workflows/<BRAND_SLUG>-sprint-build.yaml`  | 3     | swarm_init → claims × 7 → autopilot × 3 → trajectory-start                                     |
+| `docs/workflows/<BRAND_SLUG>-sprint-verify.yaml` | 5     | typecheck → lint → test → api-contract → debug-rls → module-status → perf → aidefence          |
+| `docs/workflows/<BRAND_SLUG>-deploy.yaml`        | 7     | bundle → preview → **HUMAN PAUSE** → pulumi up → smoke → vercel                                |
+| `docs/workflows/<BRAND_SLUG>-retro.yaml`         | 8     | velocity → retro → patterns → CLAUDE.md → DAA → trajectory-end → consolidate → workers → train |
 
 ### Layer 4 — Autopilot configs
 
@@ -417,7 +417,7 @@ Anywhere:       paused (via sprint-pause.sh)
   "pair_prompts": [{ "at": "...", "ac": "AC-3", "commit": "<sha>", "action": "stderr-advisory" }],
   "gate_bypasses": [{ "at": "...", "gate": "pre-merge-review" }],
   "pending_daa_adapts": [
-    { "at": "...", "agent_id": "lifeos-reviewer-v1", "feedback_path": "...", "applied": false }
+    { "at": "...", "agent_id": "<BRAND_SLUG>-reviewer-v1", "feedback_path": "...", "applied": false }
   ],
   "pending_review_spawns": [
     { "at": "...", "pr_number": "42", "agent_type": "security-architect", "applied": false }
@@ -512,7 +512,7 @@ Anywhere:       paused (via sprint-pause.sh)
     "B": { ... }
   },
   "recalled_patterns": [
-    { "key": "lifeos-rls-4-policy-template", "section": "C", "accepted": true, "score": 0.72 },
+    { "key": "<BRAND_SLUG>-rls-4-policy-template", "section": "C", "accepted": true, "score": 0.72 },
     { "key": "frontend-hook-pattern", "section": "E", "accepted": true, "score": 0.61 }
   ],
   "codebase_refs": [
@@ -752,7 +752,7 @@ node scripts/sprint-replay-validator.mjs --quiet                 # doc_drift=0
 2. Create `scripts/sprint-<gate-name>.sh` — implement the gate logic
 3. Update state machine in `docs/sprints/README.md`
 4. Add a new entry to `state.gates_passed` semantics
-5. If automated workflow needed: create `docs/workflows/lifeos-<gate>.yaml`
+5. If automated workflow needed: create `docs/workflows/<BRAND_SLUG>-<gate>.yaml`
 
 ### Adding a new harness capability (Production-grade)
 
@@ -786,15 +786,15 @@ Added to the registry below:
 
 | Pattern                         | Symptom                                                                                                                | Fix                                                                                       |
 | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `lifeos-atomic-state-args-trap` | `atomic_update_state slug --arg X val '<filter>'` silently fails because helper only took 2 positional args            | Variadic forward: collect args between slug + last-arg (filter), pass all to `jq`         |
-| `lifeos-ruflo-cli-drift`        | `ruflo memory embed` / `embeddings encode` / `consensus -a submit` / `neural train --type` — all invalid as of v3.7.0+ | Re-verify against `ruflo <cmd> --help` before fixing; CLI surface shifts between versions |
-| `lifeos-stale-bug-diagnosis`    | Bug report based on file content that's already been fixed in a prior commit                                           | Re-grep the file before applying any fix; trust `grep -n` over memory                     |
+| `<BRAND_SLUG>-atomic-state-args-trap` | `atomic_update_state slug --arg X val '<filter>'` silently fails because helper only took 2 positional args            | Variadic forward: collect args between slug + last-arg (filter), pass all to `jq`         |
+| `<BRAND_SLUG>-ruflo-cli-drift`        | `ruflo memory embed` / `embeddings encode` / `consensus -a submit` / `neural train --type` — all invalid as of v3.7.0+ | Re-verify against `ruflo <cmd> --help` before fixing; CLI surface shifts between versions |
+| `<BRAND_SLUG>-stale-bug-diagnosis`    | Bug report based on file content that's already been fixed in a prior commit                                           | Re-grep the file before applying any fix; trust `grep -n` over memory                     |
 
 ### State.json race recipe (W1 fix, 2026-05-19)
 
 **Symptom.** `docs/sprints/<slug>/state.json` shows an orphan `},` line or invalid JSON after a burst of concurrent commit hooks. Bypass entries land in `reuse_audits[]` instead of `gate_bypasses[]`. `jq . state.json` exits non-zero.
 
-**Cause.** Two callers used **different lockfile paths** — `.husky/post-commit:32` previously acquired `docs/sprints/<slug>/state.json.lock` (in-repo) while `scripts/lib/atomic-state.sh:71` acquired `$HOME/.cache/lifeos/locks/state-<slug>.lock` (per-user). No mutual exclusion between the two writers. Inline `jq … > state.json.tmp && mv` from the post-commit hook collided with `atomic_update_state` writes from the daemon-worker pipeline.
+**Cause.** Two callers used **different lockfile paths** — `.husky/post-commit:32` previously acquired `docs/sprints/<slug>/state.json.lock` (in-repo) while `scripts/lib/atomic-state.sh:71` acquired `$HOME/.cache/<BRAND_SLUG>/locks/state-<slug>.lock` (per-user). No mutual exclusion between the two writers. Inline `jq … > state.json.tmp && mv` from the post-commit hook collided with `atomic_update_state` writes from the daemon-worker pipeline.
 
 The third lockfile path was even more subtle: `.husky/post-commit:181` invoked the reuse-audit under `env -i` with an allowlist. The detached child shell had no inherited state and couldn't reliably `source scripts/lib/atomic-state.sh` (BASH_SOURCE resolution under env-strip).
 
@@ -842,15 +842,15 @@ These are the recurring traps caught by harness-full-coverage. When extending th
 
 | Pattern                             | Symptom                                                                   | Fix                                                            |
 | ----------------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `lifeos-args-indexof-trap`          | `args[args.indexOf("--x") + 1]` returns `args[0]` (slug) when flag absent | Guard with `argAfter()` helper: `i >= 0 ? args[i+1] : default` |
-| `lifeos-grep-pattern-whitespace`    | grep `"key":"val"` misses JSON output `"key": "val"` (with space)         | Use `[[:space:]]*` or jq                                       |
-| `lifeos-pipe-rc-trap`               | `cmd \| tail; rc=$?` captures tail's exit, not cmd's                      | Use `${PIPESTATUS[0]}` or redirect to file then test           |
-| `lifeos-exit-vs-summary-divergence` | `console.log("FAIL")` + `process.exit(0)` — silent bug                    | Always tie exit to summary boolean                             |
-| `lifeos-pnpm-dlx-flag-trap`         | `pnpm dlx -y <pkg>` invalid; `-y` not in pnpm dlx                         | Drop the `-y` (npm-ism)                                        |
-| `lifeos-shim-when-upstream-broken`  | Upstream gap (ruflo #1916, ESLint config, etc.)                           | Own the chain — build a small shim                             |
-| `lifeos-spec-narrowing-trap`        | Wizard converts broad "full coverage" intent → narrow AC list             | At spec-lock, cross-check final §I against original ask        |
-| `lifeos-only-two-verdicts`          | Tempted to introduce "Scaffolded"/"Partial" middle                        | Production or Broken-with-followup-AC. No middle.              |
-| `lifeos-presence-isnt-production`   | "File exists + script runs + returns something" called Production         | Bar is observable catch on real injection, not "didn't crash"  |
+| `<BRAND_SLUG>-args-indexof-trap`          | `args[args.indexOf("--x") + 1]` returns `args[0]` (slug) when flag absent | Guard with `argAfter()` helper: `i >= 0 ? args[i+1] : default` |
+| `<BRAND_SLUG>-grep-pattern-whitespace`    | grep `"key":"val"` misses JSON output `"key": "val"` (with space)         | Use `[[:space:]]*` or jq                                       |
+| `<BRAND_SLUG>-pipe-rc-trap`               | `cmd \| tail; rc=$?` captures tail's exit, not cmd's                      | Use `${PIPESTATUS[0]}` or redirect to file then test           |
+| `<BRAND_SLUG>-exit-vs-summary-divergence` | `console.log("FAIL")` + `process.exit(0)` — silent bug                    | Always tie exit to summary boolean                             |
+| `<BRAND_SLUG>-pnpm-dlx-flag-trap`         | `pnpm dlx -y <pkg>` invalid; `-y` not in pnpm dlx                         | Drop the `-y` (npm-ism)                                        |
+| `<BRAND_SLUG>-shim-when-upstream-broken`  | Upstream gap (ruflo #1916, ESLint config, etc.)                           | Own the chain — build a small shim                             |
+| `<BRAND_SLUG>-spec-narrowing-trap`        | Wizard converts broad "full coverage" intent → narrow AC list             | At spec-lock, cross-check final §I against original ask        |
+| `<BRAND_SLUG>-only-two-verdicts`          | Tempted to introduce "Scaffolded"/"Partial" middle                        | Production or Broken-with-followup-AC. No middle.              |
+| `<BRAND_SLUG>-presence-isnt-production`   | "File exists + script runs + returns something" called Production         | Bar is observable catch on real injection, not "didn't crash"  |
 
 ### Adding a new forbidden action
 
@@ -870,7 +870,7 @@ Also add to husky pre-commit if it's a shell-level concern.
 ### Adding a new autopilot side-car
 
 1. Create `.claude-flow/autopilot/<name>.json` (follow lint-fix.json shape)
-2. Add to `docs/workflows/lifeos-sprint-build.yaml` → `autopilot-sidecars` step → `branches`
+2. Add to `docs/workflows/<BRAND_SLUG>-sprint-build.yaml` → `autopilot-sidecars` step → `branches`
 3. Document in `.claude/skills/sprint-orchestrator/SKILL.md` Phase 3 actions
 
 ### Changing the drift threshold default
@@ -1016,7 +1016,7 @@ Each catches a different failure mode:
 
 - **Solution sketches** — surface alternatives you didn't consider
 - **Architect** — catch structural bad ideas before you build them
-- **Security** — catch RLS/auth gaps; LifeOS specific
+- **Security** — catch RLS/auth gaps; <BRAND_PRODUCT_NAME> specific
 - **Hive-mind consensus** — catch incoherent scope (e.g., backend module but UI-heavy ACs)
 
 ### Why pair-mode on complex ACs?
@@ -1034,7 +1034,7 @@ Cheaper than catching the bug in prod.
 After 20+ sprints, the patterns store has enough density that:
 
 - Memory recall finds the right past pattern with high score
-- Neural training can learn coordination patterns specific to LifeOS
+- Neural training can learn coordination patterns specific to <BRAND_PRODUCT_NAME>
 - DAA reviewer matches your bar
 
 Each pattern stored is compounded value across all future sprints.
@@ -1048,7 +1048,7 @@ These were in the original plan but explicitly deferred:
 - **Multi-sprint concurrency** — current system assumes one active sprint per worktree
 - **Cross-machine federation / WireGuard mesh** — solo dev
 - **Hosted UI** (flo.ruv.io, goal.ruv.io)
-- **Custom ruflo plugin** (`ruflo-lifeos-conventions`) — write after 5+ sprints
+- **Custom ruflo plugin** (`ruflo-<BRAND_SLUG>-conventions`) — write after 5+ sprints
 - **Slack / email reporting**
 - **Linear / Notion integration**
 - **Pinning ruflo version** — `@latest` keeps current
@@ -1233,13 +1233,13 @@ Expanded capability coverage from 33 → 71 ACs. New tooling:
 - [`SCRIPTS.md`](./SCRIPTS.md) — canonical inventory of every harness script (90+ files)
 - [`README.md`](./README.md) — architecture + dir layout
 - [`~/.claude/plans/hazy-gathering-kettle.md`](file:///Users/gio/.claude/plans/hazy-gathering-kettle.md) — original design with 36 decisions
-- [`../ruflo-sessions/ruflo-for-lifeos.md`](../ruflo-sessions/ruflo-for-lifeos.md) — full ruflo feature reference
+- [`../ruflo-sessions/ruflo-for-<BRAND_SLUG>.md`](../ruflo-sessions/ruflo-for-<BRAND_SLUG>.md) — full ruflo feature reference
 - [`../ruflo-sessions/ruflo-syllabus.md`](../ruflo-sessions/ruflo-syllabus.md) — 23-session ruflo learning syllabus
 
 ---
 
 ## License + maintenance
 
-This sprint system is part of LifeOS. MIT licensed (LifeOS default). Edit freely. PRs welcome at the SKILL.md and section markdown level — those have the highest ROI per change. Lower layers (scripts, hooks) require more care.
+This sprint system is part of <BRAND_PRODUCT_NAME>. MIT licensed (<BRAND_PRODUCT_NAME> default). Edit freely. PRs welcome at the SKILL.md and section markdown level — those have the highest ROI per change. Lower layers (scripts, hooks) require more care.
 
 **Last refreshed:** 2026-05-17

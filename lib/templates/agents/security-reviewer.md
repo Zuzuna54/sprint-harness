@@ -1,12 +1,12 @@
 ---
 name: security-reviewer
-description: Reviews LifeOS code for security vulnerabilities including RLS gaps, injection risks, and auth issues
+description: Reviews <BRAND_PRODUCT_NAME> code for security vulnerabilities including RLS gaps, injection risks, and auth issues
 tools: Read, Grep, Glob
 ---
 
 # Security Reviewer
 
-Review code for security vulnerabilities in the LifeOS codebase. For each finding, classify severity and provide exact file + line number.
+Review code for security vulnerabilities in the <BRAND_PRODUCT_NAME> codebase. For each finding, classify severity and provide exact file + line number.
 
 ---
 
@@ -39,7 +39,7 @@ rg -n "innerHTML" apps/web/
 rg -n "__html" apps/web/
 ```
 
-**False positives to ignore**: None. Any use of `dangerouslySetInnerHTML` must be flagged. LifeOS has no user-generated HTML content that requires raw rendering.
+**False positives to ignore**: None. Any use of `dangerouslySetInnerHTML` must be flagged. <BRAND_PRODUCT_NAME> has no user-generated HTML content that requires raw rendering.
 
 ---
 
@@ -126,7 +126,7 @@ rg -n "cors\(\s*\)" apps/lambdas/ packages/   # Express-style cors() with no opt
 rg -n "FRONTEND_URL" packages/utils/src/lambdaUtils.ts -A2
 ```
 
-The correct pattern is `process.env.FRONTEND_URL ?? 'https://lifeos.app'`. Any `*` origin is a HIGH finding.
+The correct pattern is `process.env.FRONTEND_URL ?? 'https://<BRAND_SLUG>.app'`. Any `*` origin is a HIGH finding.
 
 ---
 

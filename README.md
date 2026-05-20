@@ -43,8 +43,7 @@ This will:
 To install for OpenCode specifically:
 
 ```bash
-npx @ordex/sprint-harness install
-# When prompted, choose "opencode"
+npx @ordex/sprint-harness install --runtime opencode
 ```
 
 Or set environment variable before install:

@@ -1,6 +1,6 @@
 ---
 name: rls-verifier
-description: Verifies RLS policies exist and are correct on all LifeOS database tables
+description: Verifies RLS policies exist and are correct on all <BRAND_PRODUCT_NAME> database tables
 tools: Read, Grep, Glob
 ---
 
@@ -202,7 +202,7 @@ Run this test pattern against every table with `user_id`. Critical tables to tes
 
 ## Step 6: Verify All Expected Tables
 
-Complete list of LifeOS tables requiring RLS with `user_id`:
+Complete list of <BRAND_PRODUCT_NAME> tables requiring RLS with `user_id`:
 
 | Table | SELECT | INSERT | UPDATE | DELETE |
 |-------|--------|--------|--------|--------|

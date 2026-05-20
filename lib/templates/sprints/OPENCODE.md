@@ -18,6 +18,11 @@ Multiple runtimes detected. Which one should this harness target?
   - opencode
 
 Install for opencode? (default: claude-code)
+
+Alternatively, you can bypass the prompt by passing the `--runtime` flag:
+```bash
+npx @ordex/sprint-harness install --runtime opencode
+```
 ```
 
 Select `opencode` to install OpenCode-specific configuration.
@@ -100,7 +105,7 @@ The `opencode-claude-hooks` plugin reads `.claude/settings.json` hooks and fires
 1. **Agent format** — OpenCode agents use similar markdown format but with some frontmatter differences
 2. **Skills** — Auto-discovered from both `.claude/skills/` and `.opencode/skills/`
 3. **Commands** — OpenCode uses `.opencode/commands/` instead of `.claude/commands/`
-4. **Daemon workers** — OpenCode uses opencode-orchestrator daemon instead of ruflo daemon
+4. **Daemon workers** — OpenCode delegates background tasks (like `audit` or `testgaps`) to the active OpenCode agent synchronously via an `ACTION_REQUIRED` stderr intercept instead of relying on a background daemon.
 5. **Metrics directory** — `.opencode-flow/metrics/` instead of `.claude-flow/metrics/`
 
 ---
@@ -119,10 +124,6 @@ Ensure `opencode-claude-hooks` plugin is in your `opencode.json`:
 
 ### MCP tools not available
 
-Verify opencode-orchestrator is running:
-
-```bash
-opencode-orchestrator daemon status
 ```
 
 ### Skills not discovered

@@ -14,8 +14,8 @@
 ## Typical question shape
 
 - J1 — **Security risks**: "Based on §C-§D-§H, I see these security surfaces: <auto-detected list>. For each, what's the risk and mitigation? (Examples: 'RLS gap on new table → 4-policy template applied'; 'No injection risk — Zod validates'). Also: any auth flow changes?"
-- J2 — **Privacy**: "Data touched: <from C5/H1>. Retention policy? (LifeOS default: indefinite, user-controlled deletion via soft-delete). Encryption-at-rest: already enabled per Ordex setup — confirm."
-- J3 — **Rollback**: "How do we revert if this breaks prod? LifeOS defaults: Vercel preview deploy → smoke test → promote; DB rollback via soft-delete + additive-only migrations. Need feature flag for staged rollout, or default plan sufficient?"
+- J2 — **Privacy**: "Data touched: <from C5/H1>. Retention policy? (<BRAND_PRODUCT_NAME> default: indefinite, user-controlled deletion via soft-delete). Encryption-at-rest: already enabled per Ordex setup — confirm."
+- J3 — **Rollback**: "How do we revert if this breaks prod? <BRAND_PRODUCT_NAME> defaults: Vercel preview deploy → smoke test → promote; DB rollback via soft-delete + additive-only migrations. Need feature flag for staged rollout, or default plan sufficient?"
 - J4 — **Open questions**: "What do we still NOT know? List unknowns. For each: (a) decide now, (b) accept ambiguity + revisit at design lock, (c) needs a spike before sprint can proceed."
 - **J5 — Worker rigor (v0.7+, harness-deterministic-phases-v1 AC-10)**: "How strict should worker output enforcement be for this sprint? Two options:
   - `lax` (default): only `audit` + `testgaps` workers block the verify gate. Other workers (`map`, `consolidate`, `predict`, `refactor`, `document`, `optimize`) are advisory.
@@ -39,10 +39,10 @@
 
 ## Recall targets
 
-- `lifeos-causal-rls-skip-leak`
-- `lifeos-causal-s3-bucket-acl-deprecated`
+- `<BRAND_SLUG>-causal-rls-skip-leak`
+- `<BRAND_SLUG>-causal-s3-bucket-acl-deprecated`
 - `security-pattern`
-- `lifeos-encryption-at-rest-setup`
+- `<BRAND_SLUG>-encryption-at-rest-setup`
 
 ## Style guidance
 

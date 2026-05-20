@@ -25,7 +25,7 @@ SPRINT_BYPASS_WHY='Sonar container down — escalated to infra; rerun scheduled 
 
 # Multi-gate (comma-separated)
 SPRINT_BYPASS_GATE='verify-typecheck,verify-tests' \
-SPRINT_BYPASS_WHY='Pre-existing @lifeos/db failure unrelated to this sprint; tracked separately' \
+SPRINT_BYPASS_WHY='Pre-existing @<BRAND_SLUG>/db failure unrelated to this sprint; tracked separately' \
   bash scripts/sprint-advance-phase.sh pre-deploy
 
 # Path-shaped bypass (artifact predicate)
@@ -67,7 +67,7 @@ Every accepted bypass appends to `state.gate_bypasses[]`:
 ### When bypass IS appropriate
 
 - **External service down** (Sonar container, ruflo daemon, GitHub API rate-limit).
-- **Pre-existing failure unrelated to this sprint** (typecheck error in `@lifeos/db/seed/` predating sprint-start).
+- **Pre-existing failure unrelated to this sprint** (typecheck error in `@<BRAND_SLUG>/db/seed/` predating sprint-start).
 - **Not-applicable predicate** (harness-itself sprint that adds no Lambdas needs no `verify-debug-rls`).
 - **Operator judgment override** with rationale + scheduled follow-up.
 

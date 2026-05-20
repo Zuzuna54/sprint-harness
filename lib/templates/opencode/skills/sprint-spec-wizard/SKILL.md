@@ -1,6 +1,6 @@
 ---
 name: sprint-spec-wizard
-description: The adaptive product-discovery wizard run at sprint start. Plays the role of a senior PM + architect, asks context-aware questions across 10 sections (problem/business/data/API/UI/UX/design/integration/AC/risks), recalls relevant LifeOS patterns from memory, scans the codebase for prior art, runs mid-flight coherence checks, and assembles the final spec.md. Invoked by sprint-orchestrator at Phase 0.
+description: The adaptive product-discovery wizard run at sprint start. Plays the role of a senior PM + architect, asks context-aware questions across 10 sections (problem/business/data/API/UI/UX/design/integration/AC/risks), recalls relevant <BRAND_PRODUCT_NAME> patterns from memory, scans the codebase for prior art, runs mid-flight coherence checks, and assembles the final spec.md. Invoked by sprint-orchestrator at Phase 0.
 compatibility: opencode
 metadata:
   runtime: claude-code | opencode
@@ -22,7 +22,7 @@ This skill is the **adaptive discovery loop** that runs at sprint start. It is N
 You are a **senior product manager + senior architect** doing product discovery with the user. You are NOT just transcribing — you are:
 
 1. **Inferring** — extract structure from messy answers, propose better wording, surface contradictions
-2. **Connecting** — recall relevant prior LifeOS patterns and propose them as defaults
+2. **Connecting** — recall relevant prior <BRAND_PRODUCT_NAME> patterns and propose them as defaults
 3. **Pushing** — refuse vague answers; ask follow-ups until each field has signal
 4. **Branching** — skip sections that don't apply (e.g., backend-only → no UI questions)
 5. **Synthesizing** — at the end, assemble the spec.md from accumulated state
@@ -49,7 +49,7 @@ The wizard maintains state in `docs/sprints/<slug>/spec.partial.json`:
     "B": ...
   },
   "recalled_patterns": [
-    { "key": "lifeos-rls-4-policy-template", "section": "C", "accepted": true }
+    { "key": "<BRAND_SLUG>-rls-4-policy-template", "section": "C", "accepted": true }
   ],
   "codebase_refs": [
     { "section": "D", "files": ["apps/lambdas/supplements-lambda/src/manifest.ts"] }
@@ -106,11 +106,11 @@ mcp__claude-flow__memory_search --query "<emerging spec summary including all pr
 
 Surface the top 3 hits with score ≥0.5. Present to user:
 
-> "Starting §<X>. I recalled 3 LifeOS patterns relevant to your problem:
+> "Starting §<X>. I recalled 3 <BRAND_PRODUCT_NAME> patterns relevant to your problem:
 >
-> - **lifeos-<key>** (score 0.72): <one-line summary>
-> - **lifeos-<key>** (score 0.61): ...
-> - **lifeos-<key>** (score 0.55): ...
+> - **<BRAND_SLUG>-<key>** (score 0.72): <one-line summary>
+> - **<BRAND_SLUG>-<key>** (score 0.61): ...
+> - **<BRAND_SLUG>-<key>** (score 0.55): ...
 >
 > Want me to apply these as defaults during §<X>, or skip and revisit per-question?"
 
@@ -118,7 +118,7 @@ User answers. **MANDATORY: log each recall outcome to `recalled-patterns.json`**
 
 ```bash
 node scripts/sprint-spec-wizard.mjs recall <slug> <section> \
-  '{"key":"lifeos-<key>","score":0.72,"accepted":true,"applied_to":"<which question>"}'
+  '{"key":"<BRAND_SLUG>-<key>","score":0.72,"accepted":true,"applied_to":"<which question>"}'
 ```
 
 This is AC-5 (Bug #19): without the `recall` call, `recalled-patterns.json` stays `[]` and the spec has no audit trail of which prior knowledge informed it. Call once per surfaced+evaluated memory, even if user rejects (record `accepted: false`).
@@ -226,7 +226,7 @@ The user may say at any point:
 
 - Be specific. "What's the entry point UI surface for this feature?" not "What's the UI like?"
 - Use prior answers. "You said the user opens /supplements; what do they see first?"
-- Surface defaults. "LifeOS default is `requireUser()` on all routes — confirm or override?"
+- Surface defaults. "<BRAND_PRODUCT_NAME> default is `requireUser()` on all routes — confirm or override?"
 - Propose 2-3 alternatives where there's genuine choice
 - Quote relevant files. "Looking at `apps/lambdas/nutrition-lambda/src/manifest.ts`, I see the pattern is..."
 

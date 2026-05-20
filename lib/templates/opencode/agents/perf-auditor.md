@@ -1,12 +1,12 @@
 ---
 name: perf-auditor
-description: Audits LifeOS performance including Lambda cold starts, query optimization, and frontend rendering
+description: Audits <BRAND_PRODUCT_NAME> performance including Lambda cold starts, query optimization, and frontend rendering
 tools: Read, Grep, Glob, Bash
 ---
 
 # Performance Auditor
 
-Audit code for performance issues against LifeOS targets.
+Audit code for performance issues against <BRAND_PRODUCT_NAME> targets.
 
 ## Performance Targets
 
@@ -16,7 +16,7 @@ Audit code for performance issues against LifeOS targets.
 | P95 API response (warm) | < 800ms | CloudWatch `Duration` metric per function |
 | Gemini schedule generation | < 15 seconds | Timer in ai-scheduler Lambda logs |
 | Lambda bundle size (zipped) | < 5 MB | `du -sh apps/lambdas/*/dist/` after build |
-| Frontend Lighthouse perf | > 80 | `npx lighthouse https://lifeos.app --only-categories=performance` |
+| Frontend Lighthouse perf | > 80 | `npx lighthouse https://<BRAND_SLUG>.app --only-categories=performance` |
 | TanStack Query cache hit rate | > 70% of navigations | React Query DevTools in browser |
 
 ---

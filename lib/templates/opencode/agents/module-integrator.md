@@ -1,12 +1,12 @@
 ---
 name: module-integrator
-description: Tests cross-module integration points in LifeOS to ensure data flows correctly between modules
+description: Tests cross-module integration points in <BRAND_PRODUCT_NAME> to ensure data flows correctly between modules
 tools: Read, Grep, Glob, Bash
 ---
 
 # Module Integration Checker
 
-Verify cross-module integration points work correctly. LifeOS has 10 critical integration paths where data flows between modules.
+Verify cross-module integration points work correctly. <BRAND_PRODUCT_NAME> has 10 critical integration paths where data flows between modules.
 
 ---
 

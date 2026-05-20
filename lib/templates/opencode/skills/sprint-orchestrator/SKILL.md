@@ -1,6 +1,6 @@
 ---
 name: sprint-orchestrator
-description: Run a complete 2-week Shape Up + SPARC sprint for LifeOS — from spec wizard through deploy + retro — using the full ruflo/opencode-orchestrator stack (workflows, swarms, claims, hive-mind, autopilot, DAA, SONA). Invoked when user says "start a sprint", "let's plan a sprint", "begin sprint for X", or "/sprint <slug>".
+description: Run a complete 2-week Shape Up + SPARC sprint for <BRAND_PRODUCT_NAME> — from spec wizard through deploy + retro — using the full ruflo/opencode-orchestrator stack (workflows, swarms, claims, hive-mind, autopilot, DAA, SONA). Invoked when user says "start a sprint", "let's plan a sprint", "begin sprint for X", or "/sprint <slug>".
 compatibility: opencode
 metadata:
   runtime: claude-code | opencode
@@ -9,7 +9,7 @@ metadata:
 
 # Sprint Orchestrator
 
-This skill defines the **14-day protocol** Claude follows to drive a LifeOS sprint end-to-end with deterministic gates, drift control, and full ruflo activation. It is the centerpiece skill of the LifeOS sprint system.
+This skill defines the **14-day protocol** Claude follows to drive a <BRAND_PRODUCT_NAME> sprint end-to-end with deterministic gates, drift control, and full ruflo activation. It is the centerpiece skill of the <BRAND_PRODUCT_NAME> sprint system.
 
 > **Source of truth:** `/Users/gio/.claude/plans/hazy-gathering-kettle.md` — the approved sprint system plan. This skill operationalizes that plan.
 
@@ -112,7 +112,7 @@ Each sprint is ONE module slice in a 2-week Shape Up + SPARC cycle. Phases below
 
 **Actions:**
 
-1. **Kick off build workflow.** Run `bash scripts/sprint-build-launch.sh` which executes `ruflo workflow execute lifeos-sprint-build --input spec=docs/sprints/<slug>/spec.md`.
+1. **Kick off build workflow.** Run `bash scripts/sprint-build-launch.sh` which executes `ruflo workflow execute <BRAND_SLUG>-sprint-build --input spec=docs/sprints/<slug>/spec.md`.
 2. **The workflow:**
    - Initializes 8-agent `hierarchical-mesh` swarm via `mcp__claude-flow__swarm_init`
    - Grants claims per file-ownership domain via `mcp__claude-flow__claims_claim`:
@@ -177,9 +177,9 @@ Each sprint is ONE module slice in a 2-week Shape Up + SPARC cycle. Phases below
 
 **Actions:**
 
-1. Run `ruflo workflow execute lifeos-sprint-verify --input spec=docs/sprints/<slug>/spec.md` which chains:
+1. Run `ruflo workflow execute <BRAND_SLUG>-sprint-verify --input spec=docs/sprints/<slug>/spec.md` which chains:
    - `pnpm typecheck` (full project)
-   - `pnpm lint` (with `next lint` filter — per LifeOS memory, next lint is interactive; use the project's CI-safe wrapper)
+   - `pnpm lint` (with `next lint` filter — per <BRAND_PRODUCT_NAME> memory, next lint is interactive; use the project's CI-safe wrapper)
    - `pnpm test` (unit + integration)
    - `/api-contract-validation` (manifest vs Zod schemas)
    - `/debug-rls` (verify RLS on new tables)
@@ -209,7 +209,7 @@ Each sprint is ONE module slice in a 2-week Shape Up + SPARC cycle. Phases below
 
 **Actions:**
 
-1. Run `ruflo workflow execute lifeos-deploy --input branch=sprint/<slug>` which:
+1. Run `ruflo workflow execute <BRAND_SLUG>-deploy --input branch=sprint/<slug>` which:
    - Bundles Lambdas
    - Runs `pulumi preview --stack Zuzuna54/dev`
    - **PAUSES** for human approval — workflow_pause invoked
@@ -232,7 +232,7 @@ Each sprint is ONE module slice in a 2-week Shape Up + SPARC cycle. Phases below
    - What worked / didn't / surprised (3 prompts to user)
    - Velocity metrics: time-to-design-lock, drift events, scope amendments, AC closure rate
    - Write to `docs/sprints/<slug>/retro.md`
-2. **Extract patterns.** Claude reads `spec.md` + `wizard-transcript.md` + `retro.md` and proposes 3-5 reusable patterns (e.g., "lifeos-<feature>-pattern: <recipe>"). User approves each → store via `ruflo memory store --vector --upsert`.
+2. **Extract patterns.** Claude reads `spec.md` + `wizard-transcript.md` + `retro.md` and proposes 3-5 reusable patterns (e.g., "<BRAND_SLUG>-<feature>-pattern: <recipe>"). User approves each → store via `ruflo memory store --vector --upsert`.
 3. **CLAUDE.md sync.** If any pattern is now repo-wide, propose addition to CLAUDE.md (e.g., new convention emerged about RLS on a new table type).
 4. **DAA reviewer feedback.** Batch the sprint's PR feedback to the DAA reviewer agent via `mcp__claude-flow__daa_agent_adapt`.
 5. **Trajectory close.** `mcp__claude-flow__hooks_intelligence_trajectory-end` with success signal.
@@ -365,7 +365,7 @@ When invoked during an active sprint, this skill must:
 
 ## What this skill does NOT do
 
-- **Does not write LifeOS code itself.** It delegates to coder/tester/architect agents during build phase.
+- **Does not write <BRAND_PRODUCT_NAME> code itself.** It delegates to coder/tester/architect agents during build phase.
 - **Does not deploy without user approval.** Deploy workflow always pauses at `pulumi preview`.
 - **Does not push to main.** PR flow only. `git push` is forbidden during sprint.
 - **Does not run mid-sprint.** Daemon's `refactor` and `document` workers are paused at sprint-start (drift risk); re-enabled at sprint-end.
@@ -388,5 +388,5 @@ When invoked during an active sprint, this skill must:
 
 - Full plan: `/Users/gio/.claude/plans/hazy-gathering-kettle.md`
 - Wizard skill: `.claude/skills/sprint-spec-wizard/SKILL.md`
-- LifeOS feature map: `docs/ruflo-sessions/ruflo-for-lifeos.md`
+- <BRAND_PRODUCT_NAME> feature map: `docs/ruflo-sessions/ruflo-for-<BRAND_SLUG>.md`
 - Sprint directory: `docs/sprints/README.md`

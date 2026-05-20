@@ -78,7 +78,7 @@ A normal sprint runs 14 days through 13 phases (v0.7.2+ added `audit-resolution`
 | Field                                                      | Value                                                                                                                         |
 | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | Operator action                                            | `bash scripts/sprint-build-launch.sh`                                                                                         |
-| Workflows                                                  | `docs/workflows/lifeos-sprint-build.yaml` — `swarm_init` (8 agents) → claims × 7 → autopilot side-cars × 3 → trajectory-start |
+| Workflows                                                  | `docs/workflows/<BRAND_SLUG>-sprint-build.yaml` — `swarm_init` (8 agents) → claims × 7 → autopilot side-cars × 3 → trajectory-start |
 | [Autopilot side-cars](./DEVELOPER.md#terminology-contract) | `lint-fix`, `test-backfill`, `doc-sweep` (configs in `.claude-flow/autopilot/*.json`)                                         |
 | Daemon workers per wave kickoff                            | `predict` (haiku) — fires from `bash scripts/sprint-wave-start.sh <wave>`                                                     |
 | Sub-step gate                                              | `build-launched`                                                                                                              |
@@ -159,7 +159,7 @@ A normal sprint runs 14 days through 13 phases (v0.7.2+ added `audit-resolution`
 
 | Field           | Value                                                                                                                                                                          |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Operator action | `bash scripts/sprint-deploy.sh` (or `ruflo workflow execute lifeos-deploy`)                                                                                                    |
+| Operator action | `bash scripts/sprint-deploy.sh` (or `ruflo workflow execute <BRAND_SLUG>-deploy`)                                                                                                    |
 | Daemon workers  | `predict` (haiku) — pre-deploy forecast, advisory                                                                                                                              |
 | Sub-step gates  | `deploy-pulumi-preview-captured`, `deploy-human-gate-approved`, `deploy-pulumi-up`, `deploy-smoke`, `deploy-vercel`                                                            |
 | Files           | `deploy/pulumi-preview.txt`, `deploy/pulumi-up.txt`, `deploy/smoke.json`, `deploy/vercel.txt` (artifact paths only; never Pulumi stack contents or secrets — see condition C6) |
@@ -357,6 +357,8 @@ flowchart LR
 
 **Graceful degrade.** If the ruflo daemon is down at fire time and the worker is `required: true`, the run is recorded as a structured bypass (`gate: phase-worker-<name>`, `why: daemon-unavailable`) in `state.gate_bypasses[]` AND `state.worker_invocations[].status = "skipped-required-bypass"`. If `required: false`, it's a silent advisory skip (`status: "skipped-advisory"`).
 
+**OpenCode Native Intercept.** If the runtime is `opencode` (via `SPRINT_RUNTIME=opencode` or `.sprintrc.json`), `worker-trigger.sh` skips the `ruflo` daemon entirely. It emits an `ACTION_REQUIRED` instruction to `stderr`, commanding the active OpenCode agent to natively satisfy the JSON schema using its own toolset. This bridges the background-daemon architecture into OpenCode's synchronous agent model seamlessly.
+
 **Scope source-of-truth (v0.7.2+).** Scope-bound workers (today: `audit`, `testgaps`) read `state.files_touched[]` at gate-eval time. `state.files_touched[]` is the canonical source — set by `sprint-amend-spec.sh --lock` from spec.md §H1 and updated by `sprint-amend-spec.sh --add-file`. The spec.md `## Files touched` section is parsed only as a fallback for legacy / pre-spec-lock sprints whose `state.json` lacks the field. See [§3 — Worker scope](#worker-scope-v072) above.
 
 ### Concept 2 — Task sub-agents (Claude Task tool)
@@ -543,7 +545,7 @@ SPRINT_BYPASS_WHY='Sonar container down — escalated to infra; rerun scheduled 
 
 # Multi-gate (pre-existing failure unrelated to this sprint)
 SPRINT_BYPASS_GATE='verify-typecheck,verify-tests' \
-SPRINT_BYPASS_WHY='Pre-existing @lifeos/db failure unrelated to this sprint; tracked in #1234' \
+SPRINT_BYPASS_WHY='Pre-existing @<BRAND_SLUG>/db failure unrelated to this sprint; tracked in #1234' \
   bash scripts/sprint-advance-phase.sh pre-deploy
 
 # Path-shaped (artifact predicate)
@@ -573,7 +575,7 @@ These all still work — they auto-translate to the canonical UX, emit a stderr 
 ### When bypass is appropriate
 
 - **External service down** (Sonar, ruflo daemon, GitHub API rate-limit).
-- **Pre-existing failure unrelated to this sprint** (typecheck error in `@lifeos/db/seed/` predating sprint-start).
+- **Pre-existing failure unrelated to this sprint** (typecheck error in `@<BRAND_SLUG>/db/seed/` predating sprint-start).
 - **Not-applicable predicate** (harness-itself sprint with no Lambdas → no `verify-debug-rls`).
 - **Operator judgment override** with rationale + scheduled follow-up.
 

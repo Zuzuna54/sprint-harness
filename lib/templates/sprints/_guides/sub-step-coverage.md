@@ -40,7 +40,7 @@
 
 ### Spec-lock 4-way review (4 gates)
 
-`spec-lock-solution-sketches`, `spec-lock-architect-review`, `spec-lock-security-review`, `spec-lock-hive-mind-consensus`. Recording belongs in the workflow that spawns those agents (`docs/workflows/lifeos-sprint-build.yaml` Phase 1 chain), or in a new `sprint-spec-lock-review.sh` that wraps the 4 agent calls.
+`spec-lock-solution-sketches`, `spec-lock-architect-review`, `spec-lock-security-review`, `spec-lock-hive-mind-consensus`. Recording belongs in the workflow that spawns those agents (`docs/workflows/<BRAND_SLUG>-sprint-build.yaml` Phase 1 chain), or in a new `sprint-spec-lock-review.sh` that wraps the 4 agent calls.
 
 ### Verify chain (18 gates)
 
@@ -48,7 +48,7 @@
 
 ### Deploy (5 gates)
 
-`deploy-pulumi-preview-captured`, `deploy-human-gate-approved`, `deploy-pulumi-up`, `deploy-smoke`, `deploy-vercel`. Recording belongs in `docs/workflows/lifeos-deploy.yaml` at each workflow step, OR a new `sprint-deploy.sh` wrapper that calls the workflow.
+`deploy-pulumi-preview-captured`, `deploy-human-gate-approved`, `deploy-pulumi-up`, `deploy-smoke`, `deploy-vercel`. Recording belongs in `docs/workflows/<BRAND_SLUG>-deploy.yaml` at each workflow step, OR a new `sprint-deploy.sh` wrapper that calls the workflow.
 
 ### Misc (12 gates)
 

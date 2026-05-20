@@ -11,7 +11,7 @@ set -euo pipefail
 
 ARGS="${*:-}"
 
-LOCK_DIR="${XDG_RUNTIME_DIR:-$HOME/.cache/lifeos/locks}"
+LOCK_DIR="${XDG_RUNTIME_DIR:-$HOME/.cache/<BRAND_SLUG>/locks}"
 (umask 077; mkdir -p "$LOCK_DIR")
 LOCK_FILE="${LOCK_DIR}/git-index.lock"
 

@@ -237,18 +237,33 @@ function cmdDoctor() {
       ok(`gh labels           ${rc.gh_labels_created.join(', ')} (recorded)`);
     }
     // ruflo init
-    if (rc.ruflo_init_ran === true) ok(`ruflo init          ran`);
-    else if (rc.ruflo_init_ran === false) { err(`ruflo init          FAILED — run \`ruflo init\``); surfaceMiss++; }
+    if (targetRuntime === 'opencode') {
+      ok(`ruflo init          skipped (OpenCode runtime)`);
+    } else {
+      if (rc.ruflo_init_ran === true) ok(`ruflo init          ran`);
+      else if (rc.ruflo_init_ran === false) { err(`ruflo init          FAILED — run \`ruflo init\``); surfaceMiss++; }
+    }
     // mcp wire-up
-    if (rc.mcp_configured === true) {
-      const mcp = join(targetDir, '.mcp.json');
-      if (existsSync(mcp)) {
+    if (targetRuntime === 'opencode') {
+      const ocPath = join(targetDir, 'opencode.json');
+      if (existsSync(ocPath)) {
         try {
-          const j = JSON.parse(readFileSync(mcp, 'utf8'));
-          if (j.mcpServers && j.mcpServers.ruflo) ok(`mcp .mcp.json       has ruflo entry`);
-          else { err(`mcp .mcp.json       no ruflo entry`); surfaceMiss++; }
-        } catch { err(`mcp .mcp.json       invalid JSON`); surfaceMiss++; }
-      } else { err(`mcp .mcp.json       missing`); surfaceMiss++; }
+          const j = JSON.parse(readFileSync(ocPath, 'utf8'));
+          if (j.mcp && j.mcp["opencode-orchestrator"]) ok(`mcp opencode.json   has opencode-orchestrator entry`);
+          else { err(`mcp opencode.json   no opencode-orchestrator entry`); surfaceMiss++; }
+        } catch { err(`mcp opencode.json   invalid JSON`); surfaceMiss++; }
+      } else { err(`mcp opencode.json   missing`); surfaceMiss++; }
+    } else {
+      if (rc.mcp_configured === true) {
+        const mcp = join(targetDir, '.mcp.json');
+        if (existsSync(mcp)) {
+          try {
+            const j = JSON.parse(readFileSync(mcp, 'utf8'));
+            if (j.mcpServers && j.mcpServers.ruflo) ok(`mcp .mcp.json       has ruflo entry`);
+            else { err(`mcp .mcp.json       no ruflo entry`); surfaceMiss++; }
+          } catch { err(`mcp .mcp.json       invalid JSON`); surfaceMiss++; }
+        } else { err(`mcp .mcp.json       missing`); surfaceMiss++; }
+      }
     }
     // memory.db isolation
     if (rc.memoryStrategy === 'per-project') {
@@ -295,7 +310,10 @@ async function cmdInstall() {
 
   // Detect available runtimes and prompt for choice
   // Check SPRINT_RUNTIME env var first (can be set before running install)
-  const envRuntime = process.env.SPRINT_RUNTIME;
+  const envRuntime = process.env.SPRINT_RUNTIME || (() => { 
+    const i = rest.indexOf('--runtime'); 
+    return i >= 0 ? rest[i+1] : null; 
+  })();
   const availableRuntimes = [];
   if (which('claude')) availableRuntimes.push('claude-code');
   if (which('opencode')) availableRuntimes.push('opencode');
@@ -363,6 +381,14 @@ async function cmdInstall() {
   // and chain the previous prepare value if it gets overwritten.
   if (!existing.husky) {
     const pkgPath = join(targetDir, 'package.json');
+    if (!existsSync(pkgPath)) {
+      if (nonInteractive) execSync('npm init -y', { cwd: targetDir, stdio: 'ignore' });
+      else { err('package.json missing. Run `npm init` before installing.'); process.exit(2); }
+    }
+    if (!existsSync(join(targetDir, '.git'))) {
+      if (nonInteractive) execSync('git init', { cwd: targetDir, stdio: 'ignore' });
+      else { err('.git/ missing. Run `git init` before installing.'); process.exit(2); }
+    }
     let preexistingPrepare = null;
     if (existsSync(pkgPath)) {
       try {
@@ -1197,7 +1223,7 @@ const SUB = {
 };
 if (!cmd || !SUB[cmd]) {
   log('Usage: sprint-harness <install|verify|doctor|uninstall|update> [options]');
-  log('       sprint-harness install [--non-interactive] [--target <dir>]');
+  log('       sprint-harness install [--non-interactive] [--target <dir>] [--runtime <claude-code|opencode>]');
   log('       sprint-harness doctor');
   log('       sprint-harness verify');
   log('       sprint-harness uninstall');

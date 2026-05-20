@@ -54,6 +54,11 @@ if [ -f ".sprintrc.json" ]; then
   RUNTIME="$(jq -r '.runtime // "claude-code"' .sprintrc.json 2>/dev/null || echo "claude-code")"
 fi
 
+RUNTIME="claude-code"
+if [ -f ".sprintrc.json" ]; then
+  RUNTIME="$(jq -r '.runtime // "claude-code"' .sprintrc.json 2>/dev/null || echo "claude-code")"
+fi
+
 # ── 1. ruflo daemon ─────────────────────────────────────────────────────────
 if [ "$RUNTIME" = "opencode" ]; then
   CHECK_DAEMON_OK=1
